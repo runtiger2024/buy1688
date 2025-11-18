@@ -1,0 +1,12 @@
+# 依賴
+node_modules/
+
+# 環境變數 (非常重要！)
+.env
+.env.local
+
+# Log 檔案
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

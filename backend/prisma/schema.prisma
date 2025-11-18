@@ -1,0 +1,126 @@
+// backend/prisma/schema.prisma (最終 PostgreSQL 配置)
+
+// 1. 設定資料庫連線
+datasource db {
+  provider = "postgresql" // 【還原】使用 PostgreSQL
+  url      = env("DATABASE_URL") 
+}
+
+// 2. 設定 Prisma Client 產生器
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 3. 定義您的資料模型 (Models) 和枚舉 (Enums)
+
+// ENUMs (枚舉)
+enum UserRole {
+  admin
+  operator
+}
+
+enum OrderStatus {
+  Pending
+  Processing
+  Shipped_Internal
+  Warehouse_Received
+  Completed
+  Cancelled
+}
+
+// Models (資料模型)
+
+// 管理員/操作員
+model Users {
+  id            Int      @id @default(autoincrement())
+  username      String   @unique
+  password_hash String
+  role          UserRole   @default(operator)
+  status        String   @default("active")
+  created_at    DateTime @default(now())
+
+  // 關聯: 一個 User 可以有多個 Orders
+  orders        Orders[]
+
+  @@map("users") // 對應到資料庫中的 'users' 表
+}
+
+// 商品
+model Products {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  image_url   String?
+  cost_cny    Decimal
+  price_twd   Int
+  is_archived Boolean  @default(false)
+  created_at  DateTime @default(now())
+
+  // 關聯: 一個 Product 可以出現在多個 OrderItems 中
+  order_items OrderItems[]
+
+  @@map("products") // 對應到 'products' 表
+}
+
+// 訂單
+model Orders {
+  id                 Int         @id @default(autoincrement())
+  paopao_id          String
+  customer_email     String?
+  total_amount_twd   Int
+  total_cost_cny     Decimal
+  status             OrderStatus @default(Pending)
+  operator_id        Int?
+  notes              String?
+  created_at         DateTime    @default(now())
+
+  // 關聯: 訂單 -> 操作員 (可選)
+  operator           Users?      @relation(fields: [operator_id], references: [id])
+  
+  // 關聯: 訂單 -> 訂單內的商品 (一對多)
+  items              OrderItems[]
+
+  @@map("orders") // 對應到 'orders' 表
+}
+
+// 訂單內的商品 (關聯表)
+model OrderItems {
+  id                  Int     @id @default(autoincrement())
+  order_id            Int
+  product_id          Int
+  quantity            Int
+  snapshot_name       String?
+  snapshot_price_twd  Int
+  snapshot_cost_cny   Decimal
+
+  // 關聯: OrderItem -> Order (多對一)
+  order               Orders  @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  // 關聯: OrderItem -> Product (多對一)
+  product             Products @relation(fields: [product_id], references: [id])
+
+  @@map("order_items") // 對應到 'order_items' 表
+}
+
+// 倉庫
+model Warehouses {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique // 倉庫名稱必須唯一
+  receiver   String
+  phone      String
+  address    String
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+
+  @@map("warehouses") // 對應到 'warehouses' 表
+}
+
+// 客戶 (會員)
+model Customers {
+  id            Int      @id @default(autoincrement())
+  paopao_id     String   @unique // 跑跑虎 ID
+  password_hash String   // 手機號碼的雜湊
+  email         String   @unique
+  created_at    DateTime @default(now())
+
+  @@map("customers") // 對應到 'customers' 表
+}
