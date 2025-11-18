@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>代購平台 - 管理儀表板</title>
-    <link rel="stylesheet" href="admin.css" />
+    <link rel="stylesheet" href="../../css/admin.css" />
   </head>
   <body>
     <header>
@@ -13,7 +13,7 @@
       <div class="auth-box">
         <span id="user-info">正在載入...</span>
         <button id="logout-button" class="btn btn-delete">登出</button>
-        <a href="../index.html" class="btn btn-link">返回前台</a>
+        <a href="../../html/index.html" class="btn btn-link">返回前台</a>
       </div>
     </header>
 
@@ -55,22 +55,51 @@
     </nav>
     <main class="dashboard-layout">
       <section class="dashboard-section" id="stats-section">
-        <h2>績效一覽表</h2>
+        <div class="section-header-controls">
+          <h2>系統設定與績效</h2>
+          <div class="form-group-inline">
+            <label for="exchange-rate-input">匯率:</label>
+            <input
+              type="number"
+              id="exchange-rate-input"
+              step="0.01"
+              style="width: 70px"
+            />
+
+            <label for="service-fee-input" style="margin-left: 10px"
+              >服務費(如0.1):</label
+            >
+            <input
+              type="number"
+              id="service-fee-input"
+              step="0.01"
+              style="width: 60px"
+            />
+
+            <button id="save-settings-btn" class="btn btn-primary">
+              儲存設定
+            </button>
+          </div>
+        </div>
         <div id="stats-content">
           <p>正在載入績效...</p>
         </div>
       </section>
-
       <section class="dashboard-section" id="orders-section">
-        <h2>訂單管理 (待處理/採購中)</h2>
-        <button id="refresh-data" class="btn btn-primary">刷新訂單</button>
+        <div class="section-header-controls">
+          <h2>訂單管理 (待處理/採購中)</h2>
+          <button id="refresh-data" class="btn btn-primary">刷新訂單</button>
+        </div>
         <table id="orders-table">
           <thead>
             <tr>
               <th>訂單ID</th>
+              <th>類型</th>
               <th>建立時間</th>
               <th>跑跑虎ID</th>
-              <th>總金額</th>
+              <th>總金額 (TWD)</th>
+              <th>總成本 (CNY)</th>
+              <th>預估利潤 (TWD)</th>
               <th>訂單狀態</th>
               <th>付款狀態</th>
               <th>操作</th>
@@ -292,6 +321,6 @@
     <footer class="admin-footer">
       <p>&copy; 2025 Runtiger International - Admin Panel</p>
     </footer>
-    <script type="module" src="admin.js"></script>
+    <script type="module" src="../js/admin.js"></script>
   </body>
 </html>

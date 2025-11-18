@@ -4,10 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>代採購平台</title>
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="../css/style.css" />
   </head>
   <body>
-    <div id="header-placeholder"></div>
+    <div id="navbar-placeholder"></div>
+
     <div class="cart-button-container" id="cart-button">
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -28,13 +29,18 @@
     </div>
 
     <main>
-      <div
-        id="customer-info"
-        style="text-align: right; margin-bottom: 15px; min-height: 1.5em"
-      ></div>
+      <div id="notice-placeholder"></div>
 
       <h1>我們的商品</h1>
 
+      <div id="search-bar-container">
+        <input
+          type="search"
+          id="product-search-input"
+          placeholder="搜尋商品名稱..."
+        />
+        <button id="product-search-button">搜尋</button>
+      </div>
       <div id="category-filter-bar">
         <p>正在載入分類...</p>
       </div>
@@ -135,11 +141,12 @@
         </div>
       </div>
     </div>
+
     <footer class="site-footer">
       <div class="footer-content">
         <p id="footer-auth-links">
-          <a href="login.html">會員登入</a> |
-          <a href="register.html">會員註冊</a>
+          <a href="./login.html">會員登入</a> |
+          <a href="./register.html">會員註冊</a>
         </p>
         <p>
           <strong>跑得快國際貿易有限公司</strong><br />
@@ -151,34 +158,26 @@
         </p>
         <p>LINE官方客服：@gogo5808</p>
         <p class="copyright">
-          <a href="./admin/login.html" class="admin-link" title="管理員登入">
+          <a
+            href="../admin/html/login.html"
+            class="admin-link"
+            title="管理員登入"
+          >
             &copy; 管理員登入
           </a>
         </p>
       </div>
     </footer>
+
     <a
       href="https://lin.ee/pb428dF"
       target="_blank"
       rel="noopener noreferrer"
       class="line-float-button"
     >
-      <svg
-        class="line-icon"
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path
-          d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-        ></path>
-      </svg>
-      <span>LINE 客服</span>
+      <span>LINE</span>
     </a>
-    <script type="module" src="app.js"></script>
+
+    <script type="module" src="../js/app.js"></script>
   </body>
 </html>

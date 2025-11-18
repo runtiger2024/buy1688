@@ -3,26 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>我的帳戶 - 代採購平台</title>
+    <title>載入商品中... - 代採購平台</title>
     <link rel="stylesheet" href="../css/style.css" />
   </head>
   <body>
     <div id="navbar-placeholder"></div>
 
     <main>
-      <div id="notice-placeholder"></div>
+      <p class="breadcrumbs">
+        <a href="./index.html">所有商品</a>
+        <span id="breadcrumb-separator" style="display: none"> &gt; </span>
+        <a id="breadcrumb-category" href="#"></a>
+      </p>
 
-      <h1>我的訂單</h1>
-      <p><a href="./index.html">&leftarrow; 返回商店</a></p>
-
-      <div id="order-history-container">
-        <p>正在載入您的訂單...</p>
+      <div id="product-detail-container">
+        <p>正在載入商品詳情...</p>
       </div>
     </main>
 
     <footer class="site-footer">
       <div class="footer-content">
-        <p id="footer-auth-links" style="display: none">
+        <p id="footer-auth-links">
           <a href="./login.html">會員登入</a> |
           <a href="./register.html">會員註冊</a>
         </p>
@@ -56,6 +57,6 @@
       <span>LINE</span>
     </a>
 
-    <script type="module" src="../js/my-account.js"></script>
+    <script type="module" src="../js/product.js"></script>
   </body>
 </html>

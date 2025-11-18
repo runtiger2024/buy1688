@@ -1,4 +1,5 @@
-import { API_URL } from "./config.js"; // <--- 【優化】從 config 導入
+// 【修正】路徑改為 ../../js/config.js
+import { API_URL } from "./config.js";
 
 /**
  * 異步載入共用組件 (例如頁首、頁尾)
@@ -36,35 +37,68 @@ function customerLogout() {
   localStorage.removeItem("customerToken");
   localStorage.removeItem("customerUser");
   alert("您已成功登出。");
-  window.location.reload();
+  // 【修正】登出後應導向首頁
+  window.location.href = "./index.html";
 }
 
-// --- 【第三批優化：修改客戶登入 UI】 ---
+// --- 【第十批優化：重構 setupCustomerAuth】 ---
 /**
- * (【全新】) 檢查客戶登入狀態並更新 UI
+ * 檢查客戶登入狀態並更新「導覽列」
+ * (!!! 此函數必須在 loadComponent 載入 _navbar.html 之後執行 !!!)
  */
 function setupCustomerAuth() {
   const customer = getCustomer();
-  const infoDiv = document.getElementById("customer-info");
+  const desktopLinks = document.getElementById("nav-auth-links-desktop");
+  const mobileLinks = document.getElementById("nav-auth-links-mobile");
   const footerLinks = document.getElementById("footer-auth-links");
 
-  if (customer && infoDiv) {
-    // 狀態：已登入
-    infoDiv.innerHTML = `
-      <span style="margin-right: 10px;">歡迎, ${customer.paopao_id}</span>
-      <a href="my-account.html" class="customer-nav-link">我的訂單</a>
-      <span class="customer-nav-separator">|</span>
-      <button id="customer-logout-btn" class="btn-small-delete">登出</button>
-    `;
-    document
-      .getElementById("customer-logout-btn")
-      .addEventListener("click", customerLogout);
+  if (!desktopLinks || !mobileLinks || !footerLinks) {
+    console.error("Auth UI 佔位符 (nav-auth-links) 載入失敗。");
+    return;
+  }
 
-    if (footerLinks) footerLinks.style.display = "none"; // 隱藏 "會員登入/註冊"
+  if (customer) {
+    // 狀態：已登入
+    const commonLinks = `
+      <a href="../html/my-account.html" class="nav-link">我的訂單</a>
+      <button id="logout-btn" class="btn-small-delete">登出</button>
+    `;
+    desktopLinks.innerHTML = commonLinks;
+    mobileLinks.innerHTML = commonLinks;
+
+    // 為多個登出按鈕綁定事件 (重要)
+    document.querySelectorAll("#logout-btn").forEach((btn) => {
+      btn.addEventListener("click", customerLogout);
+    });
+
+    footerLinks.style.display = "none";
   } else {
     // 狀態：未登入
-    if (infoDiv) infoDiv.innerHTML = "";
-    if (footerLinks) footerLinks.style.display = "block"; // 顯示 "會員登入/註冊"
+    desktopLinks.innerHTML = `
+      <a href="../html/login.html" class="nav-link-button">會員登入</a>
+    `;
+    mobileLinks.innerHTML = `
+      <a href="../html/login.html" class="nav-link-button">會員登入</a>
+      <a href="../html/register.html" class="nav-link">免費註冊</a>
+    `;
+    footerLinks.style.display = "block";
+  }
+}
+// --- 【優化結束】 ---
+
+// --- 【第十批優化：新增漢堡選單邏輯】 ---
+/**
+ * 為漢堡選單圖示綁定點擊事件
+ * (!!! 此函數必須在 loadComponent 載入 _navbar.html 之後執行 !!!)
+ */
+function setupHamburgerMenu() {
+  const toggleButton = document.getElementById("mobile-menu-toggle");
+  const menu = document.getElementById("nav-menu");
+
+  if (toggleButton && menu) {
+    toggleButton.addEventListener("click", () => {
+      menu.classList.toggle("active");
+    });
   }
 }
 // --- 【優化結束】 ---
@@ -73,16 +107,26 @@ function setupCustomerAuth() {
 // 全域變數
 // -------------------------------------------------
 let shoppingCart = {};
+// --- 【第七批優化：新增篩選狀態變數】 ---
+let currentCategoryId = null; // null 代表 "全部"
+let currentSearchTerm = "";
+// --- 【優化結束】 ---
 
 // -------------------------------------------------
 // DOM 載入後執行
+// --- 【第十批優化：改為 async 函數】 ---
 // -------------------------------------------------
-document.addEventListener("DOMContentLoaded", () => {
-  // 載入共用頁首
-  loadComponent("./_header.html", "header-placeholder");
+document.addEventListener("DOMContentLoaded", async () => {
+  // --- 【優化】將 Navbar 載入改為 await，確保它最先載入 ---
+  await loadComponent("../html/_navbar.html", "navbar-placeholder");
 
-  // (【全新】) 檢查客戶登入狀態
-  setupCustomerAuth();
+  // --- 【優化】Navbar 載入後，才執行依賴它的 JS ---
+  setupHamburgerMenu(); // 綁定漢堡選單
+  setupCustomerAuth(); // 檢查登入狀態並填入 Navbar
+
+  // --- 【優化】非同步載入其他元件 ---
+  // 【修正】路徑改為 ../html/_header.html，ID 改為 notice-placeholder
+  loadComponent("../html/_header.html", "notice-placeholder");
 
   // --- 【優化】從 localStorage 載入購物車 ---
   const savedCart = localStorage.getItem("shoppingCart");
@@ -99,8 +143,35 @@ document.addEventListener("DOMContentLoaded", () => {
   // 【第五批優化】載入分類
   loadCategories();
 
+  // 【第八批優化】檢查 URL 是否有傳入 category 參數
+  const params = new URLSearchParams(window.location.search);
+  const categoryFromUrl = params.get("category");
+  if (categoryFromUrl) {
+    currentCategoryId = categoryFromUrl;
+    // (我們稍後會在 loadCategories 完成後更新按鈕狀態)
+  }
+
   // 載入商品 (預設載入全部)
-  fetchProducts(null); // <-- 傳入 null 代表 "全部商品"
+  fetchProducts(); // <-- 【第七批優化】改為不帶參數，它會自動讀取全域變數
+
+  // --- 【第七批優化：綁定搜尋事件】 ---
+  const searchInput = document.getElementById("product-search-input");
+  const searchButton = document.getElementById("product-search-button");
+
+  // 點擊按鈕時搜尋
+  searchButton.addEventListener("click", () => {
+    currentSearchTerm = searchInput.value;
+    fetchProducts();
+  });
+
+  // 按下 Enter 鍵時也搜尋
+  searchInput.addEventListener("keyup", (event) => {
+    if (event.key === "Enter") {
+      currentSearchTerm = searchInput.value;
+      fetchProducts();
+    }
+  });
+  // --- 【優化結束】 ---
 
   // 設定購物車 Modal
   setupCartModal();
@@ -127,9 +198,9 @@ async function loadCategories() {
     // 1. 清空 "正在載入..."
     filterBar.innerHTML = "";
 
-    // 2. 建立 "全部" 按鈕 (預設選中)
+    // 2. 建立 "全部" 按鈕
     const allBtn = document.createElement("button");
-    allBtn.className = "category-filter-btn active"; // 預設為 active
+    allBtn.className = "category-filter-btn";
     allBtn.textContent = "全部商品";
     allBtn.dataset.id = "all";
     allBtn.addEventListener("click", () => {
@@ -148,6 +219,18 @@ async function loadCategories() {
       });
       filterBar.appendChild(btn);
     });
+
+    // 4. 【第八批優化】根據 URL 參數設定按鈕的 active 狀態
+    if (currentCategoryId) {
+      const activeButton = document.querySelector(
+        `.category-filter-btn[data-id="${currentCategoryId}"]`
+      );
+      if (activeButton) {
+        activeButton.classList.add("active");
+      }
+    } else {
+      allBtn.classList.add("active"); // 預設 "全部商品" 為 active
+    }
   } catch (error) {
     console.error("獲取分類失敗:", error);
     filterBar.innerHTML =
@@ -167,25 +250,43 @@ function handleCategoryClick(categoryId, clickedButton) {
   // 2. 為被點擊的按鈕加上 'active' class
   clickedButton.classList.add("active");
 
-  // 3. 根據分類 ID 重新載入商品
-  fetchProducts(categoryId);
+  // 3. 【第七批優化】更新全域變數並重新載入商品
+  currentCategoryId = categoryId;
+  fetchProducts(); // <-- 它會自動讀取 currentCategoryId 和 currentSearchTerm
+
+  // 4. 【第八批優化】更新 URL (不重載頁面)
+  const url = new URL(window.location);
+  if (currentCategoryId) {
+    url.searchParams.set("category", currentCategoryId);
+  } else {
+    url.searchParams.delete("category");
+  }
+  history.pushState({}, "", url);
 }
 
 // -------------------------------------------------
 // 1. 載入商品
 // -------------------------------------------------
-/**
- * @param {number | null} categoryId - 要篩選的分類 ID，null 代表 "全部"
- */
-async function fetchProducts(categoryId) {
+// --- 【第七批優化：修改 fetchProducts 以使用全域變數】 ---
+async function fetchProducts() {
   const productListDiv = document.getElementById("product-list");
   productListDiv.innerHTML = "<p>正在載入商品...</p>"; // 顯示載入中
 
   try {
-    // 【優化】根據 categoryId 組合 API URL
+    // 1. 【優化】使用 URLSearchParams 建立查詢字串
+    const params = new URLSearchParams();
+    if (currentCategoryId) {
+      params.append("category", currentCategoryId);
+    }
+    if (currentSearchTerm) {
+      params.append("search", currentSearchTerm);
+    }
+
+    // 2. 組合 API URL
+    const queryString = params.toString();
     let url = `${API_URL}/products`;
-    if (categoryId) {
-      url += `?category=${categoryId}`;
+    if (queryString) {
+      url += `?${queryString}`;
     }
 
     const response = await fetch(url);
@@ -195,7 +296,11 @@ async function fetchProducts(categoryId) {
     productListDiv.innerHTML = ""; // 清空「正在載入...」
 
     if (products.length === 0) {
-      productListDiv.innerHTML = "<p>此分類下目前沒有商品。</p>";
+      if (currentSearchTerm) {
+        productListDiv.innerHTML = `<p>找不到符合「${currentSearchTerm}」的商品。</p>`;
+      } else {
+        productListDiv.innerHTML = "<p>此分類下目前沒有商品。</p>";
+      }
     }
 
     products.forEach((product) => {
@@ -205,9 +310,14 @@ async function fetchProducts(categoryId) {
       // (【修正】) 檢查 product.image_url 是否為 null
       const imageUrl = product.image_url || ""; // 如果是 null，改用空字串
 
+      // --- 【第八批優化：將 <h3> 改為 <a> 連結】 ---
       card.innerHTML = `
-                <img src="${imageUrl}" alt="${product.name}">
-                <h3>${product.name}</h3>
+                <a href="../html/product.html?id=${
+                  product.id
+                }" class="product-card-link">
+                    <img src="${imageUrl}" alt="${product.name}">
+                    <h3>${product.name}</h3>
+                </a>
                 <p>${product.description || ""}</p>
                 <div class="price">TWD ${product.price_twd}</div>
                 <button class="add-to-cart-btn" 
@@ -217,6 +327,8 @@ async function fetchProducts(categoryId) {
                     加入購物車
                 </button> 
             `;
+      // --- 【優化結束】 ---
+
       productListDiv.appendChild(card);
     });
 

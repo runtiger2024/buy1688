@@ -1,22 +1,35 @@
-import { API_URL } from "../config.js";
+import { API_URL } from "../../js/config.js";
 let availableOperators = [];
-let allWarehouses = []; // (【全新】) 儲存所有倉庫資料
-let allCategories = []; // (【第四批優化】) 儲存所有分類資料
+let allWarehouses = [];
+let allCategories = [];
+let allOrders = [];
 
-// -------------------------------------------------
-// 1. 核心：認證與守衛
-// -------------------------------------------------
+// --- 狀態翻譯字典 ---
+const ORDER_STATUS_MAP = {
+  Pending: "待處理",
+  Processing: "採購中",
+  Shipped_Internal: "已發貨 (往集運倉)",
+  Warehouse_Received: "已入倉",
+  Completed: "已完成",
+  Cancelled: "已取消",
+};
 
-/**
- * 獲取儲存的 Token
- */
+const PAYMENT_STATUS_MAP = {
+  UNPAID: "待付款",
+  PAID: "已付款",
+};
+
+// --- 【第十九批優化：新增訂單類型翻譯】 ---
+const ORDER_TYPE_MAP = {
+  Standard: "一般商城",
+  Assist: "代客採購",
+};
+// --- 【優化結束】 ---
+
+// --- 核心與守衛 ---
 function getToken() {
   return localStorage.getItem("adminToken");
 }
-
-/**
- * 獲取儲存的用戶資訊
- */
 function getUser() {
   try {
     return JSON.parse(localStorage.getItem("adminUser"));
@@ -24,24 +37,14 @@ function getUser() {
     return null;
   }
 }
-
-/**
- * 頁面載入時的第一道防線
- * 檢查 Token，若無則踢回登入頁
- */
 function checkAuth() {
   if (!getToken()) {
     alert("請先登入");
-    window.location.href = "login.html";
+    window.location.href = "../html/login.html";
     return false;
   }
   return true;
 }
-
-/**
- * (重構) 獲取 API 請求的標頭
- * 現在改用 Bearer Token
- */
 function getAuthHeaders() {
   const token = getToken();
   if (!token) {
@@ -53,19 +56,13 @@ function getAuthHeaders() {
     Authorization: `Bearer ${token}`,
   };
 }
-
-/**
- * 登出功能
- */
 function logout() {
   localStorage.removeItem("adminToken");
   localStorage.removeItem("adminUser");
-  window.location.href = "login.html";
+  window.location.href = "../html/login.html";
 }
 
-// -------------------------------------------------
-// 2. DOM 元素 (【修正】只宣告，不賦值)
-// -------------------------------------------------
+// --- DOM ---
 let refreshButton;
 let logoutButton;
 let userInfoSpan;
@@ -81,15 +78,18 @@ let productPriceInput;
 let productCostInput;
 let productDescInput;
 let productImgUrlInput;
-let productCategorySelect; // 【第四批優化】
+let productCategorySelect;
 let cancelEditBtn;
 // 績效
 let statsContent;
-// 人員管理
+let exchangeRateInput; // 【第十六批優化】
+let serviceFeeInput; // 【第十六批優化】
+let saveSettingsBtn; // 【第十六批優化】
+// 人員
 let userSection;
 let createUserForm;
 let usersTbody;
-// (【全新】) 倉庫管理
+// 倉庫
 let warehousesTbody;
 let warehouseForm;
 let warehouseFormTitle;
@@ -100,7 +100,7 @@ let warehousePhoneInput;
 let warehouseAddressInput;
 let warehouseIsActiveInput;
 let cancelWarehouseEditBtn;
-// 【第四批優化】分類管理
+// 分類
 let categoriesTbody;
 let categoryForm;
 let categoryFormTitle;
@@ -109,42 +109,88 @@ let categoryNameInput;
 let categoryDescInput;
 let cancelCategoryEditBtn;
 
-// -------------------------------------------------
-// 3. 載入資料 (API 呼叫)
-// -------------------------------------------------
+// --- 載入資料 ---
 
 async function loadAllData() {
-  // 檢查權限
   const headers = getAuthHeaders();
   if (!headers) {
-    checkAuth(); // 觸發登入檢查
+    checkAuth();
     return;
   }
 
-  // 顯示用戶資訊
   const user = getUser();
   if (user) {
     userInfoSpan.textContent = `歡迎, ${user.username} (${user.role})`;
   }
 
-  // 同時載入所有資料
+  // 【第十六批優化】新增載入系統設定
+  await loadSettings(headers);
+
   await Promise.all([
     loadStats(headers),
     loadOrders(headers),
-    loadProducts(), // 載入商品不需要 Token (公開 API)
-    loadUsers(headers), // 載入用戶列表
-    loadWarehouses(headers), // (【全新】) 載入倉庫
-    loadCategories(headers), // (【第四批優化】) 載入分類
+    loadProducts(),
+    loadUsers(headers),
+    loadWarehouses(headers),
+    loadCategories(headers),
   ]);
 
-  // 【第四批優化】所有資料載入後，才填充商品表單的分類下拉選單
   populateCategoryDropdown();
 }
 
-// --- 【第二批優化：修改績效儀表板】 ---
+// --- 【第十六批優化：系統設定邏輯】 ---
+async function loadSettings(headers) {
+  try {
+    const response = await fetch(`${API_URL}/settings`); // 使用公開 API
+    if (response.ok) {
+      const settings = await response.json();
+      if (settings.exchange_rate)
+        exchangeRateInput.value = settings.exchange_rate;
+      if (settings.service_fee !== undefined)
+        serviceFeeInput.value = settings.service_fee;
+    }
+  } catch (error) {
+    console.error("載入設定失敗:", error);
+  }
+}
+
+async function saveSettings(headers) {
+  const exchangeRate = parseFloat(exchangeRateInput.value);
+  const serviceFee = parseFloat(serviceFeeInput.value);
+
+  if (isNaN(exchangeRate) || isNaN(serviceFee)) {
+    alert("請輸入有效的數字");
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/admin/settings`, {
+      method: "PUT",
+      headers: headers,
+      body: JSON.stringify({
+        exchange_rate: exchangeRate,
+        service_fee: serviceFee,
+      }),
+    });
+
+    if (!response.ok) throw new Error("儲存失敗");
+
+    alert("系統設定已儲存！");
+    // 重新載入績效和訂單利潤
+    loadStats(headers);
+    renderOrders(allOrders);
+  } catch (error) {
+    console.error("儲存設定失敗:", error);
+    alert("儲存設定失敗");
+  }
+}
+// --- 【優化結束】 ---
+
 // 載入績效
 async function loadStats(headers) {
   try {
+    statsContent.innerHTML = "<p>正在載入績效...</p>";
+
     const response = await fetch(`${API_URL}/admin/dashboard/stats`, {
       headers,
     });
@@ -152,8 +198,9 @@ async function loadStats(headers) {
 
     const stats = await response.json();
 
-    // 假設匯率 4.5
-    const exchangeRate = 4.5;
+    // 【第十六批優化】使用輸入框的值進行計算
+    const exchangeRate = parseFloat(exchangeRateInput.value) || 4.5;
+
     const totalCostTWD = stats.totalCostCNY * exchangeRate;
     const totalProfitTWD = stats.totalRevenueTWD - totalCostTWD;
 
@@ -165,22 +212,26 @@ async function loadStats(headers) {
                 <li><strong>總成本 (CNY) (僅計已付款):</strong> ${stats.totalCostCNY.toFixed(
                   2
                 )}</li>
-                <li><strong>預估利潤 (TWD):</strong> ${totalProfitTWD.toFixed(
-                  0
+                <hr style="margin: 10px 0;">
+                <li><strong>目前計算匯率:</strong> ${exchangeRate.toFixed(
+                  2
                 )}</li>
-                <hr>
-                <li><strong>【優化】待付款訂單:</strong> ${
+                <li><strong>預估利潤 (TWD):</strong> <strong style="font-size: 1.2em; color: ${
+                  totalProfitTWD > 0 ? "green" : "red"
+                };">${totalProfitTWD.toFixed(0)}</strong></li>
+                <hr style="margin: 10px 0;">
+                <li><strong>待付款訂單:</strong> ${
                   stats.paymentStatusCounts.UNPAID
                 }</li>
-                <li><strong>待處理訂單:</strong> ${
-                  stats.statusCounts.Pending
-                }</li>
-                <li><strong>採購中訂單:</strong> ${
-                  stats.statusCounts.Processing
-                }</li>
-                <li><strong>已入倉訂單:</strong> ${
-                  stats.statusCounts.Warehouse_Received
-                }</li>
+                <li><strong>${ORDER_STATUS_MAP.Pending}訂單:</strong> ${
+      stats.statusCounts.Pending
+    }</li>
+                <li><strong>${ORDER_STATUS_MAP.Processing}訂單:</strong> ${
+      stats.statusCounts.Processing
+    }</li>
+                <li><strong>${
+                  ORDER_STATUS_MAP.Warehouse_Received
+                }訂單:</strong> ${stats.statusCounts.Warehouse_Received}</li>
             </ul>
         `;
   } catch (error) {
@@ -188,32 +239,30 @@ async function loadStats(headers) {
     statsContent.innerHTML = `<p style="color:red;">${error.message}</p>`;
   }
 }
-// --- 【優化結束】 ---
 
-// 載入訂單 (改用 Operator API)
+// 載入訂單
 async function loadOrders(headers) {
   try {
-    // 我們預設只載入 "操作人員" 需要的訂單 (待處理/採購中)
     const response = await fetch(`${API_URL}/operator/orders`, { headers });
     if (response.status === 403) throw new Error("權限不足");
     if (!response.ok) throw new Error(`HTTP 錯誤: ${response.status}`);
 
-    const orders = await response.json();
-    renderOrders(orders);
+    allOrders = await response.json();
+    renderOrders(allOrders);
   } catch (error) {
     alert(`載入訂單失敗: ${error.message}`);
     ordersTbody.innerHTML =
-      '<tr><td colspan="7" style="color: red;">載入訂單失敗。</td></tr>'; // <-- Colspan 改為 7
+      '<tr><td colspan="10" style="color: red;">載入訂單失敗。</td></tr>'; // <-- Colspan 改為 10
   }
 }
 
-// 載入商品 (公開 API)
+// 載入商品
 async function loadProducts() {
   try {
     const response = await fetch(`${API_URL}/products`);
     if (!response.ok) throw new Error(`HTTP 錯誤: ${response.status}`);
     const products = await response.json();
-    renderProducts(products); // 渲染商品
+    renderProducts(products);
   } catch (error) {
     console.error("載入商品失敗:", error);
     productsTbody.innerHTML =
@@ -221,24 +270,18 @@ async function loadProducts() {
   }
 }
 
-// (重構) 載入用戶
+// 載入用戶
 async function loadUsers(headers) {
-  // 只有 Admin 能載入用戶
   const user = getUser();
-  if (user.role !== "admin") {
-    return; // 直接返回，權限控制由 applyRolePermissions 處理
-  }
+  if (user.role !== "admin") return;
 
   try {
     const response = await fetch(`${API_URL}/admin/users`, { headers });
     if (!response.ok) throw new Error("無法載入用戶");
     const users = await response.json();
-    // (--- ↓↓↓ 新增 ↓↓↓ ---)
-    // 儲存可用的操作人員列表，供「指派訂單」使用
     availableOperators = users.filter(
       (user) => user.role === "operator" && user.status === "active"
     );
-    // (--- ↑↑↑ 新增 ↑↑↑ ---)
     renderUsers(users);
   } catch (error) {
     console.error("載入用戶失敗:", error);
@@ -247,18 +290,15 @@ async function loadUsers(headers) {
   }
 }
 
-// (【全新】) 載入倉庫
+// 載入倉庫
 async function loadWarehouses(headers) {
-  // 只有 Admin 能載入倉庫
   const user = getUser();
-  if (user.role !== "admin") {
-    return;
-  }
+  if (user.role !== "admin") return;
 
   try {
     const response = await fetch(`${API_URL}/admin/warehouses`, { headers });
     if (!response.ok) throw new Error("無法載入倉庫");
-    allWarehouses = await response.json(); // 存到全域變數
+    allWarehouses = await response.json();
     renderWarehouses(allWarehouses);
   } catch (error) {
     console.error("載入倉庫失敗:", error);
@@ -267,18 +307,15 @@ async function loadWarehouses(headers) {
   }
 }
 
-// --- 【第四批優化：新增載入分類】 ---
+// 載入分類
 async function loadCategories(headers) {
-  // 只有 Admin 能載入分類
   const user = getUser();
-  if (user.role !== "admin") {
-    return;
-  }
+  if (user.role !== "admin") return;
 
   try {
     const response = await fetch(`${API_URL}/admin/categories`, { headers });
     if (!response.ok) throw new Error("無法載入分類");
-    allCategories = await response.json(); // 存到全域變數
+    allCategories = await response.json();
     renderCategories(allCategories);
   } catch (error) {
     console.error("載入分類失敗:", error);
@@ -286,22 +323,19 @@ async function loadCategories(headers) {
       '<tr><td colspan="4" style="color:red;">載入分類失敗</td></tr>';
   }
 }
-// --- 【優化結束】 ---
 
-// -------------------------------------------------
-// 4. 渲染 (Render) 函式
-// -------------------------------------------------
+// --- 渲染 (Render) 函式 ---
 
-// --- 【第二批優化：修改訂單渲染】 ---
-// (重構) 渲染訂單表格
 function renderOrders(orders) {
   ordersTbody.innerHTML = "";
   if (orders.length === 0) {
-    ordersTbody.innerHTML = '<tr><td colspan="7">沒有待處理的訂單。</td></tr>'; // <-- Colspan 改為 7
+    ordersTbody.innerHTML = '<tr><td colspan="10">沒有待處理的訂單。</td></tr>'; // <-- Colspan 改為 10
     return;
   }
 
-  // 1. 產生 "操作人員" 的 HTML 選項
+  // 1. 取得當前匯率
+  const exchangeRate = parseFloat(exchangeRateInput.value) || 4.5;
+
   const operatorOptions = availableOperators
     .map((op) => `<option value="${op.id}">${op.username}</option>`)
     .join("");
@@ -309,55 +343,68 @@ function renderOrders(orders) {
   orders.forEach((order) => {
     const tr = document.createElement("tr");
 
-    // 2. 顯示當前指派的人 (如果有的話)
+    // 計算利潤
+    const costCny = Number(order.total_cost_cny);
+    const profitTwd = order.total_amount_twd - costCny * exchangeRate;
+    const profitClass = profitTwd >= 0 ? "profit-positive" : "profit-negative";
+
     const assignedTo = order.operator_name
       ? ` (指派給: ${order.operator_name})`
       : " (未指派)";
 
-    // 【優化】根據付款狀態決定是否顯示「標記付款」按鈕
     const markPaidButton =
       order.payment_status === "UNPAID"
         ? `<button class="btn btn-update btn-mark-paid" data-id="${order.id}">標記為已付款</button>`
         : "";
 
+    const paymentStatusText =
+      PAYMENT_STATUS_MAP[order.payment_status] || order.payment_status;
+    const orderStatusText = ORDER_STATUS_MAP[order.status] || order.status;
+
+    // --- 【第十九批優化：處理訂單類型顯示】 ---
+    const typeText = ORDER_TYPE_MAP[order.type] || "一般商城";
+    const typeColor = order.type === "Assist" ? "blue" : "gray"; // 簡單顏色區分
+    // --- 【優化結束】 ---
+
     tr.innerHTML = `
             <td>${order.id}</td>
+            <td><span style="color: ${typeColor}; font-weight: bold;">${typeText}</span></td>
+            
             <td>${new Date(order.created_at).toLocaleString()}</td>
             <td>${order.paopao_id}</td>
             <td>${order.total_amount_twd}</td>
+            <td>${costCny.toFixed(2)}</td>
+            <td class="${profitClass}">${profitTwd.toFixed(0)}</td>
             <td>
-                <span class="status-${order.status}">${order.status}</span>
+                <span class="status-${order.status}">${orderStatusText}</span>
                 <br>
                 <small>${assignedTo}</small>
             </td>
-            
             <td>
-                <span class="status-${order.payment_status}">${
-      order.payment_status
-    }</span>
+                <span class="status-${
+                  order.payment_status
+                }">${paymentStatusText}</span>
                 <br>
                 <small>(${order.payment_method || "N/A"})</small>
             </td>
-            
             <td>
-                ${markPaidButton} <select class="order-status-select" data-id="${
-      order.id
-    }">
+                ${markPaidButton}
+                <select class="order-status-select" data-id="${order.id}">
                     <option value="Pending" ${
                       order.status === "Pending" ? "selected" : ""
-                    }>待處理</option>
+                    }>${ORDER_STATUS_MAP.Pending}</option>
                     <option value="Processing" ${
                       order.status === "Processing" ? "selected" : ""
-                    }>採購中</option>
+                    }>${ORDER_STATUS_MAP.Processing}</option>
                     <option value="Shipped_Internal" ${
                       order.status === "Shipped_Internal" ? "selected" : ""
-                    }>已發貨 (往集運倉)</option>
+                    }>${ORDER_STATUS_MAP.Shipped_Internal}</option>
                     <option value="Warehouse_Received" ${
                       order.status === "Warehouse_Received" ? "selected" : ""
-                    }>已入倉</option>
+                    }>${ORDER_STATUS_MAP.Warehouse_Received}</option>
                     <option value="Cancelled" ${
                       order.status === "Cancelled" ? "selected" : ""
-                    }>取消訂單</option>
+                    }>${ORDER_STATUS_MAP.Cancelled}</option>
                 </select>
 
                 <select class="order-operator-select" data-id="${
@@ -369,14 +416,11 @@ function renderOrders(orders) {
             </td>
         `;
 
-    // 3. (重要) 自動選中當前被指派的人
     if (order.operator_id) {
       const operatorSelect = tr.querySelector(".order-operator-select");
-      // 我們在 <select> 標籤後設定 .value 比較安全
       operatorSelect.value = order.operator_id;
     }
 
-    // 4. (全新) 如果不是 Admin，隱藏指派選單
     if (getUser().role !== "admin") {
       const operatorSelect = tr.querySelector(".order-operator-select");
       if (operatorSelect) {
@@ -387,9 +431,7 @@ function renderOrders(orders) {
     ordersTbody.appendChild(tr);
   });
 }
-// --- 【優化結束】 ---
 
-// 渲染商品表格
 function renderProducts(products) {
   productsTbody.innerHTML = "";
   if (products.length === 0) {
@@ -398,8 +440,7 @@ function renderProducts(products) {
   }
   products.forEach((product) => {
     const tr = document.createElement("tr");
-    // (【修正】) 檢查 product.image_url 是否為 null
-    const imageUrl = product.image_url || ""; // 如果是 null，改用空字串
+    const imageUrl = product.image_url || "";
 
     tr.innerHTML = `
             <td>${product.id}</td>
@@ -415,7 +456,6 @@ function renderProducts(products) {
   });
 }
 
-// (全新) 渲染用戶表格
 function renderUsers(users) {
   usersTbody.innerHTML = "";
   if (users.length === 0) {
@@ -448,7 +488,6 @@ function renderUsers(users) {
   });
 }
 
-// (【全新】) 渲染倉庫表格
 function renderWarehouses(warehouses) {
   warehousesTbody.innerHTML = "";
   if (warehouses.length === 0) {
@@ -476,7 +515,6 @@ function renderWarehouses(warehouses) {
   });
 }
 
-// --- 【第四批優化：新增渲染分類】 ---
 function renderCategories(categories) {
   categoriesTbody.innerHTML = "";
   if (categories.length === 0) {
@@ -517,15 +555,13 @@ function populateCategoryDropdown() {
     });
   }
 }
-// --- 【優化結束】 ---
 
 // -------------------------------------------------
 // 5. 事件監聽 (Event Listeners)
 // -------------------------------------------------
 
-// (重構) 頁面載入時
 document.addEventListener("DOMContentLoaded", () => {
-  // 0. (【修正】) 在這裡才抓取 DOM 元素
+  // 0. 抓取 DOM 元素
   refreshButton = document.getElementById("refresh-data");
   logoutButton = document.getElementById("logout-button");
   userInfoSpan = document.getElementById("user-info");
@@ -539,13 +575,16 @@ document.addEventListener("DOMContentLoaded", () => {
   productCostInput = document.getElementById("product-cost");
   productDescInput = document.getElementById("product-description");
   productImgUrlInput = document.getElementById("product-image-url");
-  productCategorySelect = document.getElementById("product-category"); // 【第四批優化】
+  productCategorySelect = document.getElementById("product-category");
   cancelEditBtn = document.getElementById("cancel-edit-btn");
   statsContent = document.getElementById("stats-content");
+  exchangeRateInput = document.getElementById("exchange-rate-input"); // 【第十二批優化】
+  serviceFeeInput = document.getElementById("service-fee-input"); // 【第十六批優化】
+  saveSettingsBtn = document.getElementById("save-settings-btn"); // 【第十六批優化】
+  // (refreshStatsBtn 已在第十六批優化中被 saveSettingsBtn 取代)
   userSection = document.getElementById("users-section");
   createUserForm = document.getElementById("create-user-form");
   usersTbody = document.getElementById("users-tbody");
-  // (【全新】) 抓取倉庫 DOM
   warehousesTbody = document.getElementById("warehouses-tbody");
   warehouseForm = document.getElementById("warehouse-form");
   warehouseFormTitle = document.getElementById("warehouse-form-title");
@@ -556,7 +595,6 @@ document.addEventListener("DOMContentLoaded", () => {
   warehouseAddressInput = document.getElementById("warehouse-address");
   warehouseIsActiveInput = document.getElementById("warehouse-is-active");
   cancelWarehouseEditBtn = document.getElementById("cancel-warehouse-edit-btn");
-  // 【第四批優化】抓取分類 DOM
   categoriesTbody = document.getElementById("categories-tbody");
   categoryForm = document.getElementById("category-form");
   categoryFormTitle = document.getElementById("category-form-title");
@@ -573,22 +611,27 @@ document.addEventListener("DOMContentLoaded", () => {
   // 2. (全新) 立即套用權限，隱藏不該看的按鈕和區塊
   applyRolePermissions();
 
-  // 3. 載入所有資料 (loadUsers 會因為權限而自動跳過)
-  loadAllData(); // <-- loadAllData 內部已包含 loadCategories 和 populateCategoryDropdown
+  // 3. 載入所有資料
+  loadAllData();
 
-  // 4. 綁定按鈕 (【修正】現在 logoutButton 不會是 null)
+  // 4. 按鈕綁定
   logoutButton.addEventListener("click", logout);
+
   refreshButton.addEventListener("click", () => {
     loadOrders(getAuthHeaders());
-    loadStats(getAuthHeaders());
   });
 
-  // 5. 啟動導覽列 (它會自動跳過被隱藏的頁籤)
+  // 【第十六批優化】
+  saveSettingsBtn.addEventListener("click", () => {
+    saveSettings(getAuthHeaders());
+  });
+
+  // 5. 啟動導覽列
   setupNavigation();
 
-  // 6. (【修正】) 將所有其他的 addEventListener 移到這裡
+  // 6. 其他事件監聽
 
-  // --- 【第四批優化：修改商品表單提交】 ---
+  // --- 商品表單提交 ---
   productForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const headers = getAuthHeaders();
@@ -601,7 +644,6 @@ document.addEventListener("DOMContentLoaded", () => {
       cost_cny: parseFloat(productCostInput.value),
       description: productDescInput.value,
       image_url: productImgUrlInput.value,
-      // 【優化】獲取分類 ID
       category_id: productCategorySelect.value
         ? parseInt(productCategorySelect.value)
         : null,
@@ -632,23 +674,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
       alert(id ? "商品已更新！" : "商品已新增！");
       resetProductForm();
-      await loadProducts(); // 重新載入商品列表
+      await loadProducts();
     } catch (error) {
       alert(`錯誤: ${error.message}`);
     }
   });
-  // --- 【優化結束】 ---
 
-  // 取消編輯按鈕
   cancelEditBtn.addEventListener("click", resetProductForm);
 
-  // 商品列表的按鈕事件 (編輯 / 封存)
+  // --- 商品列表按鈕 ---
   productsTbody.addEventListener("click", async (e) => {
     const target = e.target;
     const id = target.dataset.id;
     if (!id) return;
 
-    // 點擊 "封存" (DELETE)
     if (target.classList.contains("btn-delete")) {
       if (!confirm(`確定要 "封存" ID 為 ${id} 的商品嗎？(不會真的刪除)`))
         return;
@@ -666,8 +705,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // --- 【第四批優化：修改 "編輯" 商品按鈕】 ---
-    // 點擊 "編輯"
     if (target.classList.contains("btn-edit")) {
       const headers = getAuthHeaders();
       if (!headers) {
@@ -676,8 +713,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       try {
-        // ✅ 修正：呼叫新的 Admin API 來獲取完整資料 (含成本)
-        // ✅ 【優化】現在這個 API 會一併回傳 category_id
         const response = await fetch(`${API_URL}/admin/products/${id}`, {
           headers,
         });
@@ -688,20 +723,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const product = await response.json();
 
-        // 將完整資料填入表單
         formTitle.textContent = `編輯商品 (ID: ${id})`;
         productIdInput.value = product.id;
         productNameInput.value = product.name;
         productPriceInput.value = product.price_twd;
-        productCostInput.value = product.cost_cny; // ✅ 成功填充成本
+        productCostInput.value = product.cost_cny;
         productDescInput.value = product.description;
         productImgUrlInput.value = product.image_url;
-        // 【優化】設定分類下拉選單
         productCategorySelect.value = product.category_id || "";
 
         cancelEditBtn.style.display = "inline-block";
 
-        // (重構) 自動切換到商品頁籤並滾動
         document
           .querySelector('.nav-link[data-target="products-section"]')
           .click();
@@ -710,24 +742,21 @@ document.addEventListener("DOMContentLoaded", () => {
         alert(`錯誤: ${error.message}`);
       }
     }
-    // --- 【優化結束】 ---
   });
 
-  // --- 【第二批優化：新增對「標記付款」按鈕的監聽】 ---
+  // --- 訂單列表按鈕 (標記付款) ---
   ordersTbody.addEventListener("click", async (e) => {
     const target = e.target;
     const id = target.dataset.id;
     const headers = getAuthHeaders();
     if (!id || !headers) return;
 
-    // 邏輯 3：點擊了 "標記為已付款"
     if (target.classList.contains("btn-mark-paid")) {
       if (!confirm(`確定要將訂單 ${id} 標記為 "PAID" (已付款) 嗎？`)) {
         return;
       }
 
       try {
-        // 使用 Operator API 更新 payment_status
         const response = await fetch(`${API_URL}/operator/orders/${id}`, {
           method: "PUT",
           headers: headers,
@@ -737,29 +766,31 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!response.ok) throw new Error("更新付款狀態失敗");
 
         alert("訂單付款狀態已更新！");
-        await loadOrders(headers); // 重新載入訂單
+        await loadOrders(headers);
       } catch (error) {
         alert(`錯誤: ${error.message}`);
       }
     }
   });
-  // --- 【優化結束】 ---
 
-  // (重構) 訂單表格的 "所有" 下拉選單變更
+  // --- 訂單列表下拉選單 ---
   ordersTbody.addEventListener("change", async (e) => {
     const target = e.target;
     const id = target.dataset.id;
     const headers = getAuthHeaders();
     if (!id || !headers) return;
 
-    // ------------------------------------
-    // 邏輯 1：如果變更的是 "狀態"
-    // ------------------------------------
     if (target.classList.contains("order-status-select")) {
       const status = target.value;
 
-      if (!confirm(`確定要將訂單 ${id} 的狀態改為 "${status}" 嗎？`)) {
-        loadOrders(headers); // 重置下拉選單
+      if (
+        !confirm(
+          `確定要將訂單 ${id} 的狀態改為 "${
+            ORDER_STATUS_MAP[status] || status
+          }" 嗎？`
+        )
+      ) {
+        loadOrders(headers);
         return;
       }
 
@@ -767,52 +798,48 @@ document.addEventListener("DOMContentLoaded", () => {
         const response = await fetch(`${API_URL}/operator/orders/${id}`, {
           method: "PUT",
           headers: headers,
-          body: JSON.stringify({ status: status }), // 使用 Operator API
+          body: JSON.stringify({ status: status }),
         });
 
         if (!response.ok) throw new Error("更新狀態失敗");
 
         alert("訂單狀態已更新！");
-        await loadOrders(headers); // 重新載入訂單
+        await loadOrders(headers);
       } catch (error) {
         alert(`錯誤: ${error.message}`);
       }
     }
 
-    // ------------------------------------
-    // 邏輯 2：如果變更的是 "指派" (全新)
-    // ------------------------------------
     if (target.classList.contains("order-operator-select")) {
-      const operatorId = target.value; // 這會是 " " (空字串) 或 "2", "3"
+      const operatorId = target.value;
 
       if (
         !confirm(
           `確定要將訂單 ${id} 指派給操作員 ID: ${operatorId || "無"} 嗎？`
         )
       ) {
-        loadOrders(headers); // 重置下拉選單
+        loadOrders(headers);
         return;
       }
 
       try {
-        // **注意：** 這裡呼叫的是 "Admin" API
         const response = await fetch(`${API_URL}/admin/orders/${id}`, {
           method: "PUT",
           headers: headers,
-          body: JSON.stringify({ operator_id: operatorId || null }), // 傳送 ID 或 null (取消指派)
+          body: JSON.stringify({ operator_id: operatorId || null }),
         });
 
         if (!response.ok) throw new Error("指派失敗");
 
         alert("訂單指派已更新！");
-        await loadOrders(headers); // 重新載入訂單 (為了更新 "指派給: xxx")
+        await loadOrders(headers);
       } catch (error) {
         alert(`錯誤: ${error.message}`);
       }
     }
   });
 
-  // (全新) 監聽建立用戶表單
+  // --- 建立用戶 ---
   createUserForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const headers = getAuthHeaders();
@@ -836,13 +863,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       alert("用戶建立成功！");
       createUserForm.reset();
-      await loadUsers(headers); // 重新載入列表
+      await loadUsers(headers);
     } catch (error) {
       alert(`錯誤: ${error.message}`);
     }
   });
 
-  // (全新) 監聽用戶列表的按鈕事件 (停權/啟用)
+  // --- 用戶停權/啟用 ---
   usersTbody.addEventListener("click", async (e) => {
     if (e.target.classList.contains("btn-toggle-status")) {
       const id = e.target.dataset.id;
@@ -863,35 +890,33 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!response.ok) throw new Error("更新失敗");
 
         alert("用戶狀態已更新！");
-        await loadUsers(headers); // 重新載入
+        await loadUsers(headers);
       } catch (error) {
         alert(`錯誤: ${error.message}`);
       }
     }
   });
 
-  // (【全新】) 監聽倉庫列表的按鈕事件
+  // --- 編輯倉庫 ---
   warehousesTbody.addEventListener("click", (e) => {
     if (e.target.classList.contains("btn-edit-warehouse")) {
       const id = e.target.dataset.id;
-      // 從全域變數中尋找該倉庫資料
       const warehouse = allWarehouses.find((w) => w.id == id);
       if (warehouse) {
-        // 填入表單
         warehouseFormTitle.textContent = `編輯倉庫 (ID: ${id})`;
         warehouseIdInput.value = warehouse.id;
         warehouseNameInput.value = warehouse.name;
         warehouseReceiverInput.value = warehouse.receiver;
         warehousePhoneInput.value = warehouse.phone;
         warehouseAddressInput.value = warehouse.address;
-        warehouseIsActiveInput.value = warehouse.is_active; // true/false
+        warehouseIsActiveInput.value = warehouse.is_active;
 
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     }
   });
 
-  // (【全新】) 監聽倉庫表單提交
+  // --- 倉庫表單 ---
   warehouseForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const headers = getAuthHeaders();
@@ -908,7 +933,7 @@ document.addEventListener("DOMContentLoaded", () => {
       receiver: warehouseReceiverInput.value,
       phone: warehousePhoneInput.value,
       address: warehouseAddressInput.value,
-      is_active: warehouseIsActiveInput.value === "true", // 轉為布林值
+      is_active: warehouseIsActiveInput.value === "true",
     };
 
     try {
@@ -925,17 +950,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
       alert("倉庫資訊已更新！");
       resetWarehouseForm();
-      await loadWarehouses(headers); // 重新載入列表
+      await loadWarehouses(headers);
     } catch (error) {
       alert(`錯誤: ${error.message}`);
     }
   });
 
-  // (【全新】) 倉庫取消按鈕
   cancelWarehouseEditBtn.addEventListener("click", resetWarehouseForm);
 
-  // --- 【第四批優化：新增分類管理事件監聽】 ---
-  // 監聽分類表單提交 (新增/編輯)
+  // --- 分類表單 ---
   categoryForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const headers = getAuthHeaders();
@@ -967,7 +990,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       alert(id ? "分類已更新！" : "分類已新增！");
       resetCategoryForm();
-      // 重新載入分類並更新商品表單
       await loadCategories(headers);
       populateCategoryDropdown();
     } catch (error) {
@@ -975,17 +997,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // 分類取消按鈕
   cancelCategoryEditBtn.addEventListener("click", resetCategoryForm);
 
-  // 監聽分類列表的按鈕 (編輯/刪除)
+  // --- 分類列表按鈕 ---
   categoriesTbody.addEventListener("click", async (e) => {
     const target = e.target;
     const id = target.dataset.id;
     const headers = getAuthHeaders();
     if (!id || !headers) return;
 
-    // 點擊 "編輯"
     if (target.classList.contains("btn-edit-category")) {
       const category = allCategories.find((c) => c.id == id);
       if (category) {
@@ -997,7 +1017,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // 點擊 "刪除"
     if (target.classList.contains("btn-delete-category")) {
       if (
         !confirm(
@@ -1016,7 +1035,6 @@ document.addEventListener("DOMContentLoaded", () => {
           throw new Error(data.message || "刪除失敗");
         }
         alert("分類已刪除！");
-        // 重新載入分類並更新商品表單
         await loadCategories(headers);
         populateCategoryDropdown();
       } catch (error) {
@@ -1024,15 +1042,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
   });
-  // --- 【優化結束】 ---
 });
-// (【修正】) 移除所有在 DOMContentLoaded 之外的 addEventListener
 
-// -------------------------------------------------
-// 6. 幫助 (Helper) 函式
-// -------------------------------------------------
+// --- 幫助函式 ---
 
-// 重設商品表單
 function resetProductForm() {
   formTitle.textContent = "新增商品";
   productForm.reset();
@@ -1040,71 +1053,52 @@ function resetProductForm() {
   cancelEditBtn.style.display = "none";
 }
 
-// (【全新】) 重設倉庫表單
 function resetWarehouseForm() {
   warehouseFormTitle.textContent = "編輯倉庫";
   warehouseForm.reset();
   warehouseIdInput.value = "";
 }
 
-// --- 【第四批優化：新增重設分類表單】 ---
 function resetCategoryForm() {
   categoryFormTitle.textContent = "新增分類";
   categoryForm.reset();
   categoryIdInput.value = "";
 }
-// --- 【優化結束】 ---
 
-// -------------------------------------------------
-// 7. (全新) 權限控制函式
-// -------------------------------------------------
-/**
- * 根據用戶角色，自動隱藏需要特定權限的元素
- * (讀取 data-role="admin" 屬性)
- */
 function applyRolePermissions() {
   const user = getUser();
   if (user.role === "admin") {
-    return; // Admin 可以看到所有東西
+    return;
   }
 
-  // 尋找所有標記為 "admin" 才能看的元素
   const restrictedElements = document.querySelectorAll('[data-role="admin"]');
-
   restrictedElements.forEach((el) => {
     el.style.display = "none";
   });
 }
 
-// -------------------------------------------------
-// 8. (重構) 導覽列頁籤邏輯
-// -------------------------------------------------
 function setupNavigation() {
   const navLinks = document.querySelectorAll(".nav-link");
   const sections = document.querySelectorAll(".dashboard-section");
 
-  // 1. 尋找預設頁籤 (從 data-default="true" 或第一個可見的頁籤)
   const defaultLink =
     document.querySelector('.nav-link[data-default="true"]') ||
     document.querySelector('.nav-link:not([style*="display: none"])');
 
   const defaultTargetId = defaultLink ? defaultLink.dataset.target : null;
 
-  // 2. 根據 URL hash 顯示正確頁面
   function showTabFromHash() {
     const hash = window.location.hash.substring(1);
     let targetId = hash ? `${hash}-section` : defaultTargetId;
 
-    // 檢查目標是否存在且可見
     const targetSection = document.getElementById(targetId);
     if (!targetSection || targetSection.style.display === "none") {
-      targetId = defaultTargetId; // 不存在或被隱藏，則退回預設
+      targetId = defaultTargetId;
     }
 
     updateActiveTabs(targetId);
   }
 
-  // 3. 更新 active 狀態的 helper
   function updateActiveTabs(targetId) {
     sections.forEach((section) => {
       section.classList.toggle("active", section.id === targetId);
@@ -1114,7 +1108,6 @@ function setupNavigation() {
     });
   }
 
-  // 4. 綁定點擊事件
   navLinks.forEach((link) => {
     link.addEventListener("click", (e) => {
       e.preventDefault();
@@ -1126,9 +1119,7 @@ function setupNavigation() {
     });
   });
 
-  // 5. 監聽瀏覽器 "上一頁/下一頁"
   window.addEventListener("popstate", showTabFromHash);
 
-  // 6. 初始載入
   showTabFromHash();
 }

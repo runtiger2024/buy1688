@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>會員註冊 - 代採購平台</title>
+    <link rel="stylesheet" href="../css/admin.css" />
+  </head>
+  <body class="login-body">
+    <div class="login-container">
+      <form id="customer-register-form">
+        <h2>會員註冊</h2>
+        <p>
+          <a href="./index.html">返回首頁</a> |
+          <a href="./login.html">已經有帳號？前往登入</a>
+        </p>
+
+        <div class="form-group">
+          <label for="paopao-id">跑跑虎會員編號 (將作為您的帳號):</label>
+          <input
+            type="text"
+            id="paopao-id"
+            placeholder="請輸入您的跑跑虎 ID"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="phone-number">台灣手機號碼 (將作為您的密碼):</label>
+          <input
+            type="tel"
+            id="phone-number"
+            placeholder="0912345678"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="email">Email (用於訂單確認):</label>
+          <input
+            type="email"
+            id="email"
+            placeholder="customer@example.com"
+            required
+          />
+        </div>
+
+        <div class="form-buttons">
+          <button type="submit" id="register-button">確認註冊</button>
+        </div>
+
+        <p id="register-error" class="error-message"></p>
+      </form>
+    </div>
+
+    <script type="module" src="../js/auth.js"></script>
+  </body>
+</html>

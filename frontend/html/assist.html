@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>代購服務 - 代採購平台</title>
+    <link rel="stylesheet" href="../css/style.css" />
+  </head>
+  <body>
+    <div id="navbar-placeholder"></div>
+
+    <main>
+      <h1>代購服務 (貼連結下單)</h1>
+
+      <div class="assist-notice">
+        <h3>📢 代購說明</h3>
+        <p>
+          目前的<strong>人民幣匯率</strong>為：<span
+            id="display-rate"
+            class="highlight-text"
+            >載入中...</span
+          ><br />
+          <strong>代購服務費</strong>為：<span
+            id="display-fee"
+            class="highlight-text"
+            >載入中...</span
+          >
+        </p>
+        <p class="small-text">
+          * 系統將自動試算台幣價格 (含服務費)，實際金額以客服確認後為準。<br />
+          * 計算公式：(人民幣價格 × 匯率) × (1 + 服務費率)
+        </p>
+      </div>
+
+      <div class="assist-add-section">
+        <h3>步驟 1：填寫商品資訊</h3>
+        <form id="assist-add-form">
+          <div class="form-row">
+            <div class="form-group col-link">
+              <label for="item-url">商品連結 (URL) *</label>
+              <input
+                type="url"
+                id="item-url"
+                placeholder="https://item.taobao.com/..."
+                required
+              />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-name">
+              <label for="item-name">商品名稱 *</label>
+              <input
+                type="text"
+                id="item-name"
+                placeholder="例：夏季短袖T恤"
+                required
+              />
+            </div>
+            <div class="form-group col-spec">
+              <label for="item-spec">規格/顏色/尺寸</label>
+              <input type="text" id="item-spec" placeholder="例：白色 XL" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-price">
+              <label for="item-price-cny">單價 (人民幣 ¥) *</label>
+              <input
+                type="number"
+                id="item-price-cny"
+                step="0.01"
+                min="0"
+                required
+              />
+            </div>
+            <div class="form-group col-qty">
+              <label for="item-quantity">數量 *</label>
+              <input
+                type="number"
+                id="item-quantity"
+                value="1"
+                min="1"
+                required
+              />
+            </div>
+            <div class="form-group col-btn">
+              <label>&nbsp;</label>
+              <button type="submit" id="add-item-btn" class="btn-primary">
+                加入清單
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="assist-list-section">
+        <h3>步驟 2：確認代購清單</h3>
+        <table class="assist-table">
+          <thead>
+            <tr>
+              <th>商品名稱/規格</th>
+              <th>連結</th>
+              <th>單價 (¥)</th>
+              <th>數量</th>
+              <th>預估台幣 (NT$)</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="assist-tbody">
+            <tr>
+              <td colspan="6" style="text-align: center; color: #999">
+                清單目前是空的
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="assist-total">
+          預估總金額：<span id="assist-total-twd">TWD 0</span>
+        </div>
+      </div>
+
+      <div class="assist-submit-section">
+        <h3>步驟 3：提交代購單</h3>
+        <form id="assist-submit-form">
+          <div class="form-group">
+            <label for="paopao-id">跑跑虎會員編號 *</label>
+            <input type="text" id="paopao-id" required />
+          </div>
+          <div class="form-group">
+            <label for="customer-email">您的 Email (接收通知用) *</label>
+            <input type="email" id="customer-email" required />
+          </div>
+
+          <div class="form-group">
+            <label>付款方式:</label>
+            <div>
+              <input
+                type="radio"
+                id="payment-offline"
+                name="payment-method"
+                value="OFFLINE_TRANSFER"
+                checked
+              />
+              <label for="payment-offline">銀行轉帳 (線下付款)</label>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            id="submit-order-btn"
+            class="btn-submit-order"
+            disabled
+          >
+            確認提交代購單
+          </button>
+        </form>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-content">
+        <p id="footer-auth-links">
+          <a href="./login.html">會員登入</a> |
+          <a href="./register.html">會員註冊</a>
+        </p>
+        <p>
+          <strong>跑得快國際貿易有限公司</strong><br />
+          Runtiger International Trading Co., Ltd.
+        </p>
+        <p>
+          統編：42924265<br />
+          電子郵件：<a href="mailto:rruntiger@gmail.com">rruntiger@gmail.com</a>
+        </p>
+        <p>LINE官方客服：@gogo5808</p>
+        <p class="copyright">
+          <a
+            href="../admin/html/login.html"
+            class="admin-link"
+            title="管理員登入"
+          >
+            &copy; 管理員登入
+          </a>
+        </p>
+      </div>
+    </footer>
+
+    <a href="https://lin.ee/pb428dF" target="_blank" class="line-float-button">
+      <span>LINE</span>
+    </a>
+
+    <script type="module" src="../js/assist.js"></script>
+  </body>
+</html>

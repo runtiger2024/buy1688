@@ -9,7 +9,6 @@ async function main() {
   console.log("開始填充 (Seeding) 資料庫...");
 
   // 1. 填充倉庫資料
-  // upsert = update or insert, 避免重複建立
   await prisma.warehouses.upsert({
     where: { name: "厦门漳州仓" },
     update: {},
@@ -44,6 +43,31 @@ async function main() {
     },
   });
   console.log("✅ 倉庫資料填充完畢。");
+
+  // --- 【第十四批優化：填充預設系統設定】 ---
+  // 1. 匯率 (CNY -> TWD)
+  await prisma.systemSettings.upsert({
+    where: { key: "exchange_rate" },
+    update: {},
+    create: {
+      key: "exchange_rate",
+      value: "4.5", // 預設匯率
+      description: "人民幣轉台幣匯率",
+    },
+  });
+
+  // 2. 代購服務費率 (百分比，例如 0.05 代表 5%)
+  await prisma.systemSettings.upsert({
+    where: { key: "service_fee" },
+    update: {},
+    create: {
+      key: "service_fee",
+      value: "0", // 預設 0%
+      description: "代購服務費率 (小數點，如 0.1 為 10%)",
+    },
+  });
+  console.log("✅ 系統設定填充完畢。");
+  // --- 【優化結束】 ---
 
   // 2. 建立預設管理員 (從 .env 讀取)
   const adminUsername = process.env.ADMIN_USERNAME;

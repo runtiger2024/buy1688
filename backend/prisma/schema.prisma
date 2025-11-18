@@ -3,7 +3,7 @@
 // 1. 設定資料庫連線
 datasource db {
   provider = "postgresql" // 【還原】使用 PostgreSQL
-  url      = env("DATABASE_URL") 
+  url      = env("DATABASE_URL")
 }
 
 // 2. 設定 Prisma Client 產生器
@@ -28,25 +28,43 @@ enum OrderStatus {
   Cancelled
 }
 
+// --- 【第十四批優化：新增訂單類型】 ---
+enum OrderType {
+  Standard  // 一般商城訂單
+  Assist    // 代客採購訂單
+}
+// --- 【優化結束】 ---
+
+// --- 【第十四批優化：新增系統設定模型】 ---
+model SystemSettings {
+  id         Int      @id @default(autoincrement())
+  key        String   @unique // 設定鍵名 (例如 "exchange_rate", "service_fee")
+  value      String   // 設定值 (存成字串，使用時轉型)
+  description String? // 設定描述
+  updated_at DateTime @default(now())
+
+  @@map("system_settings")
+}
+// --- 【優化結束】 ---
+
 // Models (資料模型)
 
 // 管理員/操作員
 model Users {
   id            Int      @id @default(autoincrement())
-  username      String   
-@unique
+  username      String   @unique
   password_hash String
-  role          UserRole   @default(operator)
+  role          UserRole @default(operator)
   status        String   @default("active")
   created_at    DateTime @default(now())
 
   // 關聯: 一個 User 可以有多個 Orders
-  orders        Orders[]
+  orders Orders[]
 
   @@map("users") // 對應到資料庫中的 'users' 表
 }
 
-// --- 【第四批優化：新增 Categories 模型】 ---
+// 分類
 model Categories {
   id          Int      @id @default(autoincrement())
   name        String   @unique
@@ -54,28 +72,25 @@ model Categories {
   created_at  DateTime @default(now())
 
   // 關聯: 一個 Category 可以有多個 Products
-  products    Products[]
+  products Products[]
 
   @@map("categories") // 對應到 'categories' 表
 }
-// --- 【優化結束】 ---
-
 
 // 商品
 model Products {
   id          Int      @id @default(autoincrement())
   name        String
   description String?
-image_url   String?
+  image_url   String?
   cost_cny    Decimal
   price_twd   Int
   is_archived Boolean  @default(false)
   created_at  DateTime @default(now())
 
-  // --- 【第四批優化：關聯到 Categories】 ---
-  category_id Int?     // 可選的分類 ID
+  // 關聯到 Categories
+  category_id Int? // 可選的分類 ID
   category    Categories? @relation(fields: [category_id], references: [id])
-  // --- 【優化結束】 ---
 
   // 關聯: 一個 Product 可以出現在多個 OrderItems 中
   order_items OrderItems[]
@@ -88,43 +103,50 @@ model Orders {
   id                 Int         @id @default(autoincrement())
   paopao_id          String
   customer_email     String?
-total_amount_twd   Int
+  total_amount_twd   Int
   total_cost_cny     Decimal
   status             OrderStatus @default(Pending)
-  operator_id        Int?
-notes              String?
-created_at         DateTime    @default(now())
-
-  // --- 【第一批優化：新增欄位】 ---
-  payment_method     String?     // 付款方式 (例如 "OFFLINE_TRANSFER")
-  payment_status     String      @default("UNPAID") // 付款狀態 (例如 "UNPAID", "PAID")
+  
+  // --- 【第十四批優化：新增訂單類型欄位】 ---
+  type               OrderType   @default(Standard)
   // --- 【優化結束】 ---
 
+  operator_id        Int?
+  notes              String?
+  created_at         DateTime    @default(now())
+
+  payment_method     String? // 付款方式
+  payment_status     String      @default("UNPAID") // 付款狀態
+
   // 關聯: 訂單 -> 操作員 (可選)
-  operator           Users?
-@relation(fields: [operator_id], references: [id])
-  
+  operator Users? @relation(fields: [operator_id], references: [id])
+
   // 關聯: 訂單 -> 訂單內的商品 (一對多)
-  items              OrderItems[]
+  items OrderItems[]
 
   @@map("orders") // 對應到 'orders' 表
 }
 
 // 訂單內的商品 (關聯表)
 model OrderItems {
-  id                  Int     @id @default(autoincrement())
-  order_id            Int
-  product_id          Int
-  quantity        
-    Int
-  snapshot_name       String?
-snapshot_price_twd  Int
-  snapshot_cost_cny   Decimal
+  id                Int     @id @default(autoincrement())
+  order_id          Int
+  
+  // --- 【第十四批優化：修改為可選，並新增代購欄位】 ---
+  product_id        Int?    // 一般訂單必填，代購訂單可為 null
+  item_url          String? // 代購商品的原始連結
+  item_spec         String? // 代購商品的規格 (顏色/尺寸等)
+  // --- 【優化結束】 ---
+
+  quantity          Int
+  snapshot_name     String?
+  snapshot_price_twd Int
+  snapshot_cost_cny Decimal
 
   // 關聯: OrderItem -> Order (多對一)
-  order               Orders  @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  order   Orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
   // 關聯: OrderItem -> Product (多對一)
-  product             Products @relation(fields: [product_id], references: [id])
+  product Products? @relation(fields: [product_id], references: [id]) // 這裡也要改成可選 (?)
 
   @@map("order_items") // 對應到 'order_items' 表
 }
@@ -132,8 +154,7 @@ snapshot_price_twd  Int
 // 倉庫
 model Warehouses {
   id         Int      @id @default(autoincrement())
-  name       
-String   @unique // 倉庫名稱必須唯一
+  name       String   @unique // 倉庫名稱必須唯一
   receiver   String
   phone      String
   address    String
@@ -149,8 +170,7 @@ model Customers {
   paopao_id     String   @unique // 跑跑虎 ID
   password_hash String   // 手機號碼的雜湊
   email         String   @unique
- 
- created_at    DateTime @default(now())
+  created_at    DateTime @default(now())
 
   @@map("customers") // 對應到 'customers' 表
 }

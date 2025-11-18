@@ -269,6 +269,15 @@ table img {
   background-color: #007bff;
   color: white;
 } /* 更新(藍) - 保留 */
+.btn-primary {
+  /* 【第十二批優化】新增樣式 */
+  background-color: #007bff;
+  color: white;
+}
+.btn-primary:hover {
+  opacity: 0.85;
+}
+
 .btn:disabled {
   background-color: #ccc;
   cursor: not-allowed;
@@ -436,3 +445,53 @@ body.login-body {
   flex: 1;
 }
 /* --- 【優化結束】 --- */
+
+/* --- 【第十二批優化：新增區塊標頭樣式】 --- */
+.section-header-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap; /* 換行 */
+  gap: 15px;
+}
+.section-header-controls h2 {
+  border-bottom: 2px solid var(--taobao-orange); /* 保持 h2 原有樣式 */
+  padding-bottom: 5px;
+  margin: 0;
+}
+.form-group-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.form-group-inline label {
+  font-weight: bold;
+}
+.form-group-inline input {
+  width: 80px;
+  padding: 8px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+/* --- 【優化結束】 --- */
+
+/* --- 【第十三批優化：新增訂單篩選器樣式】 --- */
+.form-group-inline select {
+  width: auto; /* 寬度自動 */
+  padding: 8px;
+  font-size: 0.9rem;
+  background-color: #fff;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+}
+/* --- 【優化結束】 --- */
+/* --- 【第十三批優化：利潤顯示樣式】 --- */
+.profit-positive {
+  color: #28a745; /* 綠色 */
+  font-weight: bold;
+}
+.profit-negative {
+  color: #dc3545; /* 紅色 */
+  font-weight: bold;
+}
