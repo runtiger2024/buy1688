@@ -33,7 +33,8 @@ enum OrderStatus {
 // 管理員/操作員
 model Users {
   id            Int      @id @default(autoincrement())
-  username      String   @unique
+  username      String   
+@unique
   password_hash String
   role          UserRole   @default(operator)
   status        String   @default("active")
@@ -45,16 +46,36 @@ model Users {
   @@map("users") // 對應到資料庫中的 'users' 表
 }
 
+// --- 【第四批優化：新增 Categories 模型】 ---
+model Categories {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  created_at  DateTime @default(now())
+
+  // 關聯: 一個 Category 可以有多個 Products
+  products    Products[]
+
+  @@map("categories") // 對應到 'categories' 表
+}
+// --- 【優化結束】 ---
+
+
 // 商品
 model Products {
   id          Int      @id @default(autoincrement())
   name        String
   description String?
-  image_url   String?
+image_url   String?
   cost_cny    Decimal
   price_twd   Int
   is_archived Boolean  @default(false)
   created_at  DateTime @default(now())
+
+  // --- 【第四批優化：關聯到 Categories】 ---
+  category_id Int?     // 可選的分類 ID
+  category    Categories? @relation(fields: [category_id], references: [id])
+  // --- 【優化結束】 ---
 
   // 關聯: 一個 Product 可以出現在多個 OrderItems 中
   order_items OrderItems[]
@@ -67,15 +88,21 @@ model Orders {
   id                 Int         @id @default(autoincrement())
   paopao_id          String
   customer_email     String?
-  total_amount_twd   Int
+total_amount_twd   Int
   total_cost_cny     Decimal
   status             OrderStatus @default(Pending)
   operator_id        Int?
-  notes              String?
-  created_at         DateTime    @default(now())
+notes              String?
+created_at         DateTime    @default(now())
+
+  // --- 【第一批優化：新增欄位】 ---
+  payment_method     String?     // 付款方式 (例如 "OFFLINE_TRANSFER")
+  payment_status     String      @default("UNPAID") // 付款狀態 (例如 "UNPAID", "PAID")
+  // --- 【優化結束】 ---
 
   // 關聯: 訂單 -> 操作員 (可選)
-  operator           Users?      @relation(fields: [operator_id], references: [id])
+  operator           Users?
+@relation(fields: [operator_id], references: [id])
   
   // 關聯: 訂單 -> 訂單內的商品 (一對多)
   items              OrderItems[]
@@ -88,9 +115,10 @@ model OrderItems {
   id                  Int     @id @default(autoincrement())
   order_id            Int
   product_id          Int
-  quantity            Int
+  quantity        
+    Int
   snapshot_name       String?
-  snapshot_price_twd  Int
+snapshot_price_twd  Int
   snapshot_cost_cny   Decimal
 
   // 關聯: OrderItem -> Order (多對一)
@@ -104,7 +132,8 @@ model OrderItems {
 // 倉庫
 model Warehouses {
   id         Int      @id @default(autoincrement())
-  name       String   @unique // 倉庫名稱必須唯一
+  name       
+String   @unique // 倉庫名稱必須唯一
   receiver   String
   phone      String
   address    String
@@ -120,7 +149,8 @@ model Customers {
   paopao_id     String   @unique // 跑跑虎 ID
   password_hash String   // 手機號碼的雜湊
   email         String   @unique
-  created_at    DateTime @default(now())
+ 
+ created_at    DateTime @default(now())
 
   @@map("customers") // 對應到 'customers' 表
 }

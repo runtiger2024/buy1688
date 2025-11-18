@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>代購平台 - 管理儀表板</title>
+    <link rel="stylesheet" href="admin.css" />
+  </head>
+  <body>
+    <header>
+      <h1>代購平台 - 管理儀表板</h1>
+
+      <div class="auth-box">
+        <span id="user-info">正在載入...</span>
+        <button id="logout-button" class="btn btn-delete">登出</button>
+        <a href="../index.html" class="btn btn-link">返回前台</a>
+      </div>
+    </header>
+
+    <nav class="admin-nav">
+      <a
+        href="#stats"
+        class="nav-link"
+        data-target="stats-section"
+        data-default="true"
+        >績效一覽表</a
+      >
+      <a href="#orders" class="nav-link" data-target="orders-section"
+        >訂單管理</a
+      >
+      <a href="#products" class="nav-link" data-target="products-section"
+        >商品管理</a
+      >
+      <a
+        href="#categories"
+        class="nav-link"
+        data-target="categories-section"
+        data-role="admin"
+        >分類管理</a
+      >
+      <a
+        href="#warehouses"
+        class="nav-link"
+        data-target="warehouses-section"
+        data-role="admin"
+        >管理倉庫</a
+      >
+      <a
+        href="#users"
+        class="nav-link"
+        data-target="users-section"
+        data-role="admin"
+        >人員管理</a
+      >
+    </nav>
+    <main class="dashboard-layout">
+      <section class="dashboard-section" id="stats-section">
+        <h2>績效一覽表</h2>
+        <div id="stats-content">
+          <p>正在載入績效...</p>
+        </div>
+      </section>
+
+      <section class="dashboard-section" id="orders-section">
+        <h2>訂單管理 (待處理/採購中)</h2>
+        <button id="refresh-data" class="btn btn-primary">刷新訂單</button>
+        <table id="orders-table">
+          <thead>
+            <tr>
+              <th>訂單ID</th>
+              <th>建立時間</th>
+              <th>跑跑虎ID</th>
+              <th>總金額</th>
+              <th>訂單狀態</th>
+              <th>付款狀態</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="orders-tbody"></tbody>
+        </table>
+      </section>
+
+      <section class="dashboard-section" id="products-section">
+        <h2>商品管理</h2>
+
+        <form id="product-form">
+          <input type="hidden" id="product-id" />
+          <h3 id="form-title">新增商品</h3>
+
+          <div class="form-group">
+            <label for="product-name">商品名稱:</label>
+            <input type="text" id="product-name" required />
+          </div>
+
+          <div class="form-group">
+            <label for="product-category">商品分類:</label>
+            <select id="product-category" required>
+              <option value="">-- 請選擇分類 --</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="product-price">台幣售價 (TWD):</label>
+            <input type="number" id="product-price" required />
+          </div>
+          <div class="form-group">
+            <label for="product-cost">人民幣成本 (CNY):</label>
+            <input type="number" step="0.01" id="product-cost" required />
+          </div>
+          <div class="form-group">
+            <label for="product-description">商品描述:</label>
+            <textarea id="product-description" rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="product-image-url">圖片 URL:</label>
+            <input
+              type="text"
+              id="product-image-url"
+              placeholder="https://..."
+            />
+          </div>
+          <div class="form-buttons">
+            <button type="submit" id="submit-product-btn">儲存商品</button>
+            <button type="button" id="cancel-edit-btn" style="display: none">
+              取消編輯
+            </button>
+          </div>
+        </form>
+        <hr />
+
+        <h3>現有商品列表</h3>
+        <table id="products-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>圖片</th>
+              <th>名稱</th>
+              <th>售價 (TWD)</th>
+              <th>成本 (CNY)</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="products-tbody"></tbody>
+        </table>
+      </section>
+
+      <section
+        class="dashboard-section"
+        id="categories-section"
+        data-role="admin"
+      >
+        <h2>分類管理</h2>
+        <p>
+          在這裡您可以管理商品分類。
+          (刪除分類前，請先將該分類下的商品移至其他分類)
+        </p>
+
+        <div class="categories-layout">
+          <form id="category-form" class="subtle-form">
+            <input type="hidden" id="category-id" />
+            <h3 id="category-form-title">新增分類</h3>
+
+            <div class="form-group">
+              <label for="category-name">分類名稱:</label>
+              <input type="text" id="category-name" required />
+            </div>
+            <div class="form-group">
+              <label for="category-description">分類描述:</label>
+              <textarea id="category-description" rows="3"></textarea>
+            </div>
+
+            <div class="form-buttons">
+              <button type="submit" id="submit-category-btn">儲存分類</button>
+              <button type="button" id="cancel-category-edit-btn">取消</button>
+            </div>
+          </form>
+
+          <table id="categories-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>名稱</th>
+                <th>描述</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="categories-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+      <section
+        class="dashboard-section"
+        id="warehouses-section"
+        data-role="admin"
+      >
+        <h2>管理倉庫</h2>
+        <p>在這裡您可以編輯倉庫資訊，前台會自動顯示「已啟用」的倉庫。</p>
+
+        <form id="warehouse-form" class="subtle-form">
+          <input type="hidden" id="warehouse-id" />
+          <h3 id="warehouse-form-title">編輯倉庫</h3>
+
+          <div class="form-group">
+            <label for="warehouse-name">倉庫名稱:</label>
+            <input type="text" id="warehouse-name" required />
+          </div>
+          <div class="form-group">
+            <label for="warehouse-receiver">收件人:</label>
+            <input type="text" id="warehouse-receiver" required />
+          </div>
+          <div class="form-group">
+            <label for="warehouse-phone">電話:</label>
+            <input type="text" id="warehouse-phone" required />
+          </div>
+          <div class="form-group">
+            <label for="warehouse-address">地址:</label>
+            <textarea id="warehouse-address" rows="3" required></textarea>
+          </div>
+          <div class="form-group">
+            <label for="warehouse-is-active">狀態:</label>
+            <select id="warehouse-is-active">
+              <option value="true">啟用 (顯示在前台)</option>
+              <option value="false">停用 (隱藏)</option>
+            </select>
+          </div>
+          <div class="form-buttons">
+            <button type="submit" id="submit-warehouse-btn">儲存變更</button>
+            <button type="button" id="cancel-warehouse-edit-btn">取消</button>
+          </div>
+        </form>
+
+        <hr />
+
+        <h3>現有倉庫列表</h3>
+        <table id="warehouses-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>名稱</th>
+              <th>地址</th>
+              <th>狀態</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="warehouses-tbody"></tbody>
+        </table>
+      </section>
+
+      <section class="dashboard-section" id="users-section" data-role="admin">
+        <h2>人員管理 (僅限 Admin)</h2>
+
+        <form id="create-user-form">
+          <h3 id="form-title">建立新用戶</h3>
+          <div class="form-group">
+            <label for="user-username">帳號:</label>
+            <input type="text" id="user-username" required />
+          </div>
+          <div class="form-group">
+            <label for="user-password">密碼:</label>
+            <input type="text" id="user-password" required />
+          </div>
+          <div class="form-group">
+            <label for="user-role">角色:</label>
+            <select id="user-role" required>
+              <option value="operator" selected>操作人員 (Operator)</option>
+              <option value="admin">管理員 (Admin)</option>
+            </select>
+          </div>
+          <div class="form-buttons">
+            <button type="submit" id="submit-user-btn">建立用戶</button>
+          </div>
+        </form>
+
+        <hr />
+
+        <h3>現有用戶列表</h3>
+        <table id="users-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>帳號</th>
+              <th>角色</th>
+              <th>狀態</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <footer class="admin-footer">
+      <p>&copy; 2025 Runtiger International - Admin Panel</p>
+    </footer>
+    <script type="module" src="admin.js"></script>
+  </body>
+</html>

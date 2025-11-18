@@ -50,3 +50,17 @@ export function isOperator(req, res, next) {
     return res.status(403).json({ message: "錯誤: 權限不足 (需要操作員)" });
   }
 }
+
+// --- 【第三批優化：新增客戶權限守衛】 ---
+/**
+ * Customer 權限守衛
+ * 僅限客戶本人 (role === 'customer')
+ */
+export function isCustomer(req, res, next) {
+  if (req.user && req.user.role === "customer") {
+    next(); // 是 Customer，放行
+  } else {
+    return res.status(403).json({ message: "錯誤: 權限不足 (需要客戶身分)" });
+  }
+}
+// --- 【優化結束】 ---

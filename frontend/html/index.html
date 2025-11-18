@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>代採購平台</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="header-placeholder"></div>
+    <div class="cart-button-container" id="cart-button">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="9" cy="21" r="1"></circle>
+        <circle cx="20" cy="21" r="1"></circle>
+        <path
+          d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"
+        ></path>
+      </svg>
+      <span class="cart-count" id="cart-count">0</span>
+    </div>
+
+    <main>
+      <div
+        id="customer-info"
+        style="text-align: right; margin-bottom: 15px; min-height: 1.5em"
+      ></div>
+
+      <h1>我們的商品</h1>
+
+      <div id="category-filter-bar">
+        <p>正在載入分類...</p>
+      </div>
+      <div id="product-list" class="product-grid">
+        <p>正在載入商品...</p>
+      </div>
+
+      <hr />
+    </main>
+
+    <div class="modal" id="cart-modal">
+      <div class="modal-content">
+        <span class="close-button" id="close-modal">&times;</span>
+        <h2>您的購物車</h2>
+
+        <div id="cart-items-list">
+          <p>您的購物車是空的。</p>
+        </div>
+
+        <div class="cart-total">
+          <strong>總金額: TWD <span id="cart-total-amount">0</span></strong>
+        </div>
+
+        <hr />
+
+        <div id="checkout-form-container">
+          <h3>結帳資訊</h3>
+          <form id="checkout-form">
+            <div class="form-group">
+              <label for="checkout-paopao-id">跑跑虎會員編號:</label>
+              <input
+                type="text"
+                id="checkout-paopao-id"
+                placeholder="請輸入您的跑跑虎 ID"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="checkout-customer-email"
+                >您的 Email (用於接收訂單確認):</label
+              >
+              <input
+                type="email"
+                id="checkout-customer-email"
+                placeholder="customer@example.com"
+                required
+              />
+            </div>
+
+            <div class="form-group">
+              <label>付款方式:</label>
+              <div>
+                <input
+                  type="radio"
+                  id="payment-offline"
+                  name="payment-method"
+                  value="OFFLINE_TRANSFER"
+                  checked
+                />
+                <label for="payment-offline" style="display: inline"
+                  >銀行轉帳 (線下付款)</label
+                >
+              </div>
+              <div>
+                <input
+                  type="radio"
+                  id="payment-card"
+                  name="payment-method"
+                  value="CREDIT_CARD"
+                  disabled
+                />
+                <label for="payment-card" style="display: inline; color: #999"
+                  >(即將開放) 信用卡付款</label
+                >
+              </div>
+            </div>
+            <button type="submit" id="checkout-button">確認送出訂單</button>
+          </form>
+        </div>
+
+        <div id="checkout-success-message" style="display: none">
+          <h3>🎉 訂單已成功建立！</h3>
+          <p>請依照以下資訊完成匯款：</p>
+          <div
+            id="payment-details-content"
+            style="
+              background: #f4f4f4;
+              border: 1px solid #ddd;
+              padding: 15px;
+              border-radius: 5px;
+              white-space: pre-wrap; /* 讓換行符號生效 */
+            "
+          ></div>
+          <p style="margin-top: 15px">
+            付款完成後，請聯繫 LINE
+            客服並提供您的「訂單編號」，以便我們為您對帳。
+          </p>
+        </div>
+      </div>
+    </div>
+    <footer class="site-footer">
+      <div class="footer-content">
+        <p id="footer-auth-links">
+          <a href="login.html">會員登入</a> |
+          <a href="register.html">會員註冊</a>
+        </p>
+        <p>
+          <strong>跑得快國際貿易有限公司</strong><br />
+          Runtiger International Trading Co., Ltd.
+        </p>
+        <p>
+          統編：42924265<br />
+          電子郵件：<a href="mailto:rruntiger@gmail.com">rruntiger@gmail.com</a>
+        </p>
+        <p>LINE官方客服：@gogo5808</p>
+        <p class="copyright">
+          <a href="./admin/login.html" class="admin-link" title="管理員登入">
+            &copy; 管理員登入
+          </a>
+        </p>
+      </div>
+    </footer>
+    <a
+      href="https://lin.ee/pb428dF"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="line-float-button"
+    >
+      <svg
+        class="line-icon"
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+        ></path>
+      </svg>
+      <span>LINE 客服</span>
+    </a>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

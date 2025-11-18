@@ -1,0 +1,592 @@
+/* --- 淘寶風格 - 客戶前台 CSS --- */
+
+:root {
+  --taobao-orange: #ff5000;
+  --text-dark: #333333;
+  --text-light: #666666;
+  --bg-gray: #f4f7f6;
+  --border-gray: #e0e0e0;
+}
+
+/* 基本樣式 */
+body {
+  font-family: "Helvetica Neue", Helvetica, Arial, "Microsoft Yahei",
+    "Hiragino Sans GB", "Heiti SC", "WenQuanYi Micro Hei", sans-serif;
+  line-height: 1.6;
+  background-color: var(--bg-gray);
+  color: var(--text-dark);
+  margin: 0;
+  padding: 0;
+}
+
+main {
+  max-width: 1100px;
+  margin: 20px auto;
+  padding: 0 20px;
+}
+
+h1 {
+  color: var(--text-dark);
+  font-weight: 500;
+}
+
+a {
+  color: var(--taobao-orange);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* 頁首重要提醒 */
+.header-notice {
+  background-color: #fff8f5; /* 淘寶淺橙色背景 */
+  border: 1px solid var(--taobao-orange);
+  border-radius: 8px;
+  padding: 10px 25px;
+  margin: 15px 0; /* 改為 0 */
+}
+
+.header-notice p {
+  margin: 10px 0;
+  color: var(--text-dark);
+}
+
+.header-notice ol {
+  padding-left: 20px;
+  color: var(--text-light);
+}
+
+/* 商品列表 */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.product-card {
+  background-color: #ffffff;
+  border: 1px solid var(--border-gray);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  padding: 15px;
+  text-align: left;
+  transition: box-shadow 0.3s ease;
+}
+.product-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.product-card img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.product-card h3 {
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin: 10px 0;
+  color: var(--text-dark);
+}
+
+.product-card p {
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+.product-card .price {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: var(--taobao-orange); /* 價格使用淘寶橙 */
+  margin-bottom: 10px;
+}
+
+.product-card button {
+  background-color: var(--taobao-orange);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 15px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  width: 100%;
+  transition: opacity 0.3s ease;
+}
+.product-card button:hover {
+  opacity: 0.85;
+}
+
+/* 訂單表單 */
+#order-form {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+#order-form label {
+  display: block;
+  margin-top: 10px;
+  font-weight: bold;
+}
+#order-form input {
+  width: 95%;
+  padding: 10px;
+  margin-top: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+#order-form input:focus {
+  border-color: var(--taobao-orange);
+  outline: none;
+  box-shadow: 0 0 5px rgba(255, 80, 0, 0.3);
+}
+
+/* (【修改】) 讓 readOnly 的輸入框有不同樣式 */
+#order-form input[readonly] {
+  background-color: #eee;
+  color: #777;
+}
+
+#order-form button {
+  background-color: var(--taobao-orange); /* 按鈕使用淘寶橙 */
+  color: white;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: bold;
+  margin-top: 15px;
+  transition: opacity 0.3s ease;
+}
+#order-form button:hover {
+  opacity: 0.85;
+}
+
+/* --- 頁尾 (Footer) 樣式 --- */
+.site-footer {
+  background-color: #333; /* 深灰色背景，配合淘寶風格的沉穩感 */
+  color: #aaa; /* 淺灰色文字 */
+  padding: 30px 20px;
+  margin-top: 40px;
+  border-top: 3px solid var(--taobao-orange); /* 頂部用淘寶橙點綴 */
+}
+
+.footer-content {
+  max-width: 1100px;
+  margin: 0 auto;
+  text-align: center;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.site-footer p {
+  margin: 10px 0;
+}
+
+.site-footer strong {
+  color: #fff; /* 公司名稱加白 */
+  font-weight: 500;
+}
+
+.site-footer a {
+  color: #ccc; /* 頁尾的連結顏色稍亮 */
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--taobao-orange); /* 滑過時變為淘寶橙 */
+  text-decoration: underline;
+}
+
+.site-footer .copyright {
+  margin-top: 20px;
+  font-size: 0.85rem;
+}
+
+/* '不明顯' 的管理員連結樣式 */
+.admin-link {
+  color: #aaa !important; /* 關鍵：讓連結顏色和周圍文字一樣 */
+  text-decoration: none !important;
+}
+.admin-link:hover {
+  color: #fff !important; /* 滑鼠移上去時才變亮，但不明顯 */
+  text-decoration: none !important;
+}
+
+/* --- LINE 懸浮客服按鈕 --- */
+.line-float-button {
+  /* 1. 定位 */
+  position: fixed; /* 固定定位 */
+  bottom: 25px; /* 距離底部 25px */
+  right: 25px; /* 距離右邊 25px */
+  z-index: 1000; /* 確保在最上層 */
+
+  /* 2. 外觀 - LINE 綠色 */
+  background-color: #06c755;
+  color: #ffffff;
+
+  /* 3. 尺寸與形狀 */
+  padding: 10px 15px;
+  border-radius: 50px; /* 圓角膠囊形狀 */
+
+  /* 4. 陰影 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+  /* 5. 內容排版 (圖示 + 文字) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* 6. 其他 */
+  text-decoration: none;
+  font-size: 1rem;
+  font-weight: bold;
+  transition: all 0.3s ease;
+}
+
+/* 按鈕中的 SVG 圖示樣式 */
+.line-float-button .line-icon {
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  stroke: #ffffff; /* 圖示線條顏色為白色 */
+}
+
+/* 滑鼠移上去的效果 */
+.line-float-button:hover {
+  background-color: #05a546; /* 顏色變深 */
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  transform: translateY(-3px); /* 輕微上浮 */
+}
+/* --- 購物車圖示 --- */
+.cart-button-container {
+  position: fixed;
+  bottom: 100px; /* 放在 LINE 按鈕的上方 */
+  right: 25px;
+  z-index: 999;
+  background-color: var(--taobao-orange);
+  color: white;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+}
+.cart-button-container:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(255, 80, 0, 0.4);
+}
+.cart-button-container svg {
+  width: 28px;
+  height: 28px;
+}
+.cart-count {
+  position: absolute;
+  top: -5px;
+  right: 0px;
+  background-color: #dc3545;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: bold;
+  padding: 2px 7px;
+  border-radius: 50%;
+}
+
+/* --- 購物車彈窗 (Modal) --- */
+.modal {
+  display: none; /* 預設隱藏 */
+  position: fixed;
+  z-index: 1001;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0, 0, 0, 0.5); /* 半透明遮罩 */
+}
+
+.modal-content {
+  background-color: #fefefe;
+  margin: 5% auto; /* 垂直 5%，水平自動置中 */
+  padding: 30px;
+  border: 1px solid #888;
+  width: 90%;
+  max-width: 600px;
+  border-radius: 8px;
+  position: relative;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.close-button {
+  color: #aaa;
+  position: absolute;
+  top: 15px;
+  right: 25px;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.close-button:hover,
+.close-button:focus {
+  color: black;
+}
+
+/* 彈窗內的表單 */
+#checkout-form .form-group {
+  margin-bottom: 15px;
+}
+#checkout-form label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+#checkout-form input[type="text"],
+#checkout-form input[type="email"] {
+  width: 95%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+#checkout-form button {
+  background-color: var(--taobao-orange);
+  color: white;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: bold;
+  width: 100%;
+}
+#checkout-form button:hover {
+  opacity: 0.85;
+}
+
+/* 彈窗內的商品列表 */
+#cart-items-list .cart-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-gray);
+}
+#cart-items-list .cart-item-info {
+  flex-grow: 1;
+}
+#cart-items-list .cart-item-info p {
+  margin: 0;
+  font-weight: bold;
+}
+#cart-items-list .cart-item-info span {
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+#cart-items-list .cart-item-actions {
+  display: flex;
+  align-items: center;
+}
+#cart-items-list input[type="number"] {
+  width: 50px;
+  padding: 5px;
+  text-align: center;
+  margin: 0 10px;
+}
+#cart-items-list .remove-item {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.cart-total {
+  text-align: right;
+  font-size: 1.3rem;
+  font-weight: bold;
+  margin-top: 20px;
+  color: var(--taobao-orange);
+}
+
+/* (【全新】) 客戶登出按鈕 (小型) */
+.btn-small-delete {
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.btn-small-delete:hover {
+  background-color: #dc3545;
+}
+
+/* --- 【第三批優化：新增 "我的帳戶" 頁面樣式】 --- */
+
+/* 客戶導覽列連結 (我的訂單) */
+.customer-nav-link {
+  color: var(--taobao-orange);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin: 0 5px;
+}
+.customer-nav-link:hover {
+  text-decoration: underline;
+}
+.customer-nav-separator {
+  color: #ccc;
+  margin: 0 5px;
+}
+
+/* 訂單歷史卡片 */
+#order-history-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.order-card {
+  background-color: #ffffff;
+  border: 1px solid var(--border-gray);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.order-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid var(--border-gray);
+}
+.order-card-header strong {
+  font-size: 1.1rem;
+  color: var(--text-dark);
+}
+.order-card-header small {
+  display: block;
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+.order-total {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: var(--taobao-orange);
+}
+
+.order-card-body {
+  padding: 20px;
+}
+
+.order-status-tags {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+.tag {
+  padding: 3px 10px;
+  border-radius: 15px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: white;
+}
+/* 對應 admin.css 的狀態顏色 */
+.tag.status-Pending,
+.tag.status-pending {
+  background-color: #ffc107;
+  color: #333;
+}
+.tag.status-Processing,
+.tag.status-processed {
+  background-color: #007bff;
+}
+.tag.status-Shipped_Internal {
+  background-color: #17a2b8;
+}
+.tag.status-Warehouse_Received,
+.tag.status-Completed {
+  background-color: #28a745;
+}
+.tag.status-Cancelled {
+  background-color: #6c757d;
+}
+.tag.status-UNPAID {
+  background-color: #dc3545;
+}
+.tag.status-PAID {
+  background-color: #28a745;
+}
+
+.order-item-list {
+  list-style-type: none;
+  padding-left: 0;
+  margin: 0;
+}
+.order-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #f4f4f4;
+}
+.order-item:last-child {
+  border-bottom: none;
+}
+.order-item .item-name {
+  color: var(--text-dark);
+}
+.order-item .item-details {
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+/* --- 【優化結束】 --- */
+
+/* --- 【第五批優化：新增分類篩選列樣式】 --- */
+#category-filter-bar {
+  background-color: #ffffff;
+  padding: 10px 15px;
+  border: 1px solid var(--border-gray);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.category-filter-btn {
+  background-color: #f4f7f6;
+  border: 1px solid #e0e0e0;
+  padding: 8px 15px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-light);
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.category-filter-btn:hover {
+  background-color: #e0e0e0;
+  color: var(--text-dark);
+}
+
+.category-filter-btn.active {
+  background-color: var(--taobao-orange);
+  color: white;
+  border-color: var(--taobao-orange);
+  font-weight: bold;
+}
+/* --- 【優化結束】 --- */

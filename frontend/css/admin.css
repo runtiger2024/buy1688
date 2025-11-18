@@ -1,0 +1,438 @@
+/* --- 淘寶風格 - 管理儀表板 CSS --- */
+
+:root {
+  --taobao-orange: #ff5000;
+  --admin-bg: #f8f9fa;
+  --text-dark: #212529;
+  --text-light: #495057;
+  --border-gray: #dee2e6;
+  --header-bg: #343a40; /* 深色標頭 */
+}
+
+/* 基本樣式 */
+body {
+  font-family: "Helvetica Neue", Helvetica, Arial, "Microsoft Yahei",
+    "Hiragino Sans GB", "Heiti SC", "WenQuanYi Micro Hei", sans-serif;
+  line-height: 1.6;
+  background-color: var(--admin-bg);
+  color: var(--text-dark);
+  margin: 0;
+  padding: 0;
+}
+
+header {
+  background-color: var(--header-bg); /* 改用深灰色標頭 */
+  color: white;
+  padding: 20px;
+  border-bottom: 4px solid var(--taobao-orange); /* 底部用橙色線條點綴 */
+}
+header h1 {
+  margin: 0;
+  color: white; /* 標題改為白色 */
+}
+header a {
+  color: #e9ecef;
+}
+header a:hover {
+  color: white;
+}
+
+.auth-box {
+  margin: 10px 0;
+  background-color: var(--text-light); /* 驗證區塊使用較淺的灰色 */
+  padding: 10px;
+  border-radius: 5px;
+}
+.auth-box label {
+  margin-right: 10px;
+}
+.auth-box input[type="password"] {
+  padding: 5px;
+  border-radius: 4px;
+  border: 1px solid #ced4da;
+}
+.auth-box button {
+  padding: 5px 10px;
+  background-color: var(--taobao-orange); /* 刷新按鈕改為淘寶橙 */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+}
+.auth-box button:hover {
+  opacity: 0.85;
+}
+
+/* 儀表板佈局 */
+.dashboard-layout {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 20px;
+  gap: 20px;
+  align-items: flex-start;
+}
+.dashboard-section {
+  background-color: #ffffff;
+  border: 1px solid var(--border-gray);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  padding: 20px;
+  flex: 1;
+}
+
+/* 訂單區塊 */
+#orders-section {
+  min-width: 60%;
+  overflow-x: auto;
+}
+
+/* 商品區塊 */
+#products-section {
+  min-width: 300px;
+  max-width: 40%;
+}
+
+h2,
+h3 {
+  margin-top: 0;
+  color: var(--text-dark); /* 標題改為深色 */
+  border-bottom: 2px solid var(--taobao-orange); /* 標題底線使用淘寶橙 */
+  padding-bottom: 5px;
+  font-weight: 500;
+}
+
+/* 表單樣式 */
+#product-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+.form-group label {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group input[type="password"],
+.form-group textarea,
+.form-group select {
+  /* (【修改】) 讓 select 也套用樣式 */
+  width: 95%;
+  padding: 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  background-color: #fff; /* (【修改】) 確保 select 背景為白 */
+}
+/* 輸入框選中時的淘寶橙光暈 */
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  /* (【修改】) 讓 select 也套用樣式 */
+  outline: none;
+  border-color: var(--taobao-orange);
+  box-shadow: 0 0 5px rgba(255, 80, 0, 0.5);
+}
+
+.form-buttons button {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 10px;
+  font-weight: bold;
+  transition: opacity 0.3s ease;
+}
+#submit-product-btn,
+#submit-user-btn,
+#submit-warehouse-btn,
+#submit-category-btn {
+  /* 【第四批優化】新增按鈕 */
+  /* (【修改】) 讓新按鈕也套用樣式 */
+  background-color: var(--taobao-orange); /* 主要按鈕使用淘寶橙 */
+  color: white;
+}
+#submit-product-btn:hover,
+#submit-user-btn:hover,
+#submit-warehouse-btn:hover,
+#submit-category-btn:hover {
+  /* 【第四批優化】新增按鈕 */
+  /* (【修改】) 讓新按鈕也套用樣式 */
+  opacity: 0.85;
+}
+
+#cancel-edit-btn,
+#cancel-warehouse-edit-btn,
+#cancel-category-edit-btn {
+  /* 【第四批優化】新增按鈕 */
+  /* (【修改】) 讓新按鈕也套用樣式 */
+  background-color: #6c757d;
+  color: white;
+}
+#cancel-edit-btn:hover,
+#cancel-warehouse-edit-btn:hover,
+#cancel-category-edit-btn:hover {
+  /* 【第四批優化】新增按鈕 */
+  /* (【修改】) 讓新按鈕也套用樣式 */
+  opacity: 0.85;
+}
+
+/* 表格樣式 */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+table th,
+table td {
+  border: 1px solid var(--border-gray);
+  padding: 12px;
+  text-align: left;
+  vertical-align: top;
+}
+table th {
+  background-color: #f1f3f5;
+  font-weight: bold;
+}
+table tbody tr:nth-child(odd) {
+  background-color: #f8f9fa;
+}
+table img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+/* --- 【第二批優化：新增付款狀態樣式】 --- */
+/* 表格中的狀態和按鈕 */
+.status-Pending, /* (【修改】) 配合資料庫 Enum */
+.status-pending {
+  color: var(--taobao-orange);
+  font-weight: bold;
+}
+.status-Processing, /* (【修改】) 配合資料庫 Enum */
+.status-processed {
+  color: #28a745;
+  font-weight: bold;
+}
+.status-active {
+  /* (【修改】) 用戶狀態 */
+  color: #28a745;
+  font-weight: bold;
+}
+.status-inactive {
+  /* (【修改】) 用戶狀態 */
+  color: #dc3545;
+  font-weight: bold;
+}
+
+/* 【優化】新增付款狀態 */
+.status-UNPAID {
+  color: #dc3545; /* 紅色 */
+  font-weight: bold;
+}
+.status-PAID {
+  color: #28a745; /* 綠色 */
+  font-weight: bold;
+}
+/* --- 【優化結束】 --- */
+
+.btn {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-right: 5px;
+  transition: opacity 0.3s ease;
+}
+.btn:hover {
+  opacity: 0.8;
+}
+
+.btn-edit {
+  background-color: #ffc107;
+  color: #212529;
+} /* 編輯(黃) - 保留 */
+.btn-delete {
+  background-color: #dc3545;
+  color: white;
+} /* 刪除(紅) - 保留 */
+.btn-update {
+  background-color: #007bff;
+  color: white;
+} /* 更新(藍) - 保留 */
+.btn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* --- 管理後台頁尾 --- */
+.admin-footer {
+  text-align: center;
+  padding: 20px;
+  margin-top: 30px;
+  color: #6c757d; /* 輔助性文字顏色 */
+  font-size: 0.9rem;
+  border-top: 1px solid var(--border-gray);
+}
+/* --- 登入頁面樣式 (Login Page) --- */
+body.login-body {
+  background-color: var(--admin-bg);
+}
+
+.login-container {
+  max-width: 450px;
+  margin: 80px auto;
+  padding: 30px;
+  background-color: #ffffff;
+  border: 1px solid var(--border-gray);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.login-container h2 {
+  text-align: center;
+  color: var(--taobao-orange);
+  border-bottom: none;
+  margin-top: 0;
+}
+.login-container p {
+  text-align: center;
+  color: var(--text-light);
+  margin-bottom: 25px;
+}
+
+#login-form .form-group {
+  margin-bottom: 20px;
+}
+
+#login-form .form-buttons button {
+  width: 100%;
+  padding: 12px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  background-color: var(--taobao-orange);
+}
+
+.error-message {
+  color: #dc3545; /* Bootstrap danger color */
+  font-weight: bold;
+  text-align: center;
+  min-height: 1.5em; /* 佔位，防止跳動 */
+}
+/* --- 人員管理區塊 --- */
+#users-section {
+  min-width: 100%; /* 讓它佔滿一整行 */
+}
+
+#create-user-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  align-items: flex-end;
+}
+#create-user-form h3 {
+  width: 100%;
+  margin-bottom: 0;
+}
+#create-user-form .form-group {
+  flex: 1; /* 讓輸入框彈性生長 */
+  min-width: 200px;
+}
+#create-user-form .form-buttons {
+  padding-bottom: 8px; /* 對齊輸入框 */
+}
+
+/* --- 導覽列 (Tabs) 樣式 --- */
+.admin-nav {
+  display: flex;
+  background-color: #e9ecef;
+  padding: 0 20px;
+  border-bottom: 2px solid var(--border-gray);
+  margin-bottom: 20px;
+}
+
+.nav-link {
+  padding: 15px 20px;
+  text-decoration: none;
+  color: var(--text-light);
+  font-weight: bold;
+  border-bottom: 3px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.nav-link:hover {
+  color: var(--text-dark);
+}
+
+.nav-link.active {
+  color: var(--taobao-orange);
+  border-bottom-color: var(--taobao-orange);
+}
+
+/* --- 頁籤化佈局 --- */
+/* 預設隱藏所有區塊 */
+.dashboard-section {
+  display: none;
+}
+
+/* 只顯示有 "active" class 的區塊 */
+.dashboard-section.active {
+  display: block; /* 讓它顯示出來 */
+  width: 100%; /* 佔滿寬度 */
+}
+
+/* --- (【全新】) 倉庫管理區塊樣式 --- */
+#warehouses-section {
+  min-width: 100%;
+}
+/* 讓表單和列表並排 */
+.warehouse-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+/* 一個更精簡的表單樣式 */
+.subtle-form {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 5px;
+  border: 1px solid var(--border-gray);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  min-width: 350px;
+}
+.subtle-form h3 {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+#warehouses-table {
+  flex: 1;
+}
+
+/* --- 【第四批優化：新增 "分類管理" 區塊樣式】 --- */
+#categories-section {
+  min-width: 100%;
+}
+.categories-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+#category-form {
+  min-width: 350px;
+}
+#categories-table {
+  flex: 1;
+}
+/* --- 【優化結束】 --- */

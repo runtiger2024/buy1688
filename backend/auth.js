@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+// (【第六批優化】：這裡不需要 emailService，email 已移至 server.js)
 
 dotenv.config();
 
