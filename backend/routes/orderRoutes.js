@@ -326,8 +326,7 @@ router.get("/share/:token", async (req, res, next) => {
   }
 });
 
-// --- 客戶查詢訂單 ---
-// [優化] 路由變更為 /my，並在 server.js 中設定 /orders/my 的路由
+// --- 客戶查詢訂單 (修復 Decimal 序列化錯誤) ---
 router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
   try {
     const orders = await prisma.orders.findMany({
@@ -341,13 +340,31 @@ router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
             // [新增] 包含 assist order 必要的資訊
             item_url: true,
             item_spec: true,
+            snapshot_cost_cny: true, // 確保可以取到 Decimal 欄位以進行轉換
           },
         },
         warehouse: { select: { name: true } }, // 加入 warehouse info
       },
       orderBy: { created_at: "desc" },
     });
-    res.json(orders);
+
+    // ✅ 關鍵修正：手動序列化 Decimal 欄位
+    const sanitizedOrders = orders.map((order) => {
+      const items = order.items.map((item) => ({
+        ...item,
+        // 將 item 內的 Decimal 轉換
+        snapshot_cost_cny: Number(item.snapshot_cost_cny),
+      }));
+
+      return {
+        ...order,
+        // 將 Order 主體的 Decimal 轉換
+        total_cost_cny: Number(order.total_cost_cny),
+        items: items,
+      };
+    });
+
+    res.json(sanitizedOrders);
   } catch (err) {
     next(err);
   }
