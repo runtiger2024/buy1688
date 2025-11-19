@@ -117,6 +117,56 @@ router.post("/", async (req, res, next) => {
   }
 });
 
+// --- [新增] 憑證上傳路由 (客戶端使用) ---
+router.post(
+  "/:id/voucher",
+  authenticateToken,
+  isCustomer,
+  async (req, res, next) => {
+    const { voucherUrl } = req.body;
+    const orderId = parseInt(req.params.id);
+
+    const schema = Joi.object({
+      voucherUrl: Joi.string().uri().required(),
+    });
+    const { error } = schema.validate(req.body);
+    if (error) return res.status(400).json({ message: "無效的憑證 URL" });
+
+    try {
+      const order = await prisma.orders.findUnique({ where: { id: orderId } });
+      if (!order) return res.status(404).json({ message: "找不到訂單" });
+
+      // 驗證客戶身份 (透過 paopao_id)
+      if (order.paopao_id !== req.user.paopao_id)
+        return res.status(403).json({ message: "無權操作此訂單" });
+
+      // 只能對待付款訂單上傳憑證
+      if (order.payment_status !== "UNPAID")
+        return res.status(400).json({ message: "該訂單狀態無法上傳憑證" });
+
+      const updatedOrder = await prisma.orders.update({
+        where: { id: orderId },
+        data: {
+          payment_voucher_url: voucherUrl,
+          // 註記：上傳憑證不自動改為 PAID，仍需管理員手動確認
+          notes:
+            (order.notes || "") +
+            `\n[系統自動註記] 客戶已於 ${new Date().toLocaleString(
+              "zh-TW"
+            )} 上傳匯款憑證。`,
+        },
+      });
+
+      res.json({
+        message: "匯款憑證已上傳，待管理員確認。",
+        order: updatedOrder,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // --- [修改] 建立代購訂單 (回傳 Share Token 與 動態銀行資訊) ---
 router.post("/assist", async (req, res, next) => {
   const schema = Joi.object({
