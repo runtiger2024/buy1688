@@ -122,8 +122,18 @@
       <section class="dashboard-section" id="orders-section">
         <div class="section-header-controls">
           <h2>訂單管理 (最新在最前)</h2>
-          <div class="form-group-inline">
-            <label for="order-status-filter">篩選狀態:</label>
+          <div class="form-group-inline" style="flex-wrap: wrap">
+            <input
+              type="text"
+              id="order-search-input"
+              placeholder="搜尋訂單ID/會員編號/Email..."
+              style="width: 250px"
+            />
+            <button id="order-search-btn" class="btn btn-primary">搜尋</button>
+
+            <label for="order-status-filter" style="margin-left: 15px"
+              >狀態:</label
+            >
             <select id="order-status-filter">
               <option value="">所有狀態</option>
               <option value="Pending">待處理</option>
@@ -133,13 +143,15 @@
               <option value="Completed">已完成</option>
               <option value="Cancelled">已取消</option>
             </select>
-            <label for="order-payment-status-filter">付款狀態:</label>
+
+            <label for="order-payment-status-filter">付款:</label>
             <select id="order-payment-status-filter">
               <option value="">所有付款</option>
               <option value="UNPAID">待付款</option>
               <option value="PAID">已付款</option>
             </select>
-            <button id="refresh-data" class="btn btn-primary">刷新訂單</button>
+
+            <button id="refresh-data" class="btn btn-edit">重置/刷新</button>
           </div>
         </div>
         <table id="orders-table">

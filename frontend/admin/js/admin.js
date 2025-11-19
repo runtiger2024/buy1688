@@ -49,6 +49,7 @@ let allOrders = [];
 
 let currentStatusFilter = "";
 let currentPaymentStatusFilter = "";
+let currentSearchTerm = ""; // [新增] 搜尋關鍵字
 
 const ORDER_STATUS_MAP = {
   Pending: "待處理",
@@ -111,6 +112,8 @@ let userInfoSpan;
 let ordersTbody;
 let statusFilterSelect;
 let paymentStatusFilterSelect;
+let orderSearchInput; // [新增]
+let orderSearchBtn; // [新增]
 let productsTbody;
 let productForm;
 let formTitle;
@@ -288,6 +291,7 @@ async function loadStats(headers) {
   }
 }
 
+// [修改] loadOrders 支援搜尋參數
 async function loadOrders(headers) {
   try {
     ordersTbody.innerHTML = '<tr><td colspan="12">正在載入訂單...</td></tr>';
@@ -296,6 +300,7 @@ async function loadOrders(headers) {
     if (currentStatusFilter) params.append("status", currentStatusFilter);
     if (currentPaymentStatusFilter)
       params.append("paymentStatus", currentPaymentStatusFilter);
+    if (currentSearchTerm) params.append("search", currentSearchTerm); // 加入搜尋
 
     let url = `${API_URL}/orders/operator`;
     if (params.toString()) {
@@ -389,7 +394,8 @@ async function loadCategories(headers) {
 function renderOrders(orders) {
   ordersTbody.innerHTML = "";
   if (orders.length === 0) {
-    ordersTbody.innerHTML = '<tr><td colspan="12">沒有待處理的訂單。</td></tr>';
+    ordersTbody.innerHTML =
+      '<tr><td colspan="12">沒有符合條件的訂單。</td></tr>';
     return;
   }
 
@@ -433,7 +439,6 @@ function renderOrders(orders) {
            </button>`
       : "";
 
-    // [修改] 憑證顯示邏輯 (使用按鈕觸發查看 Base64)
     let voucherContent = "";
     if (order.payment_voucher_url) {
       voucherContent = `<button class="btn-link btn-view-voucher" data-id="${order.id}" style="color: #28a745; font-weight: bold; border: none; background: none; cursor: pointer; text-decoration: underline;">查看憑證</button>`;
@@ -443,7 +448,6 @@ function renderOrders(orders) {
       voucherContent = "無";
     }
 
-    // [新增] 物流單號輸入欄位 (僅在已付款且處理中/已發貨時顯示)
     let trackingInputHtml = order.domestic_tracking_number
       ? `<a href="https://www.baidu.com/s?wd=${order.domestic_tracking_number}" target="_blank">${order.domestic_tracking_number}</a>`
       : "無";
@@ -678,6 +682,8 @@ document.addEventListener("DOMContentLoaded", () => {
   paymentStatusFilterSelect = document.getElementById(
     "order-payment-status-filter"
   );
+  orderSearchInput = document.getElementById("order-search-input"); // [新增]
+  orderSearchBtn = document.getElementById("order-search-btn"); // [新增]
 
   productsTbody = document.getElementById("products-tbody");
   productForm = document.getElementById("product-form");
@@ -735,9 +741,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
   logoutButton.addEventListener("click", logout);
 
+  // [修改] 刷新按鈕同時重置搜尋
   refreshButton.addEventListener("click", () => {
+    if (orderSearchInput) orderSearchInput.value = "";
+    currentSearchTerm = "";
     loadOrders(getAuthHeaders());
   });
+
+  // [新增] 搜尋按鈕事件
+  if (orderSearchBtn && orderSearchInput) {
+    orderSearchBtn.addEventListener("click", () => {
+      currentSearchTerm = orderSearchInput.value.trim();
+      loadOrders(getAuthHeaders());
+    });
+
+    // 支援按 Enter 搜尋
+    orderSearchInput.addEventListener("keyup", (e) => {
+      if (e.key === "Enter") {
+        currentSearchTerm = orderSearchInput.value.trim();
+        loadOrders(getAuthHeaders());
+      }
+    });
+  }
 
   saveSettingsBtn.addEventListener("click", () => {
     saveSettings(getAuthHeaders());
@@ -879,7 +904,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // [新增] 查看憑證邏輯 (支援 Base64)
     if (target.classList.contains("btn-view-voucher")) {
       const id = target.dataset.id;
       const order = allOrders.find((o) => o.id == id);
@@ -900,7 +924,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // [新增] 儲存物流單號按鈕
     if (target.classList.contains("btn-save-tracking")) {
       const id = target.dataset.id;
       const headers = getAuthHeaders();

@@ -32,8 +32,9 @@ async function getSettingsAndBankInfo() {
 
   return { rate, fee, bankInfo };
 }
+// --- 共通函式結束 ---
 
-// --- 建立一般訂單 ---
+// --- 建立一般訂單 (強制登入) ---
 router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
   const schema = Joi.object({
     paopaoId: Joi.string().allow("").optional(),
@@ -130,7 +131,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
   }
 });
 
-// --- [修改] 憑證上傳路由 (接受 Base64) ---
+// --- 憑證上傳路由 ---
 router.post(
   "/:id/voucher",
   authenticateToken,
@@ -140,7 +141,6 @@ router.post(
     const orderId = parseInt(req.params.id);
 
     const schema = Joi.object({
-      // [修改] 移除 .uri()，允許 Base64 字串 (data:image/...)
       voucherUrl: Joi.string().required().messages({
         "string.empty": "憑證內容不能為空",
       }),
@@ -357,18 +357,32 @@ router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
   }
 });
 
-// --- 操作員查詢 ---
+// --- [修改] 操作員查詢 (支援搜尋) ---
 router.get(
   "/operator",
   authenticateToken,
   isOperator,
   async (req, res, next) => {
     try {
-      const { status, paymentStatus } = req.query;
+      const { status, paymentStatus, search } = req.query;
       const whereClause = {};
 
       if (status) whereClause.status = status;
       if (paymentStatus) whereClause.payment_status = paymentStatus;
+
+      // 搜尋邏輯：同時搜尋 ID (如果是數字)、跑跑虎 ID、Email
+      if (search) {
+        const searchInt = parseInt(search, 10);
+        const OR = [
+          { paopao_id: { contains: search, mode: "insensitive" } },
+          { customer_email: { contains: search, mode: "insensitive" } },
+        ];
+        // 只有當 search 是有效整數時，才加入 ID 搜尋
+        if (!isNaN(searchInt)) {
+          OR.push({ id: searchInt });
+        }
+        whereClause.OR = OR;
+      }
 
       const orders = await prisma.orders.findMany({
         where: whereClause,
@@ -405,14 +419,27 @@ router.get(
   }
 );
 
-// --- 管理員查詢 ---
+// --- [修改] 管理員查詢 (支援搜尋) ---
 router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
   try {
-    const { status, paymentStatus } = req.query;
+    const { status, paymentStatus, search } = req.query;
     const whereClause = {};
 
     if (status) whereClause.status = status;
     if (paymentStatus) whereClause.payment_status = paymentStatus;
+
+    // 搜尋邏輯同上
+    if (search) {
+      const searchInt = parseInt(search, 10);
+      const OR = [
+        { paopao_id: { contains: search, mode: "insensitive" } },
+        { customer_email: { contains: search, mode: "insensitive" } },
+      ];
+      if (!isNaN(searchInt)) {
+        OR.push({ id: searchInt });
+      }
+      whereClause.OR = OR;
+    }
 
     const orders = await prisma.orders.findMany({
       where: whereClause,
