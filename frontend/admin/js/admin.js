@@ -1273,3 +1273,69 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+function setupOrderFilters() {
+  if (statusFilterSelect) {
+    statusFilterSelect.addEventListener("change", (e) => {
+      currentStatusFilter = e.target.value;
+      loadOrders(getAuthHeaders());
+    });
+  }
+
+  if (paymentStatusFilterSelect) {
+    paymentStatusFilterSelect.addEventListener("change", (e) => {
+      currentPaymentStatusFilter = e.target.value;
+      loadOrders(getAuthHeaders());
+    });
+  }
+}
+
+function applyRolePermissions() {
+  const user = getUser();
+  if (user.role === "admin") return;
+  // 隱藏所有標記為僅限 admin 的元素
+  document.querySelectorAll('[data-role="admin"]').forEach((el) => {
+    el.style.display = "none";
+  });
+}
+
+function setupNavigation() {
+  const navLinks = document.querySelectorAll(".nav-link");
+  const sections = document.querySelectorAll(".dashboard-section");
+  const defaultLink =
+    document.querySelector('.nav-link[data-default="true"]') ||
+    document.querySelector('.nav-link:not([style*="display: none"])');
+  const defaultTargetId = defaultLink ? defaultLink.dataset.target : null;
+
+  function showTabFromHash() {
+    const hash = window.location.hash.substring(1);
+    let targetId = hash ? `${hash}-section` : defaultTargetId;
+    const targetSection = document.getElementById(targetId);
+    if (!targetSection || targetSection.style.display === "none") {
+      targetId = defaultTargetId;
+    }
+    updateActiveTabs(targetId);
+  }
+
+  function updateActiveTabs(targetId) {
+    sections.forEach((section) => {
+      section.classList.toggle("active", section.id === targetId);
+    });
+    navLinks.forEach((link) => {
+      link.classList.toggle("active", link.dataset.target === targetId);
+    });
+  }
+
+  navLinks.forEach((link) => {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      const targetId = link.dataset.target;
+      if (document.getElementById(targetId).style.display !== "none") {
+        updateActiveTabs(targetId);
+        history.pushState(null, null, `#${targetId.replace("-section", "")}`);
+      }
+    });
+  });
+
+  window.addEventListener("popstate", showTabFromHash);
+  showTabFromHash();
+}
