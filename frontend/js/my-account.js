@@ -5,13 +5,11 @@ import {
   setupCustomerAuth,
   setupHamburgerMenu,
   getCustomer,
-} from "./sharedUtils.js"; // <-- 導入共用函式
+} from "./sharedUtils.js";
 
-// --- 全域變數 ---
-let allOrdersData = []; // 儲存所有訂單資料
-let bankInfo = null; // 儲存銀行資訊
+let allOrdersData = [];
+let bankInfo = null;
 
-// --- 【第九批優化：新增狀態翻譯字典】 ---
 const ORDER_STATUS_MAP = {
   Pending: "待處理",
   Processing: "採購中",
@@ -25,21 +23,11 @@ const PAYMENT_STATUS_MAP = {
   UNPAID: "待付款",
   PAID: "已付款",
 };
-// --- 【優化結束】 ---
 
-// --- 幫助函式 ---
-
-/**
- * 獲取儲存的 客戶 Token
- */
 function getToken() {
   return localStorage.getItem("customerToken");
 }
 
-/**
- * 頁面載入時的守衛
- * 檢查 Token，若無則踢回登入頁
- */
 function checkAuth() {
   if (!getToken()) {
     alert("請先登入");
@@ -49,14 +37,11 @@ function checkAuth() {
   return true;
 }
 
-/**
- * 獲取 API 請求的標頭 (包含客戶 Token)
- */
 function getAuthHeaders() {
   const token = getToken();
   if (!token) {
     console.error("Token not found");
-    checkAuth(); // 觸發踢回登入
+    checkAuth();
     return null;
   }
   return {
@@ -65,9 +50,6 @@ function getAuthHeaders() {
   };
 }
 
-/**
- * [新增] 獲取系統設定中的銀行資訊
- */
 async function loadBankInfo() {
   try {
     const response = await fetch(`${API_URL}/settings`);
@@ -86,9 +68,6 @@ async function loadBankInfo() {
   }
 }
 
-/**
- * [新增] 一鍵複製銀行資訊
- */
 window.copyBankInfo = function (orderId, totalAmount) {
   if (
     !bankInfo ||
@@ -121,10 +100,8 @@ window.copyBankInfo = function (orderId, totalAmount) {
     });
 };
 
-/**
- * [修改] 處理憑證上傳 (使用檔案輸入，並生成模擬 URL)
- */
-window.handleVoucherUpload = async function (e, orderId) {
+// [修改] 真正的憑證上傳邏輯 (轉 Base64)
+window.handleVoucherUpload = function (e, orderId) {
   e.preventDefault();
   const headers = getAuthHeaders();
   if (!headers) return;
@@ -141,115 +118,104 @@ window.handleVoucherUpload = async function (e, orderId) {
     return;
   }
 
-  // [核心修正] 確保模擬 URL 是有效的 URI，使用 example.com 繞過 Joi 的嚴格限制
-  // VITAL NOTE: 這是模擬上傳，請在正式部署時，替換此處為您的雲端儲存上傳 API
-  const encodedFileName = encodeURIComponent(file.name);
-  const mockVoucherUrl = `https://runtiger-storage.com/vouchers/order_${orderId}/${Date.now()}_${encodedFileName}`; // [優化] 改為更真實的模擬網域
+  // 檢查檔案大小 (限制 5MB 以內)
+  if (file.size > 5 * 1024 * 1024) {
+    alert("檔案過大！請上傳小於 5MB 的圖片。");
+    return;
+  }
 
   uploadButton.disabled = true;
-  uploadButton.textContent = "上傳中...";
-  statusDiv.textContent = `正在提交憑證資訊 (${file.name})...`;
+  uploadButton.textContent = "處理中...";
+  statusDiv.textContent = "正在讀取圖片...";
 
-  try {
-    // 使用原有的 /orders/:id/voucher JSON endpoint，傳送模擬 URL
-    const response = await fetch(`${API_URL}/orders/${orderId}/voucher`, {
-      method: "POST",
-      // 注意：這裡必須是 application/json
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: headers.Authorization,
-      },
-      body: JSON.stringify({ voucherUrl: mockVoucherUrl }),
-    });
+  const reader = new FileReader();
 
-    const result = await response.json();
+  reader.onload = async function (event) {
+    const base64String = event.target.result;
 
-    if (!response.ok) {
-      const errorMsg = result.message || "憑證提交失敗";
-      throw new Error(errorMsg);
+    statusDiv.textContent = "正在上傳...";
+
+    try {
+      const response = await fetch(`${API_URL}/orders/${orderId}/voucher`, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({ voucherUrl: base64String }), // 將 Base64 當作 URL 存入
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "憑證提交失敗");
+      }
+
+      alert("上傳成功！管理員將盡快為您對帳。");
+      loadOrders();
+    } catch (error) {
+      statusDiv.textContent = `錯誤: ${error.message}`;
+      console.error("上傳失敗:", error);
+    } finally {
+      uploadButton.disabled = false;
+      uploadButton.textContent = "確認上傳憑證";
     }
+  };
 
-    alert("上傳成功！管理員將盡快為您對帳。");
-    // 重新載入訂單列表以更新狀態
-    loadOrders();
-  } catch (error) {
-    statusDiv.textContent = `憑證提交失敗: ${error.message}`;
-    console.error("憑證提交失敗:", error);
-  } finally {
+  reader.onerror = function () {
+    alert("讀取檔案失敗，請重試。");
     uploadButton.disabled = false;
     uploadButton.textContent = "確認上傳憑證";
-  }
+  };
+
+  // 開始讀取檔案
+  reader.readAsDataURL(file);
 };
 
-// --- 核心邏輯 ---
-
 document.addEventListener("DOMContentLoaded", async () => {
-  // 1. 執行守衛
   if (!checkAuth()) {
     return;
   }
 
-  // 2. 載入共用組件
   await loadComponent("../html/_navbar.html", "navbar-placeholder");
-
-  // 3. 綁定 Navbar 上的功能
   setupHamburgerMenu();
   setupCustomerAuth();
 
-  // [新增] 處理導覽列上的 "我的購物車" 連結
   const navCartLink = document.getElementById("nav-cart-link");
   if (navCartLink) {
     navCartLink.addEventListener("click", (e) => {
       e.preventDefault();
-      // 由於此頁面沒有購物車 Modal，這裡導回首頁
       window.location.href = "./index.html";
     });
   }
 
-  // 4. 載入此頁面元件
   loadComponent("../html/_header.html", "notice-placeholder");
-
-  // 5. 載入銀行資訊
   await loadBankInfo();
-
-  // 6. 載入訂單
   loadOrders();
 });
 
-/**
- * 呼叫後端 API 載入訂單
- */
 async function loadOrders() {
   const container = document.getElementById("order-history-container");
   const headers = getAuthHeaders();
   if (!headers) return;
 
   try {
-    // [優化] 使用 /orders/my 路徑
     const response = await fetch(`${API_URL}/orders/my`, { headers });
 
     if (response.status === 401 || response.status === 403) {
-      // Token 失效或權限不足
       throw new Error("驗證失敗，請重新登入");
     }
     if (!response.ok) {
       throw new Error("載入訂單失敗");
     }
 
-    allOrdersData = await response.json(); // 儲存至全域變數
+    allOrdersData = await response.json();
     renderOrders(allOrdersData);
-    setupOrderDetailsToggle(); // [新增] 綁定詳情切換事件
+    setupOrderDetailsToggle();
   } catch (error) {
     console.error("載入訂單失敗:", error);
     container.innerHTML = `<p style="color:red;">${error.message}。 <a href="../html/login.html">點此重新登入</a></p>`;
   }
 }
 
-/**
- * [新增] 綁定訂單詳情切換事件
- */
 function setupOrderDetailsToggle() {
-  // 必須使用 Event Delegation，因為 orderCard 是動態生成的
   const container = document.getElementById("order-history-container");
 
   container.addEventListener("click", (e) => {
@@ -263,15 +229,12 @@ function setupOrderDetailsToggle() {
       detailContent.style.display = "none";
       button.textContent = "訂單詳情";
     } else {
-      // 如果是第一次點擊，確保內容已經渲染
       if (!detailContent.querySelector(".order-detail-expanded")) {
         const order = allOrdersData.find((o) => o.id == orderId);
         if (order) {
           detailContent.innerHTML = renderOrderDetailContent(order);
-          // 由於上傳表單是動態生成的，需要額外綁定提交事件
           const form = detailContent.querySelector(`#voucher-form-${orderId}`);
           if (form) {
-            // 使用 window.handleVoucherUpload 綁定
             form.addEventListener("submit", (e) =>
               window.handleVoucherUpload(e, orderId)
             );
@@ -284,11 +247,7 @@ function setupOrderDetailsToggle() {
   });
 }
 
-/**
- * [修改] 渲染訂單詳情內容 (物品清單 + 銀行資訊 + 憑證上傳)
- */
 function renderOrderDetailContent(order) {
-  // 1. 渲染商品清單
   const itemsHtml = order.items
     .map(
       (item) => `
@@ -319,7 +278,6 @@ function renderOrderDetailContent(order) {
         </table>
     `;
 
-  // ✅ 新增：境內物流單號顯示
   let trackingInfoHtml = "";
   if (order.status === "Shipped_Internal" && order.domestic_tracking_number) {
     trackingInfoHtml = `
@@ -335,13 +293,11 @@ function renderOrderDetailContent(order) {
         `;
   }
 
-  // 2. 渲染匯款資訊與上傳區塊
   let bankInfoHtml = "";
   let uploadSection = "";
   const hasVoucher = order.payment_voucher_url;
 
   if (order.payment_status === "UNPAID") {
-    // 顯示匯款資訊
     if (bankInfo && bankInfo.bank_account !== "未設定") {
       bankInfoHtml = `
                 <div class="bank-info-box">
@@ -371,13 +327,18 @@ function renderOrderDetailContent(order) {
       bankInfoHtml = `<p style="margin-top: 10px; color: #dc3545; font-weight: bold;">後台尚未設定收款銀行資訊，請聯繫客服確認匯款。</p>`;
     }
 
-    // 顯示上傳憑證區塊 (改為檔案輸入)
     if (hasVoucher) {
+      // 如果是 Base64 圖片，直接顯示預覽圖
+      const isBase64 = hasVoucher.startsWith("data:image");
+      const linkContent = isBase64
+        ? `<img src="${hasVoucher}" style="max-width: 200px; border: 1px solid #ddd; border-radius: 4px;" alt="憑證預覽">`
+        : `<a href="${hasVoucher}" target="_blank">查看憑證連結</a>`;
+
       uploadSection = `
                 <div style="margin-bottom: 20px;">
                     <h4>已上傳憑證狀態</h4>
                     <div class="voucher-status uploaded">✅ 憑證已上傳，等待管理員對帳中。</div>
-                    <a href="${order.payment_voucher_url}" target="_blank" style="font-size: 0.9rem;">查看憑證連結</a>
+                    <div style="margin-top: 10px;">${linkContent}</div>
                 </div>
             `;
     } else {
@@ -395,7 +356,11 @@ function renderOrderDetailContent(order) {
   } else if (order.payment_status === "PAID") {
     uploadSection = `<p style="margin-top: 10px; color: #28a745; font-weight: bold;">✅ 訂單已付款，感謝您的支持。</p>`;
     if (hasVoucher) {
-      uploadSection += `<p><a href="${order.payment_voucher_url}" target="_blank" style="font-size: 0.9rem;">(查看憑證)</a></p>`;
+      const isBase64 = hasVoucher.startsWith("data:image");
+      const linkContent = isBase64
+        ? `<button onclick="const w=window.open();w.document.write('<img src=\\'${hasVoucher}\\' style=\\'width:100%\\'>');">查看憑證</button>`
+        : `<a href="${hasVoucher}" target="_blank">(查看憑證)</a>`;
+      uploadSection += `<p>${linkContent}</p>`;
     }
   }
 
@@ -408,9 +373,6 @@ function renderOrderDetailContent(order) {
     `;
 }
 
-/**
- * 將訂單資料渲染為 HTML
- */
 function renderOrders(orders) {
   const container = document.getElementById("order-history-container");
   if (!orders || orders.length === 0) {
@@ -418,21 +380,16 @@ function renderOrders(orders) {
     return;
   }
 
-  container.innerHTML = ""; // 清空 "正在載入..."
+  container.innerHTML = "";
 
   orders.forEach((order) => {
-    // --- 【第九批優化：使用翻譯字典】 ---
-    // 1. 處理狀態 (CSS class 不變, 顯示文字改變)
-    const paymentStatusClass = `status-${order.payment_status}`; // e.g., "status-PAID"
-    const orderStatusClass = `status-${order.status}`; // e.g., "status-Pending"
+    const paymentStatusClass = `status-${order.payment_status}`;
+    const orderStatusClass = `status-${order.status}`;
 
-    // 翻譯文字
     const paymentStatusText =
       PAYMENT_STATUS_MAP[order.payment_status] || order.payment_status;
     const orderStatusText = ORDER_STATUS_MAP[order.status] || order.status;
-    // --- 【優化結束】 ---
 
-    // 2. 組合 HTML
     const orderCard = document.createElement("div");
     orderCard.className = "order-card";
     orderCard.innerHTML = `

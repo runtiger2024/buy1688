@@ -1,3 +1,4 @@
+// backend/server.js
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -23,7 +24,10 @@ const corsOptions = {
   optionsSuccessStatus: 200,
 };
 app.use(cors(corsOptions));
-app.use(express.json());
+
+// [修改] 增加 Payload 大小限制以支援 Base64 圖片上傳
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 // --- 測試路由 ---
 app.get("/", (req, res) => {
@@ -38,40 +42,42 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 
 // 2. 商品相關
-// 一般公開查詢路徑
 app.use("/api/products", productRoutes);
-// [修復] Admin 管理路徑相容層 (讓前端 /api/admin/products 能通)
 app.use("/api/admin/products", productRoutes);
 
 // 3. 訂單相關
-// 主要路徑: /api/orders, /api/orders/:id/voucher, /api/orders/share/:token
 app.use("/api/orders", orderRoutes);
 
-// [優化] 新增對應 orderRoutes 內部的路由相容層
 app.use("/api/orders/assist", (req, res, next) => {
-  req.url = "/assist"; // 導向 orderRoutes 內的 /assist
+  req.url = "/assist";
   orderRoutes(req, res, next);
 });
 app.use("/api/orders/my", (req, res, next) => {
-  req.url = "/my"; // 導向 orderRoutes 內的 /my
+  req.url = "/my";
   orderRoutes(req, res, next);
 });
 app.use("/api/orders/operator", (req, res, next) => {
-  req.url = "/operator"; // 導向 orderRoutes 內的 /operator
+  req.url = "/operator";
   orderRoutes(req, res, next);
 });
 app.use("/api/orders/admin", (req, res, next) => {
-  req.url = "/admin"; // 導向 orderRoutes 內的 /admin
+  req.url = "/admin";
   orderRoutes(req, res, next);
 });
 
-// 4. 系統管理相關 (分類/倉庫/人員/設定/績效)
+// 4. 系統管理相關
 app.use("/api", managementRoutes);
 app.use("/api/admin", managementRoutes);
 
 // --- 全域錯誤處理 ---
 app.use((err, req, res, next) => {
   console.error("System Error:", err.stack);
+  // 如果是 PayloadTooLargeError，回傳更友善的訊息
+  if (err.type === "entity.too.large") {
+    return res
+      .status(413)
+      .json({ message: "上傳的檔案太大，請選擇較小的圖片 (建議 < 5MB)。" });
+  }
   res.status(500).json({
     message: "伺服器內部錯誤",
     error: process.env.NODE_ENV === "production" ? null : err.message,

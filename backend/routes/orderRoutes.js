@@ -32,16 +32,13 @@ async function getSettingsAndBankInfo() {
 
   return { rate, fee, bankInfo };
 }
-// --- 共通函式結束 ---
 
-// --- 建立一般訂單 (強制登入) ---
+// --- 建立一般訂單 ---
 router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
   const schema = Joi.object({
-    // 前端顯示用的 paopaoId，後端會用 Token 覆蓋，所以設為可選
     paopaoId: Joi.string().allow("").optional(),
     customerEmail: Joi.string().email().required(),
     payment_method: Joi.string().required(),
-    // [新增] 驗證 warehouse_id
     warehouse_id: Joi.number().integer().min(1).required(),
     items: Joi.array()
       .items(
@@ -58,10 +55,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
   if (error) return res.status(400).json({ message: error.details[0].message });
 
   try {
-    // 1. 讀取設定 (用於匯款資訊)
     const { bankInfo } = await getSettingsAndBankInfo();
-
-    // [安全修正] 強制使用 Token 中的身份
     const userPaopaoId = req.user.paopao_id;
 
     const productIds = value.items.map((item) => parseInt(item.id));
@@ -83,8 +77,6 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
 
       const qty = parseInt(item.quantity);
       totalTwd += product.price_twd * qty;
-
-      // 浮點數修正
       totalCny =
         Math.round((totalCny + Number(product.cost_cny) * qty) * 100) / 100;
 
@@ -97,37 +89,32 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
       });
     }
 
-    // [新增] 檢查倉庫 ID 是否有效
     const warehouse = await prisma.warehouses.findUnique({
       where: { id: value.warehouse_id, is_active: true },
     });
     if (!warehouse) throw new Error("無效的集運倉 ID");
 
-    // share_token 會由 DB 自動生成 (@default(uuid))
     const newOrder = await prisma.orders.create({
       data: {
-        paopao_id: userPaopaoId, // 使用 Token 中的 ID
+        paopao_id: userPaopaoId,
         customer_email: value.customerEmail,
         total_amount_twd: totalTwd,
         total_cost_cny: totalCny,
         status: "Pending",
         type: "Standard",
         payment_method: value.payment_method,
-        // [新增] 儲存 warehouse_id
         warehouse_id: value.warehouse_id,
         items: { create: orderItemsData },
       },
       include: { items: true },
     });
 
-    // 匯款資訊 (使用動態讀取的銀行資訊)
     let paymentDetails = null;
     if (value.payment_method === "OFFLINE_TRANSFER") {
       paymentDetails = {
         bank_name: bankInfo.bank_name,
         account_number: bankInfo.bank_account,
         account_name: bankInfo.bank_account_name,
-        // [優化] 備註文字更清晰
         note: `銀行：${bankInfo.bank_name}\n帳號：${bankInfo.bank_account}\n戶名：${bankInfo.bank_account_name}\n\n請匯款 TWD ${totalTwd} 元，並告知客服訂單編號 (${newOrder.id})。`,
       };
     }
@@ -143,7 +130,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
   }
 });
 
-// --- [新增] 憑證上傳路由 (客戶端使用) ---
+// --- [修改] 憑證上傳路由 (接受 Base64) ---
 router.post(
   "/:id/voucher",
   authenticateToken,
@@ -153,20 +140,22 @@ router.post(
     const orderId = parseInt(req.params.id);
 
     const schema = Joi.object({
-      voucherUrl: Joi.string().uri().required(),
+      // [修改] 移除 .uri()，允許 Base64 字串 (data:image/...)
+      voucherUrl: Joi.string().required().messages({
+        "string.empty": "憑證內容不能為空",
+      }),
     });
     const { error } = schema.validate(req.body);
-    if (error) return res.status(400).json({ message: "無效的憑證 URL" });
+    if (error)
+      return res.status(400).json({ message: error.details[0].message });
 
     try {
       const order = await prisma.orders.findUnique({ where: { id: orderId } });
       if (!order) return res.status(404).json({ message: "找不到訂單" });
 
-      // 驗證客戶身份 (透過 paopao_id)
       if (order.paopao_id !== req.user.paopao_id)
         return res.status(403).json({ message: "無權操作此訂單" });
 
-      // 只能對待付款訂單上傳憑證
       if (order.payment_status !== "UNPAID")
         return res.status(400).json({ message: "該訂單狀態無法上傳憑證" });
 
@@ -174,7 +163,6 @@ router.post(
         where: { id: orderId },
         data: {
           payment_voucher_url: voucherUrl,
-          // 註記：上傳憑證不自動改為 PAID，仍需管理員手動確認
           notes:
             (order.notes || "") +
             `\n[系統自動註記] 客戶已於 ${new Date().toLocaleString(
@@ -193,7 +181,7 @@ router.post(
   }
 );
 
-// --- [修改] 建立代購訂單 (強制登入) ---
+// --- 建立代購訂單 ---
 router.post(
   "/assist",
   authenticateToken,
@@ -203,7 +191,6 @@ router.post(
       paopaoId: Joi.string().allow("").optional(),
       customerEmail: Joi.string().email().required(),
       payment_method: Joi.string().required(),
-      // [新增] 驗證 warehouse_id
       warehouse_id: Joi.number().integer().min(1).required(),
       items: Joi.array()
         .items(
@@ -224,13 +211,9 @@ router.post(
       return res.status(400).json({ message: error.details[0].message });
 
     try {
-      // 1. 讀取設定 (匯率 + 銀行資訊) (使用共通函式)
       const { rate, fee, bankInfo } = await getSettingsAndBankInfo();
-
-      // [安全修正] 使用 Token 中的 ID
       const userPaopaoId = req.user.paopao_id;
 
-      // [新增] 檢查倉庫 ID 是否有效
       const warehouse = await prisma.warehouses.findUnique({
         where: { id: value.warehouse_id, is_active: true },
       });
@@ -260,26 +243,23 @@ router.post(
 
       const newOrder = await prisma.orders.create({
         data: {
-          paopao_id: userPaopaoId, // 使用 Token ID
+          paopao_id: userPaopaoId,
           customer_email: value.customerEmail,
           total_amount_twd: totalTwd,
           total_cost_cny: totalCny,
           status: "Pending",
           type: "Assist",
           payment_method: value.payment_method,
-          // [新增] 儲存 warehouse_id
           warehouse_id: value.warehouse_id,
           items: { create: orderItemsData },
         },
         include: { items: true },
       });
 
-      // 生成動態付款說明
       let paymentDetails = null;
       if (value.payment_method === "OFFLINE_TRANSFER") {
         paymentDetails = {
           ...bankInfo,
-          // [優化] 備註文字更清晰
           note: `銀行：${bankInfo.bank_name}\n帳號：${bankInfo.bank_account}\n戶名：${bankInfo.bank_account_name}\n\n代購訂單已提交！預估金額 TWD ${totalTwd}。\n請匯款後聯繫客服，並告知訂單編號 (${newOrder.id})。`,
         };
       }
@@ -288,7 +268,7 @@ router.post(
 
       res.status(201).json({
         message: "代購申請已提交",
-        order: newOrder, // 這裡面現在包含了 share_token
+        order: newOrder,
         payment_details: paymentDetails,
       });
     } catch (err) {
@@ -297,7 +277,7 @@ router.post(
   }
 );
 
-// --- [新增] 公開查詢訂單 (透過 Share Token) ---
+// --- 公開查詢訂單 ---
 router.get("/share/:token", async (req, res, next) => {
   try {
     const { token } = req.params;
@@ -318,10 +298,8 @@ router.get("/share/:token", async (req, res, next) => {
 
     if (!order) return res.status(404).json({ message: "找不到訂單" });
 
-    // 讀取銀行資訊以回傳給分享頁 (使用共通函式)
     const { bankInfo } = await getSettingsAndBankInfo();
 
-    // 為了隱私，只回傳必要欄位
     const safeOrder = {
       id: order.id,
       paopao_id: order.paopao_id,
@@ -330,7 +308,7 @@ router.get("/share/:token", async (req, res, next) => {
       payment_status: order.payment_status,
       created_at: order.created_at,
       items: order.items,
-      bank_info: bankInfo, // 附帶銀行資訊
+      bank_info: bankInfo,
     };
 
     res.json(safeOrder);
@@ -339,7 +317,7 @@ router.get("/share/:token", async (req, res, next) => {
   }
 });
 
-// --- 客戶查詢訂單 (修復 Decimal 序列化錯誤) ---
+// --- 客戶查詢訂單 ---
 router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
   try {
     const orders = await prisma.orders.findMany({
@@ -350,28 +328,24 @@ router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
             quantity: true,
             snapshot_name: true,
             snapshot_price_twd: true,
-            // [新增] 包含 assist order 必要的資訊
             item_url: true,
             item_spec: true,
-            snapshot_cost_cny: true, // 確保可以取到 Decimal 欄位以進行轉換
+            snapshot_cost_cny: true,
           },
         },
-        warehouse: { select: { name: true } }, // 加入 warehouse info
+        warehouse: { select: { name: true } },
       },
       orderBy: { created_at: "desc" },
     });
 
-    // ✅ 關鍵修正：手動序列化 Decimal 欄位
     const sanitizedOrders = orders.map((order) => {
       const items = order.items.map((item) => ({
         ...item,
-        // 將 item 內的 Decimal 轉換
         snapshot_cost_cny: Number(item.snapshot_cost_cny),
       }));
 
       return {
         ...order,
-        // 將 Order 主體的 Decimal 轉換
         total_cost_cny: Number(order.total_cost_cny),
         items: items,
       };
@@ -383,14 +357,13 @@ router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
   }
 });
 
-// --- 操作員查詢 (新增篩選與改為降序) ---
+// --- 操作員查詢 ---
 router.get(
   "/operator",
   authenticateToken,
   isOperator,
   async (req, res, next) => {
     try {
-      // ✅ 新增篩選邏輯
       const { status, paymentStatus } = req.query;
       const whereClause = {};
 
@@ -398,7 +371,7 @@ router.get(
       if (paymentStatus) whereClause.payment_status = paymentStatus;
 
       const orders = await prisma.orders.findMany({
-        where: whereClause, // ✅ 應用篩選條件
+        where: whereClause,
         include: {
           operator: { select: { username: true } },
           warehouse: { select: { name: true } },
@@ -409,19 +382,17 @@ router.get(
             },
           },
         },
-        orderBy: { created_at: "desc" }, // ✅ 排序改為降序 (最新在前)
+        orderBy: { created_at: "desc" },
       });
-      // [優化] 計算預估成本總和
       const ordersWithCost = orders.map((o) => {
         const totalCostCny = o.items.reduce(
           (sum, item) => sum + Number(item.snapshot_cost_cny) * item.quantity,
           0
         );
 
-        // 確保精確度
         return {
           ...o,
-          total_cost_cny: Number(o.total_cost_cny), // 轉為 Number 方便前端計算
+          total_cost_cny: Number(o.total_cost_cny),
           operator_name: o.operator?.username,
           warehouse_name: o.warehouse?.name,
         };
@@ -434,10 +405,9 @@ router.get(
   }
 );
 
-// --- 管理員查詢 (新增篩選與改為降序) ---
+// --- 管理員查詢 ---
 router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
   try {
-    // ✅ 新增篩選邏輯
     const { status, paymentStatus } = req.query;
     const whereClause = {};
 
@@ -445,9 +415,9 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
     if (paymentStatus) whereClause.payment_status = paymentStatus;
 
     const orders = await prisma.orders.findMany({
-      where: whereClause, // ✅ 應用篩選條件
+      where: whereClause,
       include: {
-        warehouse: { select: { name: true } }, // [修改] Include warehouse info
+        warehouse: { select: { name: true } },
         items: {
           select: {
             quantity: true,
@@ -455,9 +425,8 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
           },
         },
       },
-      orderBy: { created_at: "desc" }, // ✅ 排序改為降序 (最新在前)
+      orderBy: { created_at: "desc" },
     });
-    // [優化] 計算預估成本總和 (與 operator 路由邏輯相似，但資料可能更多)
     const ordersWithCost = orders.map((o) => {
       const totalCostCny = o.items.reduce(
         (sum, item) => sum + Number(item.snapshot_cost_cny) * item.quantity,
@@ -477,7 +446,7 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
   }
 });
 
-// --- 操作員/管理員 更新訂單 (允許更新物流單號) ---
+// --- 更新訂單 ---
 router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
   try {
     const {
@@ -489,14 +458,12 @@ router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
     } = req.body;
     const data = {};
     if (status) data.status = status;
-    if (notes !== undefined) data.notes = notes; // 允許傳入 null 清空備註
+    if (notes !== undefined) data.notes = notes;
     if (payment_status) data.payment_status = payment_status;
     if (domestic_tracking_number !== undefined)
-      data.domestic_tracking_number = domestic_tracking_number; // ✅ 儲存新的欄位
+      data.domestic_tracking_number = domestic_tracking_number;
 
-    // 只有 admin 可以指派 operator_id
     if (operator_id !== undefined && req.user.role === "admin") {
-      // 如果傳入空字串或 0，則設為 null
       data.operator_id = operator_id ? parseInt(operator_id) : null;
     }
 
@@ -505,10 +472,8 @@ router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
       data,
     });
 
-    // 發送 Email
     if (payment_status === "PAID")
       sendPaymentReceivedEmail(updated).catch(console.error);
-    // [優化] 只有狀態改變才發送狀態更新郵件
     else if (status && status !== updated.status)
       sendOrderStatusUpdateEmail(updated).catch(console.error);
 
