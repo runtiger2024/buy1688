@@ -161,7 +161,7 @@ router.post(
       if (order.payment_status !== "UNPAID")
         return res.status(400).json({ message: "該訂單狀態無法上傳憑證" });
 
-      // [新增修復] 檢查是否已經有憑證
+      // 檢查是否已上傳過憑證
       if (order.payment_voucher_url) {
         return res.status(400).json({
           message: "您已上傳過憑證，請勿重複上傳。如需修改請聯繫客服。",
@@ -386,7 +386,6 @@ router.get(
         whereClause.payment_voucher_url = { not: null };
       }
 
-      // 搜尋邏輯
       if (search) {
         const searchInt = parseInt(search, 10);
         const OR = [
@@ -404,10 +403,15 @@ router.get(
         include: {
           operator: { select: { username: true } },
           warehouse: { select: { name: true } },
+          // [修正] 補上完整的商品欄位
           items: {
             select: {
               quantity: true,
               snapshot_cost_cny: true,
+              snapshot_name: true, // 新增
+              snapshot_price_twd: true, // 新增
+              item_spec: true, // 新增
+              item_url: true, // 新增
             },
           },
         },
@@ -464,10 +468,15 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
       where: whereClause,
       include: {
         warehouse: { select: { name: true } },
+        // [修正] 補上完整的商品欄位
         items: {
           select: {
             quantity: true,
             snapshot_cost_cny: true,
+            snapshot_name: true, // 新增
+            snapshot_price_twd: true, // 新增
+            item_spec: true, // 新增
+            item_url: true, // 新增
           },
         },
       },

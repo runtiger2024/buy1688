@@ -25,16 +25,12 @@ let availableOperators = [];
 let allWarehouses = new Map();
 let allCategories = [];
 let allOrders = [];
-let allUsers = [];
-let allCustomers = [];
-let currentOrder = null;
+let currentOrder = null; // 當前 Modal 編輯的訂單
 
 let currentStatusFilter = "";
 let currentPaymentStatusFilter = "";
 let currentSearchTerm = "";
-let currentHasVoucherFilter = false;
-let userSearchTerm = "";
-let customerSearchTerm = "";
+let currentHasVoucherFilter = false; // [新增] 憑證篩選狀態
 
 // --- 暴露給全局使用的函式 (供 HTML onclick 使用) ---
 
@@ -80,15 +76,20 @@ ${itemsText}
   copyToClipboard(text, "📋 訂單摘要已複製！");
 };
 
-// 3. 標記訂單為已付款
+// 3. [修正] 標記訂單為已付款 (不關閉視窗，原地更新)
 window.markOrderPaid = async function (id) {
   if (!confirm("確定標記為已付款？系統將發信通知客戶。")) return;
   try {
     await api.updateOrder(id, { payment_status: "PAID" });
-    alert("更新成功");
-    document.getElementById("order-modal").style.display = "none";
-    loadOrders();
-    loadStats();
+    // alert("更新成功"); // 可選擇移除 alert 讓體驗更順暢
+
+    // 重新載入列表資料以獲取最新狀態
+    await loadOrders();
+
+    // 重新打開(刷新) Modal，讓按鈕變成「已付款」標籤
+    openOrderModal(id);
+
+    loadStats(); // 更新背景的統計數字
   } catch (e) {
     alert(e.message);
   }
@@ -119,8 +120,10 @@ window.filterPendingVouchers = function () {
 document.addEventListener("DOMContentLoaded", async () => {
   if (!checkAuth()) return;
 
+  // 1. 綁定 Sidebar 導航
   setupNavigation();
 
+  // 2. 顯示用戶資訊
   const user = getUser();
   if (user) {
     document.getElementById("user-info").innerHTML = `
@@ -135,15 +138,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
+  // 3. 綁定登出
   document.getElementById("logout-button").addEventListener("click", logout);
 
-  // 預先載入必要的參考資料
+  // 4. 載入基礎資料
   await Promise.all([loadSettings(), loadWarehouses(), loadUsers()]);
 
-  // 預設載入儀表板
+  // 5. 預設載入 Dashboard
   loadStats();
 
-  // 綁定各區塊事件
+  // 6. 綁定各區塊事件
   setupDashboardEvents();
   setupOrderEvents();
   setupProductEvents();
@@ -250,8 +254,11 @@ function setupDashboardEvents() {
 // ==========================================
 async function loadOrders() {
   const tbody = document.getElementById("orders-tbody");
-  tbody.innerHTML =
-    '<tr><td colspan="9" class="text-center">載入中...</td></tr>';
+  // 僅在第一次載入時顯示 Loading，避免閃爍
+  if (tbody.innerHTML.trim() === "") {
+    tbody.innerHTML =
+      '<tr><td colspan="9" class="text-center">載入中...</td></tr>';
+  }
 
   try {
     const params = {};
@@ -376,6 +383,7 @@ function setupOrderEvents() {
     .addEventListener("click", saveOrderChanges);
 }
 
+// --- 訂單 Modal 邏輯 (包含商品詳情修正) ---
 function openOrderModal(orderId) {
   const order = allOrders.find((o) => o.id == orderId);
   if (!order) return;
@@ -410,7 +418,9 @@ function openOrderModal(orderId) {
     .map(
       (item) => `
         <tr>
-            <td>${item.snapshot_name} <br> <small class="text-muted">${
+            <td>${
+              item.snapshot_name || item.product?.name || "商品"
+            } <br> <small class="text-muted">${
         item.item_spec || ""
       }</small></td>
             <td>${
@@ -532,8 +542,10 @@ async function saveOrderChanges() {
 
     await api.updateOrder(currentOrder.id, data);
     alert("訂單已更新");
-    document.getElementById("order-modal").style.display = "none";
-    loadOrders();
+
+    // 原地更新
+    await loadOrders();
+    openOrderModal(currentOrder.id);
     loadStats();
   } catch (e) {
     alert("更新失敗: " + e.message);
