@@ -1,27 +1,42 @@
 <nav class="navbar">
   <div class="navbar-container">
-    <a href="./index.html" class="nav-logo">代採購平台</a>
+    <a href="./index.html" class="nav-logo">Runtiger 跑跑虎代購</a>
 
-    <button
-      class="nav-toggle"
-      id="mobile-menu-toggle"
-      aria-label="Toggle navigation"
-    >
-      &#9776;
-    </button>
-
-    <div class="nav-menu" id="nav-menu">
+    <div class="nav-menu" id="nav-menu-desktop">
       <ul class="nav-links">
         <li><a href="./index.html" class="nav-link">首頁</a></li>
         <li><a href="./assist.html" class="nav-link">代購服務</a></li>
+        <li id="nav-auth-links-desktop"></li>
         <li>
-          <a href="#cart-modal" class="nav-link" id="nav-cart-link"
-            >我的購物車</a
+          <a
+            href="#cart-modal"
+            class="nav-link-button"
+            id="nav-cart-link-desktop"
           >
+            <i class="fas fa-shopping-cart"></i> 購物車
+          </a>
         </li>
-        <li id="nav-auth-links-desktop" class="nav-auth-desktop"></li>
-        <li id="nav-auth-links-mobile" class="nav-auth-mobile"></li>
       </ul>
     </div>
   </div>
 </nav>
+
+<div class="bottom-nav">
+  <a href="./index.html" class="bottom-nav-item" id="tab-home">
+    <i class="fas fa-home"></i>
+    <span>首頁</span>
+  </a>
+  <a href="./assist.html" class="bottom-nav-item" id="tab-assist">
+    <i class="fas fa-search-plus"></i>
+    <span>代購</span>
+  </a>
+  <div class="bottom-nav-item bottom-nav-cart-badge" id="tab-cart">
+    <i class="fas fa-shopping-cart"></i>
+    <span>購物車</span>
+    <span class="nav-badge" id="mobile-cart-count">0</span>
+  </div>
+  <a href="./my-account.html" class="bottom-nav-item" id="tab-account">
+    <i class="fas fa-user"></i>
+    <span>我的</span>
+  </a>
+</div>

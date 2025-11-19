@@ -2,57 +2,63 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
     <title>我的帳戶 - 代採購平台</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
     <link rel="stylesheet" href="../css/style.css" />
   </head>
   <body>
     <div id="navbar-placeholder"></div>
 
     <main>
+      <div class="order-tabs" id="order-status-tabs">
+        <div class="order-tab-item active" data-status="all">全部</div>
+        <div class="order-tab-item" data-status="UNPAID">待付款</div>
+        <div class="order-tab-item" data-status="Processing">處理中</div>
+        <div class="order-tab-item" data-status="Shipped">已發貨</div>
+        <div class="order-tab-item" data-status="Completed">已完成</div>
+      </div>
+
       <div id="notice-placeholder"></div>
 
-      <h1>我的訂單</h1>
-      <p><a href="./index.html">&leftarrow; 返回商店</a></p>
-
       <div id="order-history-container">
-        <p>正在載入您的訂單...</p>
+        <p style="text-align: center; padding: 20px">正在載入訂單...</p>
       </div>
     </main>
 
-    <footer class="site-footer">
-      <div class="footer-content">
-        <p id="footer-auth-links" style="display: none">
-          <a href="./login.html">會員登入</a> |
-          <a href="./register.html">會員註冊</a>
-        </p>
-        <p>
-          <strong>跑得快國際貿易有限公司</strong><br />
-          Runtiger International Trading Co., Ltd.
-        </p>
-        <p>
-          統編：42924265<br />
-          電子郵件：<a href="mailto:rruntiger@gmail.com">rruntiger@gmail.com</a>
-        </p>
-        <p>LINE官方客服：@gogo5808</p>
-        <p class="copyright">
-          <a
-            href="../admin/html/login.html"
-            class="admin-link"
-            title="管理員登入"
-          >
-            &copy; 管理員登入
-          </a>
-        </p>
+    <div class="bottom-nav">
+      <a href="./index.html" class="bottom-nav-item" id="tab-home">
+        <i class="fas fa-home"></i><span>首頁</span>
+      </a>
+      <a href="./assist.html" class="bottom-nav-item" id="tab-assist">
+        <i class="fas fa-search-plus"></i><span>代購</span>
+      </a>
+      <div class="bottom-nav-item bottom-nav-cart-badge" id="tab-cart">
+        <i class="fas fa-shopping-cart"></i><span>購物車</span>
+        <span class="nav-badge" id="mobile-cart-count" style="display: none"
+          >0</span
+        >
       </div>
-    </footer>
+      <a href="./my-account.html" class="bottom-nav-item" id="tab-account">
+        <i class="fas fa-user"></i><span>我的</span>
+      </a>
+    </div>
 
-    <a
-      href="https://lin.ee/pb428dF"
-      target="_blank"
-      rel="noopener noreferrer"
-      class="line-float-button"
-    >
+    <div class="modal" id="cart-modal">
+      <div class="modal-content">
+        <span class="close-button" id="close-modal">&times;</span>
+        <h2>您的購物車</h2>
+        <div id="cart-items-list"></div>
+      </div>
+    </div>
+
+    <a href="https://lin.ee/pb428dF" target="_blank" class="line-float-button">
       <span>LINE</span>
     </a>
 

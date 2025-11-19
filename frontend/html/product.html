@@ -2,8 +2,15 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
     <title>載入商品中... - 代採購平台</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
     <link rel="stylesheet" href="../css/style.css" />
   </head>
   <body>
@@ -11,42 +18,35 @@
 
     <main>
       <p class="breadcrumbs">
-        <a href="./index.html">所有商品</a>
+        <a href="./index.html">首頁</a>
         <span id="breadcrumb-separator" style="display: none"> &gt; </span>
         <a id="breadcrumb-category" href="#"></a>
       </p>
 
-      <div id="product-detail-container">
-        <p>正在載入商品詳情...</p>
+      <div
+        id="product-detail-container"
+        class="product-detail-container-wrapper"
+      >
+        <p style="text-align: center; padding: 50px">正在載入商品詳情...</p>
       </div>
     </main>
 
-    <footer class="site-footer">
-      <div class="footer-content">
-        <p id="footer-auth-links">
-          <a href="./login.html">會員登入</a> |
-          <a href="./register.html">會員註冊</a>
-        </p>
-        <p>
-          <strong>跑得快國際貿易有限公司</strong><br />
-          Runtiger International Trading Co., Ltd.
-        </p>
-        <p>
-          統編：42924265<br />
-          電子郵件：<a href="mailto:rruntiger@gmail.com">rruntiger@gmail.com</a>
-        </p>
-        <p>LINE官方客服：@gogo5808</p>
-        <p class="copyright">
-          <a
-            href="../admin/html/login.html"
-            class="admin-link"
-            title="管理員登入"
-          >
-            &copy; 管理員登入
-          </a>
-        </p>
+    <div class="product-action-bar" id="mobile-action-bar">
+      <a href="./index.html" class="action-icon-btn">
+        <i class="fas fa-store"></i>
+        <span>首頁</span>
+      </a>
+      <a href="https://lin.ee/pb428dF" target="_blank" class="action-icon-btn">
+        <i class="fas fa-comment-dots"></i>
+        <span>客服</span>
+      </a>
+      <div class="action-btn-group">
+        <button class="action-btn-yellow" id="mobile-add-cart">
+          加入購物車
+        </button>
+        <button class="action-btn-red" id="mobile-buy-now">立即購買</button>
       </div>
-    </footer>
+    </div>
 
     <a
       href="https://lin.ee/pb428dF"

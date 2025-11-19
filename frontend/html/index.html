@@ -2,53 +2,48 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>代採購平台</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Runtiger 代採購平台</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
     <link rel="stylesheet" href="../css/style.css" />
   </head>
   <body>
     <div id="navbar-placeholder"></div>
 
     <div class="cart-button-container" id="cart-button">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <circle cx="9" cy="21" r="1"></circle>
-        <circle cx="20" cy="21" r="1"></circle>
-        <path
-          d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"
-        ></path>
-      </svg>
+      <i class="fas fa-shopping-cart" style="font-size: 24px"></i>
       <span class="cart-count" id="cart-count">0</span>
     </div>
 
     <main>
+      <div class="sticky-search-container">
+        <div class="search-bar-wrapper">
+          <input
+            type="search"
+            id="product-search-input"
+            placeholder="搜尋商品名稱..."
+          />
+          <button id="product-search-button">搜尋</button>
+        </div>
+      </div>
+
       <div id="notice-placeholder"></div>
 
-      <h1>我們的商品</h1>
-
-      <div id="search-bar-container">
-        <input
-          type="search"
-          id="product-search-input"
-          placeholder="搜尋商品名稱..."
-        />
-        <button id="product-search-button">搜尋</button>
-      </div>
       <div id="category-filter-bar">
         <p>正在載入分類...</p>
       </div>
+
       <div id="product-list" class="product-grid">
         <p>正在載入商品...</p>
       </div>
 
-      <hr />
+      <div style="height: 20px"></div>
     </main>
 
     <div class="modal" id="cart-modal">
@@ -58,45 +53,23 @@
 
         <div
           class="header-notice"
-          style="
-            margin-bottom: 20px;
-            padding: 15px;
-            border-color: #ffc107;
-            background-color: #fffbe6;
-          "
+          style="margin-bottom: 15px; padding: 10px; font-size: 0.85rem"
         >
-          <p style="margin-top: 0">
-            <strong>⚠️ 重要提醒，請務必詳讀 ⚠️</strong>
+          <p style="margin: 0; color: #d32f2f">
+            <strong>⚠️ 結帳前請確認</strong>
           </p>
-          <ol
-            style="
-              margin: 5px 0 10px 0;
-              padding-left: 20px;
-              color: var(--text-light);
-            "
-          >
-            <li>
-              關於價格：
-              頁面顯示的【台幣價格】即為您需要支付的全部費用，已包含代購服務費。
-            </li>
-            <li>
-              關於運費：
-              本站不經手任何運費。貨物送達後，您需自行登入「跑跑虎集運APP」支付國際運費。
-            </li>
-            <li>關於出貨： 請務必填寫正確的「跑跑虎集運」會員編號。</li>
-            <li>
-              <strong>服務範圍：</strong>
-              本平台服務<strong>僅止於</strong>協助採購商品至「跑跑虎集運倉」。
-              <strong>並非</strong>直接寄送至您位於台灣的收件地址。
-            </li>
-          </ol>
+          <ul style="margin: 5px 0 0 0; padding-left: 20px; color: #555">
+            <li>顯示價格為<strong>全額台幣</strong> (含代購費)。</li>
+            <li>國際運費需於「跑跑虎集運APP」另行支付。</li>
+          </ul>
         </div>
+
         <div id="cart-items-list">
           <p>您的購物車是空的。</p>
         </div>
 
         <div class="cart-total">
-          <strong>總金額: TWD <span id="cart-total-amount">0</span></strong>
+          <strong>總計: TWD <span id="cart-total-amount">0</span></strong>
         </div>
 
         <hr />
@@ -105,34 +78,34 @@
           <h3>結帳資訊</h3>
           <form id="checkout-form">
             <div class="form-group">
-              <label for="checkout-paopao-id">跑跑虎會員編號:</label>
+              <label>跑跑虎會員編號:</label>
               <input
                 type="text"
                 id="checkout-paopao-id"
-                placeholder="系統將自動帶入您的 ID"
-                required
                 readonly
+                required
+                style="background: #eee"
               />
             </div>
             <div class="form-group">
-              <label for="checkout-customer-email">
-                您的 Email (用於接收訂單確認):
-              </label>
+              <label>Email:</label>
               <input
                 type="email"
                 id="checkout-customer-email"
-                placeholder="系統將自動帶入您的 Email"
-                required
                 readonly
+                required
+                style="background: #eee"
               />
             </div>
 
             <div class="form-group">
-              <label for="warehouse-select">
-                集運倉選擇 (貨物將寄送至此) *:
-              </label>
-              <select id="warehouse-select" required>
-                <option value="">-- 載入中 / 請選擇 --</option>
+              <label>集運倉選擇 (貨物將寄送至此) *:</label>
+              <select
+                id="warehouse-select"
+                required
+                style="width: 100%; padding: 10px"
+              >
+                <option value="">載入中...</option>
               </select>
             </div>
 
@@ -146,76 +119,32 @@
                   value="OFFLINE_TRANSFER"
                   checked
                 />
-                <label for="payment-offline" style="display: inline">
-                  銀行轉帳 (線下付款)
-                </label>
-              </div>
-              <div>
-                <input
-                  type="radio"
-                  id="payment-card"
-                  name="payment-method"
-                  value="CREDIT_CARD"
-                  disabled
-                />
-                <label for="payment-card" style="display: inline; color: #999">
-                  (即將開放) 信用卡付款
-                </label>
+                <label for="payment-offline">銀行轉帳 (線下付款)</label>
               </div>
             </div>
-            <button type="submit" id="checkout-button">
-              確認送出訂單採購到集運倉
+            <button
+              type="submit"
+              id="checkout-button"
+              class="btn-submit-order"
+              style="
+                background: var(--taobao-orange);
+                color: white;
+                width: 100%;
+                padding: 12px;
+                border: none;
+                border-radius: 20px;
+                font-weight: bold;
+                margin-top: 10px;
+              "
+            >
+              確認訂購
             </button>
           </form>
         </div>
 
-        <div id="checkout-success-message" style="display: none">
-          <h3>🎉 訂單已成功建立！</h3>
-          <p>請依照以下資訊完成匯款：</p>
-          <div
-            id="payment-details-content"
-            style="
-              background: #f4f4f4;
-              border: 1px solid #ddd;
-              padding: 15px;
-              border-radius: 5px;
-              white-space: pre-wrap;
-            "
-          ></div>
-          <p style="margin-top: 15px">
-            付款完成後，請聯繫 LINE
-            客服並提供您的「訂單編號」，以便我們為您對帳。
-          </p>
-        </div>
+        <div id="checkout-success-message" style="display: none"></div>
       </div>
     </div>
-
-    <footer class="site-footer">
-      <div class="footer-content">
-        <p id="footer-auth-links">
-          <a href="./login.html">會員登入</a> |
-          <a href="./register.html">會員註冊</a>
-        </p>
-        <p>
-          <strong>跑得快國際貿易有限公司</strong><br />
-          Runtiger International Trading Co., Ltd.
-        </p>
-        <p>
-          統編：42924265<br />
-          電子郵件：<a href="mailto:rruntiger@gmail.com">rruntiger@gmail.com</a>
-        </p>
-        <p>LINE官方客服：@gogo5808</p>
-        <p class="copyright">
-          <a
-            href="../admin/html/login.html"
-            class="admin-link"
-            title="管理員登入"
-          >
-            &copy; 管理員登入
-          </a>
-        </p>
-      </div>
-    </footer>
 
     <a
       href="https://lin.ee/pb428dF"

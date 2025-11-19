@@ -6,55 +6,32 @@ import {
   setupHamburgerMenu,
   loadCart,
   addToCart,
-} from "./sharedUtils.js"; // <-- 導入共用函式
+} from "./sharedUtils.js";
 
 // --- 全域變數 ---
 let shoppingCart = {};
 
-// --- 幫助函式 ---
-
-// [修改] loadCart, addToCart 使用共用函式
-function initCart() {
-  loadCart(shoppingCart);
-}
-
-function handleAddToCart(id, name, price) {
-  addToCart(shoppingCart, id, name, price);
-  alert(`${name} 已加入購物車！`);
-}
-
-// [新增] 全域切換圖片函式 (掛載到 window 以便 HTML onclick 呼叫)
-window.changeMainImage = function (src, thumbnailElement) {
-  const mainImg = document.getElementById("main-image");
-  mainImg.src = src;
-
-  // 更新縮圖選中狀態
-  document
-    .querySelectorAll(".thumbnail")
-    .forEach((el) => el.classList.remove("active"));
-  thumbnailElement.classList.add("active");
-};
-
 // --- 核心邏輯 ---
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // 1. 載入 Navbar
   await loadComponent("../html/_navbar.html", "navbar-placeholder");
-
   setupHamburgerMenu();
   setupCustomerAuth();
 
-  // [新增] 處理導覽列上的 "我的購物車" 連結
+  // 2. 處理 Navbar 購物車連結 (導回首頁)
   const navCartLink = document.getElementById("nav-cart-link");
   if (navCartLink) {
     navCartLink.addEventListener("click", (e) => {
       e.preventDefault();
-      // 由於商品詳情頁沒有購物車 Modal，這裡導回首頁
-      window.location.href = "./index.html";
+      window.location.href = "./index.html#cart-modal";
     });
   }
 
-  initCart(); // [修改] 使用新的 initCart
+  // 3. 載入購物車狀態
+  loadCart(shoppingCart);
 
+  // 4. 獲取商品資料
   const params = new URLSearchParams(window.location.search);
   const productId = params.get("id");
 
@@ -67,7 +44,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function fetchProductDetails(id) {
-  const container = document.getElementById("product-detail-container");
   try {
     const response = await fetch(`${API_URL}/products/${id}`);
     if (!response.ok) {
@@ -86,6 +62,7 @@ function renderProduct(product) {
 
   document.title = `${product.name} - 代採購平台`;
 
+  // 設定麵包屑
   if (product.category) {
     document.getElementById("breadcrumb-separator").style.display = "inline";
     const categoryLink = document.getElementById("breadcrumb-category");
@@ -93,9 +70,11 @@ function renderProduct(product) {
     categoryLink.href = `./index.html?category=${product.category_id}`;
   }
 
-  // [修改] 處理圖片陣列
+  // 處理圖片
   const images =
-    product.images && product.images.length > 0 ? product.images : [""];
+    product.images && product.images.length > 0
+      ? product.images
+      : ["https://via.placeholder.com/500"];
   const mainImageSrc = images[0];
 
   // 生成縮圖 HTML
@@ -109,6 +88,7 @@ function renderProduct(product) {
     thumbnailsHtml += `</div>`;
   }
 
+  // 渲染主體 HTML (Phase 2 Layout)
   container.innerHTML = `
     <div class="product-detail-layout">
         <div class="product-detail-image">
@@ -119,27 +99,69 @@ function renderProduct(product) {
             </div>
             ${thumbnailsHtml}
         </div>
+
         <div class="product-detail-info">
-            <h1>${product.name}</h1>
-            <p class="product-detail-description">${
-              product.description || "此商品沒有額外描述。"
-            }</p>
-            <div class="product-detail-price">TWD ${product.price_twd}</div>
-            <button class="add-to-cart-btn" id="detail-add-to-cart">
-                加入購物車
-            </button>
+            <div class="product-price-large">
+                <small>TWD</small> ${product.price_twd}
+            </div>
+
+            <div class="product-title-section">
+                <h1>${product.name}</h1>
+                <span style="color:#999; font-size:0.9rem;">月銷 ${Math.floor(
+                  Math.random() * 200
+                )} | 庫存充足</span>
+            </div>
+
+            <div class="product-detail-description">
+                <strong>商品描述：</strong><br>
+                ${product.description || "此商品沒有額外描述。"}
+            </div>
+
+            <div class="desktop-actions">
+                <button class="btn-add-cart-lg" id="desktop-add-cart">加入購物車</button>
+                <button class="btn-buy-now-lg" id="desktop-buy-now">立即購買</button>
+            </div>
         </div>
     </div>
   `;
 
-  document
-    .getElementById("detail-add-to-cart")
-    .addEventListener("click", () => {
-      handleAddToCart(product.id, product.name, product.price_twd);
-    });
+  // 綁定桌面版按鈕事件
+  document.getElementById("desktop-add-cart").addEventListener("click", () => {
+    handleAddToCart(product.id, product.name, product.price_twd);
+  });
+  document.getElementById("desktop-buy-now").addEventListener("click", () => {
+    handleAddToCart(product.id, product.name, product.price_twd);
+    // 導向首頁並開啟購物車
+    window.location.href = "./index.html";
+  });
+
+  // 綁定手機版底部按鈕事件
+  document.getElementById("mobile-add-cart").addEventListener("click", () => {
+    handleAddToCart(product.id, product.name, product.price_twd);
+  });
+  document.getElementById("mobile-buy-now").addEventListener("click", () => {
+    handleAddToCart(product.id, product.name, product.price_twd);
+    window.location.href = "./index.html";
+  });
+}
+
+function handleAddToCart(id, name, price) {
+  addToCart(shoppingCart, id, name, price);
+  alert(`已將 ${name} 加入購物車！`);
 }
 
 function displayError(message) {
   const container = document.getElementById("product-detail-container");
-  container.innerHTML = `<p style="color:red; text-align:center;">${message}</p>`;
+  container.innerHTML = `<p style="color:red; text-align:center; padding:50px;">${message}</p>`;
 }
+
+// 全域圖片切換函式
+window.changeMainImage = function (src, thumbnailElement) {
+  const mainImg = document.getElementById("main-image");
+  mainImg.src = src;
+
+  document
+    .querySelectorAll(".thumbnail")
+    .forEach((el) => el.classList.remove("active"));
+  thumbnailElement.classList.add("active");
+};
