@@ -7,17 +7,13 @@ import { hashPassword } from "../auth.js";
 const router = express.Router();
 
 // --- 系統設定 (匯率/服務費/銀行資訊) ---
-// 公開讀取
 router.get("/settings", async (req, res, next) => {
   try {
     const settings = await prisma.systemSettings.findMany();
     const obj = {};
-    // 自動將所有設定轉為 key-value 物件
     settings.forEach((s) => {
-      // 如果是數字就轉數字，否則維持字串 (例如銀行資訊)
       const numVal = parseFloat(s.value);
       obj[s.key] = isNaN(numVal) ? s.value : numVal;
-      // 特例：銀行帳號可能是純數字字串，不應轉成 float (會丟失前導0)，這裡做個簡單判斷
       if (["bank_account", "bank_name", "bank_account_name"].includes(s.key)) {
         obj[s.key] = s.value;
       }
@@ -28,10 +24,8 @@ router.get("/settings", async (req, res, next) => {
   }
 });
 
-// Admin 更新
 router.put("/settings", authenticateToken, isAdmin, async (req, res, next) => {
   try {
-    // 接收所有可能的設定欄位
     const {
       exchange_rate,
       service_fee,
@@ -41,14 +35,10 @@ router.put("/settings", authenticateToken, isAdmin, async (req, res, next) => {
     } = req.body;
 
     const updates = [];
-
-    // [優化] 確保傳入的數值是數字或可以轉為字串
     if (exchange_rate !== undefined)
       updates.push({ key: "exchange_rate", value: String(exchange_rate) });
     if (service_fee !== undefined)
       updates.push({ key: "service_fee", value: String(service_fee) });
-
-    // [新增] 銀行資訊設定
     if (bank_name !== undefined)
       updates.push({ key: "bank_name", value: bank_name });
     if (bank_account !== undefined)
@@ -56,7 +46,6 @@ router.put("/settings", authenticateToken, isAdmin, async (req, res, next) => {
     if (bank_account_name !== undefined)
       updates.push({ key: "bank_account_name", value: bank_account_name });
 
-    // 批次更新 (使用 Promise.all)
     await Promise.all(
       updates.map((setting) =>
         prisma.systemSettings.upsert({
@@ -85,7 +74,6 @@ router.get("/warehouses", async (req, res, next) => {
   }
 });
 
-// [新增] 建立新倉庫路由
 router.post(
   "/warehouses",
   authenticateToken,
@@ -93,25 +81,22 @@ router.post(
   async (req, res, next) => {
     try {
       const { name, receiver, phone, address, is_active } = req.body;
-
-      // 基本驗證 (雖然前端有 required，後端也擋一下)
       if (!name || !receiver || !phone || !address) {
         return res.status(400).json({ message: "請填寫所有必填欄位" });
       }
-
       const newWarehouse = await prisma.warehouses.create({
         data: {
           name,
           receiver,
           phone,
           address,
-          is_active: is_active ?? true, // 預設啟用
+          is_active: is_active ?? true,
         },
       });
       res.status(201).json(newWarehouse);
     } catch (err) {
       if (err.code === "P2002")
-        return res.status(409).json({ message: "倉庫名稱重複，請更換名稱" });
+        return res.status(409).json({ message: "倉庫名稱重複" });
       next(err);
     }
   }
@@ -194,7 +179,7 @@ router.delete(
   }
 );
 
-// --- 人員管理 (Admin Only) ---
+// --- 人員管理 ---
 router.get("/users", authenticateToken, isAdmin, async (req, res, next) => {
   try {
     const users = await prisma.users.findMany({
@@ -244,8 +229,6 @@ router.put(
     }
   }
 );
-
-// 修改用戶權限路由
 router.put(
   "/users/:id/role",
   authenticateToken,
@@ -254,15 +237,12 @@ router.put(
     try {
       const id = parseInt(req.params.id);
       const { role } = req.body;
-
       if (id === req.user.id) {
         return res.status(400).json({ message: "不能修改自己的權限" });
       }
-
       if (!["admin", "operator"].includes(role)) {
         return res.status(400).json({ message: "無效的角色設定" });
       }
-
       const updated = await prisma.users.update({
         where: { id },
         data: { role },
@@ -281,11 +261,13 @@ router.get(
   isAdmin,
   async (req, res, next) => {
     try {
+      // 1. 財務統計
       const stats = await prisma.orders.aggregate({
         _sum: { total_amount_twd: true, total_cost_cny: true },
         where: { status: { not: "Cancelled" }, payment_status: "PAID" },
       });
 
+      // 2. 狀態計數
       const statusCountsRaw = await prisma.orders.groupBy({
         by: ["status"],
         _count: { status: true },
@@ -295,6 +277,7 @@ router.get(
         {}
       );
 
+      // 3. 付款狀態計數
       const payRaw = await prisma.orders.groupBy({
         by: ["payment_status"],
         _count: { _all: true },
@@ -303,6 +286,14 @@ router.get(
         (acc, row) => ({ ...acc, [row.payment_status]: row._count._all }),
         {}
       );
+
+      // 4. [新增] 待核銷憑證計數 (有上傳憑證 但 尚未付款)
+      const pendingVoucherCount = await prisma.orders.count({
+        where: {
+          payment_status: "UNPAID",
+          payment_voucher_url: { not: null },
+        },
+      });
 
       res.json({
         totalRevenueTWD: stats._sum.total_amount_twd || 0,
@@ -319,6 +310,7 @@ router.get(
           UNPAID: paymentStatusCounts.UNPAID || 0,
           PAID: paymentStatusCounts.PAID || 0,
         },
+        pendingVoucherCount, // 回傳新統計
       });
     } catch (err) {
       next(err);
