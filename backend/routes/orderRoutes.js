@@ -2,7 +2,7 @@
 import express from "express";
 import Joi from "joi";
 import prisma from "../db.js";
-import { randomUUID } from "crypto";
+import { randomUUID } from "crypto"; // 引入 UUID 產生器
 import {
   authenticateToken,
   isCustomer,
@@ -17,7 +17,7 @@ import {
 
 const router = express.Router();
 
-// --- 共通函式 ---
+// --- 共通函式：載入系統設定與銀行資訊 ---
 async function getSettingsAndBankInfo() {
   const settings = await prisma.systemSettings.findMany();
   const config = {};
@@ -45,7 +45,8 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
         Joi.object({
           id: Joi.string().required(),
           quantity: Joi.number().integer().min(1).required(),
-          spec: Joi.string().allow("").allow(null).optional(), // [新增] 允許規格字串
+          // [修正 1] 加入 spec 驗證，允許字串或 null
+          spec: Joi.string().allow("").allow(null).optional(),
         })
       )
       .min(1)
@@ -87,7 +88,8 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
         snapshot_name: product.name,
         snapshot_price_twd: product.price_twd,
         snapshot_cost_cny: product.cost_cny,
-        item_spec: item.spec || null, // [新增] 儲存選的規格
+        // [修正 2] 將前端傳來的 spec 寫入資料庫
+        item_spec: item.spec || null,
       });
     }
 
@@ -96,6 +98,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
     });
     if (!warehouse) throw new Error("無效的集運倉 ID");
 
+    // 手動生成 share_token 避免資料庫預設值未生效導致 500 錯誤
     const newOrder = await prisma.orders.create({
       data: {
         paopao_id: userPaopaoId,
@@ -161,6 +164,7 @@ router.post(
       if (order.payment_status !== "UNPAID")
         return res.status(400).json({ message: "該訂單狀態無法上傳憑證" });
 
+      // 檢查是否已經有憑證
       if (order.payment_voucher_url) {
         return res.status(400).json({
           message: "您已上傳過憑證，請勿重複上傳。如需修改請聯繫客服。",
@@ -249,6 +253,7 @@ router.post(
         });
       }
 
+      // 手動生成 share_token
       const newOrder = await prisma.orders.create({
         data: {
           paopao_id: userPaopaoId,
@@ -401,6 +406,7 @@ router.get(
         include: {
           operator: { select: { username: true } },
           warehouse: { select: { name: true } },
+          // 包含商品詳細欄位
           items: {
             select: {
               quantity: true,
@@ -465,6 +471,7 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
       where: whereClause,
       include: {
         warehouse: { select: { name: true } },
+        // 包含商品詳細欄位
         items: {
           select: {
             quantity: true,
