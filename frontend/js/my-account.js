@@ -6,9 +6,7 @@ import {
   setupHamburgerMenu,
   checkAuth,
   getAuthToken,
-  getCustomer,
-  customerLogout,
-  loadCart,
+  loadCart, // 為了更新購物車數字
 } from "./sharedUtils.js";
 
 let allOrdersData = [];
@@ -32,7 +30,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupCustomerAuth();
   setupBottomNav();
 
-  // 載入購物車數量
+  // 更新購物車數字
   let cart = {};
   loadCart(cart);
   const count = Object.values(cart).reduce((a, b) => a + b.quantity, 0);
@@ -42,7 +40,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     badge.style.display = count > 0 ? "block" : "none";
   }
 
-  // [新增] 渲染個人資料
+  // 渲染個人資料
   renderUserProfile();
 
   await loadBankInfo();
@@ -52,21 +50,27 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 function renderUserProfile() {
-  const customer = getCustomer();
+  const customer = JSON.parse(localStorage.getItem("customerUser"));
   if (!customer) return;
 
-  document.getElementById("profile-id").textContent =
-    customer.paopao_id || "未知";
-  document.getElementById("profile-email").textContent = customer.email || "-";
-  document.getElementById("profile-phone").textContent =
-    customer.phone || "未設定 (重新登入更新)";
+  const idEl = document.getElementById("profile-id");
+  const emailEl = document.getElementById("profile-email");
+  const phoneEl = document.getElementById("profile-phone");
 
-  document
-    .getElementById("profile-logout-btn")
-    .addEventListener("click", (e) => {
+  if (idEl) idEl.textContent = customer.paopao_id || "未知";
+  if (emailEl) emailEl.textContent = customer.email || "-";
+  if (phoneEl) phoneEl.textContent = customer.phone || "未設定 (重新登入更新)";
+
+  const logoutBtn = document.getElementById("profile-logout-btn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      customerLogout();
+      localStorage.removeItem("customerToken");
+      localStorage.removeItem("customerUser");
+      alert("您已成功登出。");
+      window.location.href = "./index.html";
     });
+  }
 }
 
 function setupBottomNav() {
@@ -111,6 +115,7 @@ function renderOrders() {
   const container = document.getElementById("order-history-container");
   container.innerHTML = "";
 
+  // 篩選訂單
   const filteredOrders = allOrdersData.filter((order) => {
     if (currentTab === "all") return true;
     if (currentTab === "UNPAID") return order.payment_status === "UNPAID";
@@ -138,7 +143,9 @@ function renderOrders() {
   filteredOrders.forEach((order) => {
     const statusText = STATUS_LABEL[order.status] || order.status;
     const isUnpaid = order.payment_status === "UNPAID";
+    const hasVoucher = !!order.payment_voucher_url; // 檢查是否有憑證
 
+    // 商品摘要
     const itemsHtml = order.items
       .slice(0, 2)
       .map(
@@ -150,7 +157,6 @@ function renderOrders() {
         `
       )
       .join("");
-
     const moreItemsHtml =
       order.items.length > 2
         ? `<div style="font-size:0.8rem; color:#999; margin-top:5px;">...還有 ${
@@ -158,14 +164,52 @@ function renderOrders() {
           } 項商品</div>`
         : "";
 
+    // --- [核心修復] 動態決定操作按鈕與隱藏區塊內容 ---
     let actionsHtml = "";
+    let hiddenAreaHtml = "";
+
     if (isUnpaid) {
-      actionsHtml = `
-                <button class="btn-action" onclick="copyBankInfo('${order.id}', '${order.total_amount_twd}')">複製匯款資訊</button>
-                <button class="btn-action solid" onclick="toggleVoucherForm('${order.id}')">上傳憑證</button>
-            `;
+      // 待付款狀態
+      const bankBtn = `<button class="btn-action" onclick="copyBankInfo('${order.id}', '${order.total_amount_twd}')">複製匯款資訊</button>`;
+
+      if (hasVoucher) {
+        // [已上傳過] -> 顯示「查看憑證」按鈕，隱藏上傳表單
+        actionsHtml = `${bankBtn} <button class="btn-action" onclick="toggleVoucherForm('${order.id}')">查看已傳憑證</button>`;
+
+        // 顯示憑證圖片 (判斷是 Base64 還是網址)
+        let imgDisplay = "";
+        if (order.payment_voucher_url.startsWith("data:image")) {
+          imgDisplay = `<img src="${order.payment_voucher_url}" style="max-width:100%; border-radius:4px; margin-top:10px;">`;
+        } else {
+          imgDisplay = `<a href="${order.payment_voucher_url}" target="_blank" style="color:#007bff; text-decoration:underline;">點擊查看憑證圖片</a>`;
+        }
+
+        hiddenAreaHtml = `
+                    <div id="voucher-area-${order.id}" style="display:none; padding:15px; border-top:1px dashed #eee; background:#f0fff4;">
+                        <p style="color:#28a745; font-weight:bold; margin:0;"><i class="fas fa-check-circle"></i> 憑證已上傳成功！</p>
+                        <p style="font-size:0.85rem; color:#666;">請等待管理員核對款項。若需修改請聯繫客服。</p>
+                        ${imgDisplay}
+                    </div>
+                `;
+      } else {
+        // [尚未上傳] -> 顯示「上傳憑證」按鈕與表單
+        actionsHtml = `${bankBtn} <button class="btn-action solid" onclick="toggleVoucherForm('${order.id}')">上傳憑證</button>`;
+
+        hiddenAreaHtml = `
+                    <div id="voucher-area-${order.id}" style="display:none; padding:15px; border-top:1px dashed #eee; background:#fafafa;">
+                        <form onsubmit="window.handleVoucherUpload(event, '${order.id}')">
+                            <p style="margin:0 0 5px 0; font-size:0.9rem;">上傳匯款憑證 (請選擇圖片):</p>
+                            <input type="file" id="voucher-file-${order.id}" accept="image/*" required style="font-size:0.9rem; width:100%; margin-bottom:10px;">
+                            <button type="submit" class="btn-action solid" style="width:100%;">確認上傳</button>
+                            <div class="voucher-status" style="font-size:0.8rem; margin-top:5px; color:#666;"></div>
+                        </form>
+                    </div>
+                `;
+      }
     } else {
+      // 已付款狀態 -> 查看詳情
       actionsHtml = `<button class="btn-action" onclick="window.location.href='order-share.html?token=${order.share_token}'">查看詳情</button>`;
+      // 無隱藏區塊
     }
 
     const card = document.createElement("div");
@@ -191,20 +235,7 @@ function renderOrders() {
                     ${actionsHtml}
                 </div>
             </div>
-            <div id="voucher-area-${
-              order.id
-            }" style="display:none; padding:15px; border-top:1px dashed #eee; background:#fafafa;">
-                <form onsubmit="window.handleVoucherUpload(event, '${
-                  order.id
-                }')">
-                    <p style="margin:0 0 5px 0; font-size:0.9rem;">上傳匯款憑證:</p>
-                    <input type="file" id="voucher-file-${
-                      order.id
-                    }" accept="image/*" required style="font-size:0.9rem;">
-                    <button type="submit" class="btn-action solid" style="margin-top:5px;">確認上傳</button>
-                    <div class="voucher-status" style="font-size:0.8rem; margin-top:5px; color:#666;"></div>
-                </form>
-            </div>
+            ${hiddenAreaHtml}
         `;
     container.appendChild(card);
   });
@@ -212,10 +243,8 @@ function renderOrders() {
 
 window.toggleVoucherForm = function (id) {
   const area = document.getElementById(`voucher-area-${id}`);
-  if (area.style.display === "none") {
-    area.style.display = "block";
-  } else {
-    area.style.display = "none";
+  if (area) {
+    area.style.display = area.style.display === "none" ? "block" : "none";
   }
 };
 
@@ -270,6 +299,11 @@ window.handleVoucherUpload = function (e, orderId) {
   const file = fileInput.files[0];
   if (!file) return alert("請選擇檔案");
 
+  if (file.size > 5 * 1024 * 1024) {
+    // 5MB Limit
+    return alert("檔案過大，請選擇小於 5MB 的圖片");
+  }
+
   btn.disabled = true;
   btn.textContent = "上傳中...";
 
@@ -282,8 +316,15 @@ window.handleVoucherUpload = function (e, orderId) {
         headers: headers,
         body: JSON.stringify({ voucherUrl: base64String }),
       });
-      if (!response.ok) throw new Error("上傳失敗");
+
+      const resData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(resData.message || "上傳失敗");
+      }
+
       alert("憑證上傳成功！");
+      // 重新載入訂單，這會觸發 renderOrders，將界面更新為「已上傳」狀態
       loadOrders();
     } catch (error) {
       statusDiv.textContent = `錯誤: ${error.message}`;
