@@ -202,9 +202,13 @@ function renderAssistList() {
                 <strong>${item.item_name}</strong><br>
                 <small style="color:#666">${item.item_spec || "無規格"}</small>
             </td>
-            <td><a href="${
-              item.item_url
-            }" target="_blank" style="font-size:0.8rem;">連結</a></td>
+            <td>
+                <a href="${
+                  item.item_url
+                }" target="_blank" style="font-size:0.8rem; word-break: break-all;">
+                    ${item.item_url}
+                </a>
+            </td>
             <td>¥${item.price_cny}</td>
             <td>${item.quantity}</td>
             <td>NT$${itemTotal} (單價:${item.estimated_twd})</td>
@@ -249,8 +253,7 @@ async function handleSubmitOrder(e) {
   submitBtn.textContent = "提交中...";
 
   try {
-    // 【第十六批優化：過濾掉前端專用的 id 和 estimated_twd 欄位】
-    // 這解決了 "items[0].id is not allowed" 錯誤
+    // 過濾掉前端專用的 id 和 estimated_twd 欄位
     const itemsToSend = assistList.map((item) => ({
       item_url: item.item_url,
       item_name: item.item_name,
@@ -258,7 +261,6 @@ async function handleSubmitOrder(e) {
       price_cny: item.price_cny,
       quantity: item.quantity,
     }));
-    // 【優化結束】
 
     const orderData = {
       paopaoId: paopaoId,
@@ -279,16 +281,20 @@ async function handleSubmitOrder(e) {
       throw new Error(result.message || "提交失敗");
     }
 
-    alert(
-      `訂單提交成功！\n訂單編號：${result.order.id}\n請查看您的 Email 獲取匯款資訊。`
-    );
-
-    assistList = [];
-    renderAssistList();
+    // 訂單建立成功，跳轉到分享/匯款頁面
+    if (result.order && result.order.share_token) {
+      window.location.href = `../html/order-share.html?token=${result.order.share_token}`;
+    } else {
+      alert(
+        `訂單提交成功！但無法跳轉至分享頁面。\n訂單編號：${result.order.id}`
+      );
+      assistList = [];
+      renderAssistList();
+      window.location.href = "./my-account.html";
+    }
   } catch (error) {
     console.error("Error:", error);
     alert(`錯誤: ${error.message}`);
-  } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = "確認提交代購單";
   }

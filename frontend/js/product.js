@@ -49,17 +49,14 @@ function addToCart(id, name, price) {
     };
   }
 
-  // 保存購物車
   try {
     localStorage.setItem("shoppingCart", JSON.stringify(shoppingCart));
     alert(`${name} 已加入購物車！`);
-    // 注意：這個頁面沒有購物車圖示，所以我們不更新計數
   } catch (e) {
     console.error("保存購物車失敗:", e);
   }
 }
 
-// --- 【第十批優化：重構 Navbar 相關邏輯】 ---
 function getCustomer() {
   try {
     return JSON.parse(localStorage.getItem("customerUser"));
@@ -120,24 +117,29 @@ function setupHamburgerMenu() {
     });
   }
 }
-// --- 【優化結束】 ---
+
+// [新增] 全域切換圖片函式 (掛載到 window 以便 HTML onclick 呼叫)
+window.changeMainImage = function (src, thumbnailElement) {
+  const mainImg = document.getElementById("main-image");
+  mainImg.src = src;
+
+  // 更新縮圖選中狀態
+  document
+    .querySelectorAll(".thumbnail")
+    .forEach((el) => el.classList.remove("active"));
+  thumbnailElement.classList.add("active");
+};
 
 // --- 核心邏輯 ---
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // 1. 載入共用組件 (Navbar)
   await loadComponent("../html/_navbar.html", "navbar-placeholder");
 
-  // 2. 綁定 Navbar 功能
   setupHamburgerMenu();
   setupCustomerAuth();
 
-  // (此頁面不需要 _header.html 公告欄)
-
-  // 3. 載入本地購物車
   loadCart();
 
-  // 4. 從 URL 獲取商品 ID
   const params = new URLSearchParams(window.location.search);
   const productId = params.get("id");
 
@@ -146,17 +148,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // 5. 根據 ID 載入商品
   fetchProductDetails(productId);
 });
 
-/**
- * 呼叫後端 API 載入單一商品
- */
 async function fetchProductDetails(id) {
   const container = document.getElementById("product-detail-container");
   try {
-    // 【修正】確保 API_URL 正確
     const response = await fetch(`${API_URL}/products/${id}`);
     if (!response.ok) {
       throw new Error("找不到商品或載入失敗");
@@ -169,33 +166,43 @@ async function fetchProductDetails(id) {
   }
 }
 
-/**
- * 將商品資料渲染為 HTML
- */
 function renderProduct(product) {
   const container = document.getElementById("product-detail-container");
 
-  // 1. 更新頁面標題
   document.title = `${product.name} - 代採購平台`;
 
-  // 2. 更新麵包屑導覽
-  // (後端 server.js 在第八批次中已更新，會回傳 product.category)
   if (product.category) {
     document.getElementById("breadcrumb-separator").style.display = "inline";
     const categoryLink = document.getElementById("breadcrumb-category");
     categoryLink.textContent = product.category.name;
-    // 讓分類連結可以點擊返回首頁並篩選
-    // 【修正】路徑必須是 ./index.html
     categoryLink.href = `./index.html?category=${product.category_id}`;
   }
 
-  // 3. 渲染商品詳情
-  const imageUrl = product.image_url || ""; // 預設圖片
+  // [修改] 處理圖片陣列
+  const images =
+    product.images && product.images.length > 0 ? product.images : [""];
+  const mainImageSrc = images[0];
+
+  // 生成縮圖 HTML
+  let thumbnailsHtml = "";
+  if (images.length > 1) {
+    thumbnailsHtml = `<div class="thumbnail-list">`;
+    images.forEach((img, index) => {
+      const activeClass = index === 0 ? "active" : "";
+      thumbnailsHtml += `<img src="${img}" class="thumbnail ${activeClass}" onclick="changeMainImage('${img}', this)">`;
+    });
+    thumbnailsHtml += `</div>`;
+  }
 
   container.innerHTML = `
     <div class="product-detail-layout">
         <div class="product-detail-image">
-            <img src="${imageUrl}" alt="${product.name}">
+            <div class="main-image-container">
+                <img id="main-image" src="${mainImageSrc}" alt="${
+    product.name
+  }">
+            </div>
+            ${thumbnailsHtml}
         </div>
         <div class="product-detail-info">
             <h1>${product.name}</h1>
@@ -210,7 +217,6 @@ function renderProduct(product) {
     </div>
   `;
 
-  // 4. 為新的「加入購物車」按鈕綁定事件
   document
     .getElementById("detail-add-to-cart")
     .addEventListener("click", () => {
@@ -218,9 +224,6 @@ function renderProduct(product) {
     });
 }
 
-/**
- * 顯示錯誤訊息
- */
 function displayError(message) {
   const container = document.getElementById("product-detail-container");
   container.innerHTML = `<p style="color:red; text-align:center;">${message}</p>`;

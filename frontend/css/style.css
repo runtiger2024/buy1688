@@ -1019,3 +1019,54 @@ a:hover {
   }
 }
 /* --- 【優化結束】 --- */
+/* ... (保留原有的 CSS) ... */
+
+/* [新增] 商品詳情頁相簿樣式 */
+.product-detail-image {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 主圖容器 */
+.main-image-container {
+  width: 100%;
+  border: 1px solid var(--border-gray);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.main-image-container img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover; /* 保持比例填滿 */
+  aspect-ratio: 1 / 1; /* 讓主圖保持正方形 (可選) */
+}
+
+/* 縮圖列 */
+.thumbnail-list {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto; /* 允許手機橫向滑動 */
+}
+
+.thumbnail {
+  width: 60px;
+  height: 60px;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  object-fit: cover;
+  opacity: 0.6;
+  transition: all 0.2s;
+}
+
+.thumbnail:hover {
+  opacity: 1;
+}
+
+.thumbnail.active {
+  border-color: var(--taobao-orange);
+  opacity: 1;
+}

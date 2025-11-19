@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>訂單提交成功 - 代採購平台</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <style>
+      .share-container {
+        max-width: 800px; /* 加寬容器以容納表格 */
+        margin: 40px auto;
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      /* 匯款資訊區塊 */
+      .bank-info-box {
+        background-color: #f8f9fa;
+        border-left: 5px solid #28a745;
+        padding: 20px;
+        border-radius: 4px;
+        margin-bottom: 30px;
+      }
+      .bank-info-box h3 {
+        margin-top: 0;
+        color: #28a745;
+      }
+      .bank-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        border-bottom: 1px dashed #e0e0e0;
+        padding-bottom: 5px;
+      }
+      .bank-label {
+        font-weight: bold;
+        color: #555;
+      }
+      .bank-value {
+        font-weight: bold;
+        font-size: 1.1em;
+        color: #333;
+      }
+
+      /* LINE 按鈕 */
+      .line-section {
+        text-align: center;
+        margin: 30px 0;
+        padding: 20px;
+        background: #e8f5e9;
+        border-radius: 10px;
+      }
+      .line-share-btn {
+        display: inline-block;
+        background-color: #06c755;
+        color: white;
+        text-align: center;
+        padding: 15px 40px;
+        border-radius: 50px;
+        font-weight: bold;
+        font-size: 1.2em;
+        text-decoration: none;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+      }
+      .line-share-btn:hover {
+        transform: translateY(-2px);
+        opacity: 0.9;
+        color: white;
+      }
+
+      /* 複製按鈕 */
+      .copy-btn {
+        background: #6c757d;
+        color: white;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8em;
+        margin-left: 5px;
+      }
+      .copy-btn:hover {
+        background: #5a6268;
+      }
+
+      .action-btn-secondary {
+        background-color: #fff;
+        border: 2px solid #06c755;
+        color: #06c755;
+        padding: 10px 20px;
+        border-radius: 50px;
+        cursor: pointer;
+        font-weight: bold;
+        margin-right: 10px;
+        transition: all 0.2s;
+      }
+      .action-btn-secondary:hover {
+        background-color: #e8f5e9;
+      }
+
+      /* 商品詳情表格 */
+      .order-details {
+        margin-top: 30px;
+      }
+      .details-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+      }
+      .details-table th,
+      .details-table td {
+        border: 1px solid #dee2e6;
+        padding: 12px;
+        text-align: left;
+        font-size: 0.95em;
+      }
+      .details-table th {
+        background-color: #f1f3f5;
+        color: #495057;
+      }
+      .text-right {
+        text-align: right;
+      }
+      .item-link {
+        color: #007bff;
+        text-decoration: none;
+        font-size: 0.85em;
+      }
+      .item-link:hover {
+        text-decoration: underline;
+      }
+      .spec-tag {
+        background: #eee;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.85em;
+        color: #666;
+      }
+
+      @media (max-width: 768px) {
+        .share-container {
+          padding: 15px;
+          margin: 10px;
+        }
+        .bank-row {
+          flex-direction: column;
+        }
+        .bank-value {
+          margin-top: 5px;
+        }
+        .details-table th:nth-child(3),
+        .details-table td:nth-child(3) {
+          display: none;
+        } /* 手機隱藏連結欄位 */
+      }
+    </style>
+  </head>
+  <body>
+    <div id="navbar-placeholder"></div>
+
+    <main>
+      <div class="share-container">
+        <div style="text-align: center; margin-bottom: 30px">
+          <h1 style="color: #28a745">🎉 訂單提交成功！</h1>
+          <p>感謝您的訂購，請依照下方資訊完成匯款。</p>
+        </div>
+
+        <div class="bank-info-box">
+          <h3>💰 匯款資訊</h3>
+          <div class="bank-row">
+            <span class="bank-label">應付總金額:</span>
+            <span class="bank-value" style="color: #d32f2f; font-size: 1.4em"
+              >TWD <span id="order-total">---</span></span
+            >
+          </div>
+          <div class="bank-row">
+            <span class="bank-label">訂單編號:</span>
+            <span class="bank-value">
+              <span id="order-id">---</span>
+            </span>
+          </div>
+          <hr style="border-top: 1px dashed #ccc; margin: 15px 0" />
+          <div class="bank-row">
+            <span class="bank-label">銀行代碼/名稱:</span>
+            <span class="bank-value" id="bank-name">---</span>
+          </div>
+          <div class="bank-row">
+            <span class="bank-label">銀行帳號:</span>
+            <span class="bank-value">
+              <span id="bank-account">---</span>
+              <button class="copy-btn" onclick="copyText('bank-account')">
+                複製
+              </button>
+            </span>
+          </div>
+          <div class="bank-row" style="border-bottom: none">
+            <span class="bank-label">戶名:</span>
+            <span class="bank-value" id="bank-account-name">---</span>
+          </div>
+        </div>
+
+        <div class="line-section">
+          <p style="margin-bottom: 15px; color: #444">
+            匯款後，請複製訂單資訊並聯絡 LINE 客服進行確認。
+          </p>
+          <button class="action-btn-secondary" onclick="copyOrderSummary()">
+            📋 複製訂單摘要
+          </button>
+          <a
+            href="https://lin.ee/Aw8fgQj"
+            target="_blank"
+            class="line-share-btn"
+          >
+            💬 聯絡 LINE 客服
+          </a>
+        </div>
+
+        <div class="order-details">
+          <h3>🛒 訂單詳情</h3>
+          <table class="details-table">
+            <thead>
+              <tr>
+                <th style="width: 40%">商品名稱</th>
+                <th style="width: 20%">規格</th>
+                <th style="width: 10%">連結</th>
+                <th class="text-right" style="width: 10%">單價</th>
+                <th class="text-right" style="width: 10%">數量</th>
+                <th class="text-right" style="width: 10%">小計</th>
+              </tr>
+            </thead>
+            <tbody id="order-items-tbody">
+              <tr>
+                <td colspan="6" style="text-align: center">載入中...</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="5" class="text-right" style="padding-top: 15px">
+                  <strong>總計</strong>
+                </td>
+                <td class="text-right" style="padding-top: 15px">
+                  <strong style="color: #d32f2f; font-size: 1.2em"
+                    >TWD <span id="table-total">0</span></strong
+                  >
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div style="text-align: center; margin-top: 40px">
+          <a href="./index.html" style="color: #999; text-decoration: none"
+            >返回首頁</a
+          >
+        </div>
+      </div>
+    </main>
+
+    <script type="module">
+      import { API_URL } from "../js/config.js";
+
+      // 載入 Navbar
+      fetch("_navbar.html")
+        .then((r) => r.text())
+        .then(
+          (h) => (document.getElementById("navbar-placeholder").innerHTML = h)
+        );
+
+      // 複製純文字功能
+      window.copyText = (elementId) => {
+        const text = document.getElementById(elementId).textContent;
+        navigator.clipboard.writeText(text).then(() => alert("已複製！"));
+      };
+
+      // 複製整筆訂單摘要
+      window.copyOrderSummary = () => {
+        const id = document.getElementById("order-id").textContent;
+        const total = document.getElementById("order-total").textContent;
+        const text = `您好，我已下單匯款。\n訂單編號：${id}\n金額：TWD ${total}\n請協助確認，謝謝！`;
+        navigator.clipboard
+          .writeText(text)
+          .then(() =>
+            alert("訂單摘要已複製！\n請點擊右側按鈕開啟 LINE 貼上發送。")
+          );
+      };
+
+      document.addEventListener("DOMContentLoaded", async () => {
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get("token");
+
+        if (!token) {
+          alert("無效的訂單連結");
+          window.location.href = "./index.html";
+          return;
+        }
+
+        try {
+          const response = await fetch(`${API_URL}/orders/share/${token}`);
+          if (!response.ok) throw new Error("找不到訂單資料");
+          const order = await response.json();
+
+          // 填入基本資料
+          document.getElementById("order-total").textContent =
+            order.total_amount_twd;
+          document.getElementById("table-total").textContent =
+            order.total_amount_twd;
+          document.getElementById("order-id").textContent = order.id;
+
+          // 填入銀行資料
+          if (order.bank_info) {
+            document.getElementById("bank-name").textContent =
+              order.bank_info.bank_name || "未設定";
+            document.getElementById("bank-account").textContent =
+              order.bank_info.bank_account || "未設定";
+            document.getElementById("bank-account-name").textContent =
+              order.bank_info.bank_account_name || "未設定";
+          }
+
+          // 填入詳細商品表格
+          const tbody = document.getElementById("order-items-tbody");
+          tbody.innerHTML = "";
+
+          order.items.forEach((item) => {
+            const tr = document.createElement("tr");
+
+            // 處理連結顯示
+            let linkHtml = "-";
+            if (item.item_url) {
+              linkHtml = `<a href="${item.item_url}" target="_blank" class="item-link">點擊</a>`;
+            }
+
+            // 處理規格顯示
+            const specHtml = item.item_spec
+              ? `<span class="spec-tag">${item.item_spec}</span>`
+              : '<span style="color:#ccc">無</span>';
+
+            const subtotal = item.snapshot_price_twd * item.quantity;
+
+            tr.innerHTML = `
+                        <td>${item.snapshot_name}</td>
+                        <td>${specHtml}</td>
+                        <td>${linkHtml}</td>
+                        <td class="text-right">${item.snapshot_price_twd}</td>
+                        <td class="text-right">${item.quantity}</td>
+                        <td class="text-right">${subtotal}</td>
+                    `;
+            tbody.appendChild(tr);
+          });
+        } catch (error) {
+          console.error(error);
+          document.querySelector(".share-container").innerHTML =
+            '<p style="text-align:center; color:red; padding: 50px;">無法載入訂單資訊，請確認連結是否正確或聯繫客服。</p>';
+        }
+      });
+    </script>
+  </body>
+</html>

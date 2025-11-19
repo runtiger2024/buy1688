@@ -26,12 +26,23 @@
         </div>
 
         <div class="form-group">
-          <label for="phone-number">台灣手機號碼 (將作為您的密碼):</label>
+          <label for="phone-number">台灣手機號碼 (用於聯絡):</label>
           <input
             type="tel"
             id="phone-number"
             placeholder="0912345678"
             required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="password">設定密碼 (Password):</label>
+          <input
+            type="password"
+            id="password"
+            placeholder="請輸入您的密碼 (至少6碼)"
+            required
+            minlength="6"
           />
         </div>
 
