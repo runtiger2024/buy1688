@@ -9,4 +9,4 @@ const isLocal =
 // 如果您已經部署上線，請將 "https://api.your-domain.com/api" 替換為真實網址
 export const API_URL = isLocal
   ? "http://localhost:5000/api"
-  : "https://buy1688-frontend.onrender.com";
+  : "hhttps://buy1688.onrender.com";
