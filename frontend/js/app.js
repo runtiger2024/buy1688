@@ -437,7 +437,7 @@ function setupCheckoutForm() {
 
     // [重要] 轉換購物車資料為後端格式，包含規格
     const items = Object.values(shoppingCart).map((item) => ({
-      id: item.id, // 商品原始 ID
+      id: String(item.id), // [修正] 強制轉為字串，以符合後端 Joi 驗證要求
       quantity: item.quantity,
       spec: item.spec, // 商品規格
     }));
