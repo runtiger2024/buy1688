@@ -5,6 +5,8 @@ import {
   setupCustomerAuth,
   setupHamburgerMenu,
   getCustomer,
+  checkAuth,
+  getAuthToken,
 } from "./sharedUtils.js";
 
 let allOrdersData = [];
@@ -24,21 +26,9 @@ const PAYMENT_STATUS_MAP = {
   PAID: "已付款",
 };
 
-function getToken() {
-  return localStorage.getItem("customerToken");
-}
-
-function checkAuth() {
-  if (!getToken()) {
-    alert("請先登入");
-    window.location.href = "../html/login.html";
-    return false;
-  }
-  return true;
-}
-
+// 獲取 API 請求的標頭 (包含客戶 Token)
 function getAuthHeaders() {
-  const token = getToken();
+  const token = getAuthToken();
   if (!token) {
     console.error("Token not found");
     checkAuth();
@@ -100,7 +90,7 @@ window.copyBankInfo = function (orderId, totalAmount) {
     });
 };
 
-// [修改] 真正的憑證上傳邏輯 (轉 Base64)
+// [憑證上傳邏輯] 轉 Base64 並上傳
 window.handleVoucherUpload = function (e, orderId) {
   e.preventDefault();
   const headers = getAuthHeaders();
@@ -118,7 +108,6 @@ window.handleVoucherUpload = function (e, orderId) {
     return;
   }
 
-  // 檢查檔案大小 (限制 5MB 以內)
   if (file.size > 5 * 1024 * 1024) {
     alert("檔案過大！請上傳小於 5MB 的圖片。");
     return;
@@ -139,7 +128,7 @@ window.handleVoucherUpload = function (e, orderId) {
       const response = await fetch(`${API_URL}/orders/${orderId}/voucher`, {
         method: "POST",
         headers: headers,
-        body: JSON.stringify({ voucherUrl: base64String }), // 將 Base64 當作 URL 存入
+        body: JSON.stringify({ voucherUrl: base64String }),
       });
 
       const result = await response.json();
@@ -165,7 +154,6 @@ window.handleVoucherUpload = function (e, orderId) {
     uploadButton.textContent = "確認上傳憑證";
   };
 
-  // 開始讀取檔案
   reader.readAsDataURL(file);
 };
 
@@ -278,17 +266,25 @@ function renderOrderDetailContent(order) {
         </table>
     `;
 
+  // [修改] 顯示物流資訊區塊
   let trackingInfoHtml = "";
-  if (order.status === "Shipped_Internal" && order.domestic_tracking_number) {
+  if (order.domestic_tracking_number) {
     trackingInfoHtml = `
-            <div class="bank-info-box" style="border-left: 5px solid #007bff; background-color: #e3f2fd;">
-                <h4>🚚 大陸境內物流單號 (已發貨往集運倉)</h4>
-                <p style="font-size: 1.1em; font-weight: bold;">
-                    單號: ${order.domestic_tracking_number}
+            <div class="bank-info-box" style="border-left: 5px solid #17a2b8; background-color: #e3f2fd;">
+                <h4 style="color: #17a2b8; margin-top:0;">🚚 大陸境內物流資訊</h4>
+                <div class="bank-row">
+                    <span class="bank-label">物流單號:</span>
+                    <span class="bank-value" style="font-size: 1.2em; font-weight: bold;">
+                        ${order.domestic_tracking_number}
+                    </span>
+                </div>
+                <p style="font-size: 0.9em; color: #666; margin-bottom: 0;">
+                    * 此單號為發往「跑跑虎集運倉」的大陸境內快遞單號。<br>
+                    * 請您複製此單號，登入「跑跑虎集運 APP」進行包裹預報。
                 </p>
-                <p style="font-size: 0.85em; color: #555;">
-                    此單號為大陸境內物流單號，是寄送到跑跑虎集運倉的物流單號。
-                </p>
+                <button onclick="navigator.clipboard.writeText('${order.domestic_tracking_number}').then(()=>alert('單號已複製！'))" style="margin-top:10px; padding:5px 10px; cursor:pointer;">
+                    複製單號
+                </button>
             </div>
         `;
   }
@@ -328,7 +324,6 @@ function renderOrderDetailContent(order) {
     }
 
     if (hasVoucher) {
-      // 如果是 Base64 圖片，直接顯示預覽圖
       const isBase64 = hasVoucher.startsWith("data:image");
       const linkContent = isBase64
         ? `<img src="${hasVoucher}" style="max-width: 200px; border: 1px solid #ddd; border-radius: 4px;" alt="憑證預覽">`
@@ -366,7 +361,8 @@ function renderOrderDetailContent(order) {
 
   return `
         <div class="order-detail-expanded">
-            ${trackingInfoHtml} ${bankInfoHtml}
+            ${trackingInfoHtml}
+            ${bankInfoHtml}
             ${uploadSection}
             ${itemTable}
         </div>

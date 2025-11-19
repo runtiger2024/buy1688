@@ -1,7 +1,7 @@
 // frontend/admin/js/admin.js
-// [新增] 輔助函式：複製到剪貼簿 (定義為全局函數以供動態 HTML 內聯調用或 event delegation 使用)
+
+// [輔助函式] 複製到剪貼簿
 window.copyToClipboard = (text, message) => {
-  // 使用 trim() 移除組裝字串時產生的多餘換行
   navigator.clipboard
     .writeText(text.trim())
     .then(() => {
@@ -13,9 +13,8 @@ window.copyToClipboard = (text, message) => {
     });
 };
 
-// [新增] 核心函式：複製集運資訊 (定義為全局函數)
+// [輔助函式] 複製集運資訊
 window.copyShippingInfo = (paopaoId, warehouseId) => {
-  // allWarehouses 必須是一個 Map
   const warehouse = allWarehouses.get(parseInt(warehouseId, 10));
 
   if (!warehouse) {
@@ -27,35 +26,30 @@ window.copyShippingInfo = (paopaoId, warehouseId) => {
     return;
   }
 
-  // 替換佔位符 (會員編號)
   const receiver = warehouse.receiver.replace("(會員編號)", paopaoId);
-  // 檢查 address 是否也包含佔位符
   const address = warehouse.address.includes("(會員編號)")
     ? warehouse.address.replace("(會員編號)", paopaoId)
     : warehouse.address;
 
-  // 組裝複製內容 (精簡為廠商所需的核心資訊：收件人、電話、地址)
   const copyText = `
 收件人: ${receiver}
 電話: ${warehouse.phone}
 地址: ${address}
 `.trim();
 
-  // 複製到剪貼簿
   window.copyToClipboard(copyText, "✅ 集運資訊已複製，可直接貼給廠商。");
 };
 
 import { API_URL } from "../../js/config.js";
+
 let availableOperators = [];
-let allWarehouses = new Map(); // [修正 1] 必須是 Map 才能使用 .get(id)
+let allWarehouses = new Map();
 let allCategories = [];
 let allOrders = [];
 
-// ✅ 新增篩選器狀態
 let currentStatusFilter = "";
 let currentPaymentStatusFilter = "";
 
-// --- 狀態翻譯字典 ---
 const ORDER_STATUS_MAP = {
   Pending: "待處理",
   Processing: "採購中",
@@ -70,13 +64,11 @@ const PAYMENT_STATUS_MAP = {
   PAID: "已付款",
 };
 
-// --- 訂單類型翻譯 ---
 const ORDER_TYPE_MAP = {
   Standard: "一般商城",
   Assist: "代客採購",
 };
 
-// --- 核心與守衛 ---
 function getToken() {
   return localStorage.getItem("adminToken");
 }
@@ -116,12 +108,9 @@ function logout() {
 let refreshButton;
 let logoutButton;
 let userInfoSpan;
-// 訂單
 let ordersTbody;
-// ✅ 新增篩選器 DOM 變數
 let statusFilterSelect;
 let paymentStatusFilterSelect;
-// 商品
 let productsTbody;
 let productForm;
 let formTitle;
@@ -130,7 +119,6 @@ let productNameInput;
 let productPriceInput;
 let productCostInput;
 let productDescInput;
-// [修改] 圖片輸入框 (5個)
 let productImgInput1,
   productImgInput2,
   productImgInput3,
@@ -138,7 +126,6 @@ let productImgInput1,
   productImgInput5;
 let productCategorySelect;
 let cancelEditBtn;
-// 績效與設定
 let statsContent;
 let exchangeRateInput;
 let serviceFeeInput;
@@ -146,11 +133,9 @@ let bankNameInput;
 let bankAccountInput;
 let bankAccountNameInput;
 let saveSettingsBtn;
-// 人員
 let userSection;
 let createUserForm;
 let usersTbody;
-// 倉庫
 let warehousesTbody;
 let warehouseForm;
 let warehouseFormTitle;
@@ -161,7 +146,6 @@ let warehousePhoneInput;
 let warehouseAddressInput;
 let warehouseIsActiveInput;
 let cancelWarehouseEditBtn;
-// 分類
 let categoriesTbody;
 let categoryForm;
 let categoryFormTitle;
@@ -185,8 +169,6 @@ async function loadAllData() {
   }
 
   await loadSettings(headers);
-
-  // [修改] 先載入倉庫，再載入其他需要倉庫資訊的資料
   await loadWarehouses(headers);
 
   await Promise.all([
@@ -200,7 +182,6 @@ async function loadAllData() {
   populateCategoryDropdown();
 }
 
-// --- 系統設定邏輯 (保持不變) ---
 async function loadSettings(headers) {
   try {
     const response = await fetch(`${API_URL}/settings`);
@@ -210,8 +191,6 @@ async function loadSettings(headers) {
         exchangeRateInput.value = settings.exchange_rate;
       if (settings.service_fee !== undefined)
         serviceFeeInput.value = settings.service_fee;
-
-      // 載入銀行資訊
       if (settings.bank_name) bankNameInput.value = settings.bank_name;
       if (settings.bank_account) bankAccountInput.value = settings.bank_account;
       if (settings.bank_account_name)
@@ -258,7 +237,6 @@ async function saveSettings(headers) {
   }
 }
 
-// 載入績效
 async function loadStats(headers) {
   try {
     statsContent.innerHTML = "<p>正在載入績效...</p>";
@@ -310,13 +288,10 @@ async function loadStats(headers) {
   }
 }
 
-// 載入訂單 (新增篩選器邏輯)
 async function loadOrders(headers) {
   try {
-    // ✅ 調整 colspan 為 12
     ordersTbody.innerHTML = '<tr><td colspan="12">正在載入訂單...</td></tr>';
 
-    // 構建查詢參數
     const params = new URLSearchParams();
     if (currentStatusFilter) params.append("status", currentStatusFilter);
     if (currentPaymentStatusFilter)
@@ -335,13 +310,11 @@ async function loadOrders(headers) {
     renderOrders(allOrders);
   } catch (error) {
     alert(`載入訂單失敗: ${error.message}`);
-    // [修正] colspan 為 12
     ordersTbody.innerHTML =
       '<tr><td colspan="12" style="color: red;">載入訂單失敗。</td></tr>';
   }
 }
 
-// 載入商品 (保持不變)
 async function loadProducts() {
   try {
     const response = await fetch(`${API_URL}/products`);
@@ -355,7 +328,6 @@ async function loadProducts() {
   }
 }
 
-// 載入用戶 (保持不變)
 async function loadUsers(headers) {
   const user = getUser();
   if (user.role !== "admin") return;
@@ -375,18 +347,15 @@ async function loadUsers(headers) {
   }
 }
 
-// 載入倉庫
 async function loadWarehouses(headers) {
   try {
     const response = await fetch(`${API_URL}/warehouses`);
     if (!response.ok) throw new Error("無法載入倉庫");
     const warehousesArray = await response.json();
 
-    // [修正] 儲存為 Map 以便快速查找
     allWarehouses.clear();
     warehousesArray.forEach((wh) => allWarehouses.set(wh.id, wh));
 
-    // 只有 Admin 角色才渲染倉庫管理區塊 (使用原始的 allWarehouses array)
     if (getUser().role === "admin") {
       renderWarehouses(warehousesArray);
     }
@@ -399,7 +368,6 @@ async function loadWarehouses(headers) {
   }
 }
 
-// 載入分類 (保持不變)
 async function loadCategories(headers) {
   const user = getUser();
   if (user.role !== "admin") return;
@@ -421,7 +389,6 @@ async function loadCategories(headers) {
 function renderOrders(orders) {
   ordersTbody.innerHTML = "";
   if (orders.length === 0) {
-    // [修正] colspan 為 12
     ordersTbody.innerHTML = '<tr><td colspan="12">沒有待處理的訂單。</td></tr>';
     return;
   }
@@ -433,7 +400,6 @@ function renderOrders(orders) {
     .join("");
 
   orders.forEach((order) => {
-    // 【✅ 修正：新增這行程式碼來創建表格行，解決 ReferenceError】
     const tr = document.createElement("tr");
 
     const costCny = Number(order.total_cost_cny);
@@ -455,7 +421,6 @@ function renderOrders(orders) {
     const typeText = ORDER_TYPE_MAP[order.type] || "一般商城";
     const typeColor = order.type === "Assist" ? "blue" : "gray";
 
-    // [新增/修改] 處理集運倉資訊
     const warehouseName =
       order.warehouse?.name ||
       '<span style="color:#dc3545">未選擇集運倉</span>';
@@ -468,10 +433,9 @@ function renderOrders(orders) {
            </button>`
       : "";
 
-    // [修改] 憑證顯示邏輯 (支援 Base64 查看)
+    // [修改] 憑證顯示邏輯 (使用按鈕觸發查看 Base64)
     let voucherContent = "";
     if (order.payment_voucher_url) {
-      // 使用按鈕觸發 JS 事件，而不是直接使用 href
       voucherContent = `<button class="btn-link btn-view-voucher" data-id="${order.id}" style="color: #28a745; font-weight: bold; border: none; background: none; cursor: pointer; text-decoration: underline;">查看憑證</button>`;
     } else if (order.payment_status === "UNPAID") {
       voucherContent = '<span style="color:#dc3545;">待上傳</span>';
@@ -479,31 +443,25 @@ function renderOrders(orders) {
       voucherContent = "無";
     }
 
-    // ✅ 新增：境內物流單號輸入欄位
-    let trackingInputHtml = order.domestic_tracking_number || "無";
-    // 只有在 Processing 或 Shipped_Internal 狀態下，且是 PAID 才能編輯
+    // [新增] 物流單號輸入欄位 (僅在已付款且處理中/已發貨時顯示)
+    let trackingInputHtml = order.domestic_tracking_number
+      ? `<a href="https://www.baidu.com/s?wd=${order.domestic_tracking_number}" target="_blank">${order.domestic_tracking_number}</a>`
+      : "無";
+
     if (
-      (order.status === "Processing" || order.status === "Shipped_Internal") &&
-      order.payment_status === "PAID"
+      order.payment_status === "PAID" &&
+      (order.status === "Processing" || order.status === "Shipped_Internal")
     ) {
       trackingInputHtml = `
-            <input 
-                type="text" 
-                class="tracking-input" 
-                data-id="${order.id}" 
-                value="${order.domestic_tracking_number || ""}"
-                placeholder="輸入單號"
-                style="width: 120px;"
-            />
-            <button class="btn btn-primary btn-save-tracking" data-id="${
-              order.id
-            }" style="margin-top: 5px;">儲存</button>
+            <div style="display:flex; align-items:center; gap:5px;">
+                <input type="text" class="tracking-input" value="${
+                  order.domestic_tracking_number || ""
+                }" placeholder="輸入單號" style="width:100px; padding:4px;">
+                <button class="btn btn-primary btn-save-tracking" data-id="${
+                  order.id
+                }" style="padding:4px 8px; font-size:0.8rem;">存</button>
+            </div>
         `;
-    } else if (order.domestic_tracking_number) {
-      // 如果有單號但不能編輯，顯示為連結 (此處使用一個範例短連結服務 t.cn)
-      trackingInputHtml = `<a href="https://t.cn/${order.domestic_tracking_number}" target="_blank">${order.domestic_tracking_number}</a>`;
-    } else {
-      trackingInputHtml = "無";
     }
 
     const totalAmount = Number(order.total_amount_twd).toLocaleString("en-US");
@@ -520,7 +478,8 @@ function renderOrders(orders) {
                 ${warehouseCopyBtn}
             </td>
             <td>${voucherContent}</td>
-            <td>${trackingInputHtml}</td> <td>
+            <td>${trackingInputHtml}</td>
+            <td>
                 <span class="status-${order.status}">${orderStatusText}</span>
                 <br><small>${assignedTo}</small>
             </td>
@@ -576,10 +535,6 @@ function renderOrders(orders) {
   });
 }
 
-// -------------------------------------------------
-// 4. 渲染 (Render) 輔助函式 (補上缺失的部分)
-// -------------------------------------------------
-
 function renderProducts(products) {
   productsTbody.innerHTML = "";
   if (products.length === 0) {
@@ -589,7 +544,6 @@ function renderProducts(products) {
 
   products.forEach((product) => {
     const tr = document.createElement("tr");
-    // 顯示第一張圖片，若無則顯示預設圖或空
     const imgUrl =
       product.images && product.images.length > 0 ? product.images[0] : "";
     const imgHtml = imgUrl
@@ -621,14 +575,13 @@ function renderUsers(users) {
   users.forEach((user) => {
     const tr = document.createElement("tr");
 
-    // 狀態切換按鈕邏輯
     const isUserActive = user.status === "active";
     const statusClass = isUserActive ? "status-active" : "status-inactive";
     const statusText = isUserActive ? "啟用中" : "已停權";
 
     const toggleActionText = isUserActive ? "停權" : "啟用";
     const toggleActionValue = isUserActive ? "inactive" : "active";
-    const toggleBtnClass = isUserActive ? "btn-delete" : "btn-update"; // 紅色停權，藍色啟用
+    const toggleBtnClass = isUserActive ? "btn-delete" : "btn-update";
 
     tr.innerHTML = `
             <td>${user.id}</td>
@@ -648,7 +601,7 @@ function renderUsers(users) {
 }
 
 function renderWarehouses(warehousesArray) {
-  if (!warehousesTbody) return; // 防呆
+  if (!warehousesTbody) return;
   warehousesTbody.innerHTML = "";
   if (warehousesArray.length === 0) {
     warehousesTbody.innerHTML =
@@ -704,7 +657,6 @@ function renderCategories(categories) {
 function populateCategoryDropdown() {
   if (!productCategorySelect) return;
 
-  // 保留第一個 "請選擇" 選項，清除其餘
   productCategorySelect.innerHTML =
     '<option value="">-- 請選擇分類 --</option>';
 
@@ -716,17 +668,12 @@ function populateCategoryDropdown() {
   });
 }
 
-// -------------------------------------------------
-// 5. 事件監聽 (Event Listeners)
-// -------------------------------------------------
-
 document.addEventListener("DOMContentLoaded", () => {
   refreshButton = document.getElementById("refresh-data");
   logoutButton = document.getElementById("logout-button");
   userInfoSpan = document.getElementById("user-info");
   ordersTbody = document.getElementById("orders-tbody");
 
-  // ✅ 抓取篩選器 DOM
   statusFilterSelect = document.getElementById("order-status-filter");
   paymentStatusFilterSelect = document.getElementById(
     "order-payment-status-filter"
@@ -740,7 +687,6 @@ document.addEventListener("DOMContentLoaded", () => {
   productPriceInput = document.getElementById("product-price");
   productCostInput = document.getElementById("product-cost");
   productDescInput = document.getElementById("product-description");
-  // [修改] 抓取 5 個圖片輸入框
   productImgInput1 = document.getElementById("product-img-1");
   productImgInput2 = document.getElementById("product-img-2");
   productImgInput3 = document.getElementById("product-img-3");
@@ -785,7 +731,6 @@ document.addEventListener("DOMContentLoaded", () => {
   applyRolePermissions();
   loadAllData();
   setupNavigation();
-  // ✅ 設置篩選器事件
   setupOrderFilters();
 
   logoutButton.addEventListener("click", logout);
@@ -798,13 +743,11 @@ document.addEventListener("DOMContentLoaded", () => {
     saveSettings(getAuthHeaders());
   });
 
-  // --- 商品表單提交 ... (保持不變) ---
   productForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const headers = getAuthHeaders();
     if (!headers) return;
 
-    // [修改] 收集 5 個輸入框的網址
     const images = [
       productImgInput1.value.trim(),
       productImgInput2.value.trim(),
@@ -858,7 +801,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   cancelEditBtn.addEventListener("click", resetProductForm);
 
-  // --- 商品列表按鈕 ... (保持不變) ---
   productsTbody.addEventListener("click", async (e) => {
     const target = e.target;
     const id = target.dataset.id;
@@ -903,7 +845,6 @@ document.addEventListener("DOMContentLoaded", () => {
         productDescInput.value = product.description;
         productCategorySelect.value = product.category_id || "";
 
-        // [修改] 回填 5 個圖片輸入框
         const imgs = product.images || [];
         productImgInput1.value = imgs[0] || "";
         productImgInput2.value = imgs[1] || "";
@@ -922,10 +863,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- 訂單列表按鈕/下拉選單事件 (新增物流單號儲存) ---
   ordersTbody.addEventListener("click", async (e) => {
     const target = e.target;
-    // 確保點擊的是按鈕或按鈕內的元素，並找到最近的按鈕
     const button = target.closest(".btn-copy-shipping");
 
     if (button) {
@@ -937,24 +876,22 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         alert("錯誤: 缺少跑跑虎ID或集運倉ID。");
       }
-      return; // 處理完畢，退出
+      return;
     }
 
-    // ✅ [新增] 查看憑證按鈕邏輯
+    // [新增] 查看憑證邏輯 (支援 Base64)
     if (target.classList.contains("btn-view-voucher")) {
       const id = target.dataset.id;
       const order = allOrders.find((o) => o.id == id);
 
       if (order && order.payment_voucher_url) {
         const url = order.payment_voucher_url;
-        // 判斷是否為 Base64
         if (url.startsWith("data:image")) {
           const w = window.open("");
           w.document.write(
             `<img src="${url}" style="max-width: 100%; display: block; margin: 0 auto;" />`
           );
         } else {
-          // 普通 URL
           window.open(url, "_blank");
         }
       } else {
@@ -963,14 +900,22 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // ✅ 處理儲存物流單號按鈕
+    // [新增] 儲存物流單號按鈕
     if (target.classList.contains("btn-save-tracking")) {
       const id = target.dataset.id;
       const headers = getAuthHeaders();
-      const input = target.previousElementSibling; // 獲取前面的 input
+      const input = target.previousElementSibling;
       const trackingNumber = input.value.trim();
 
       if (!id || !headers) return;
+
+      if (!trackingNumber) {
+        alert("請輸入單號再儲存");
+        return;
+      }
+
+      target.disabled = true;
+      target.textContent = "...";
 
       try {
         const response = await fetch(`${API_URL}/orders/${id}`, {
@@ -979,15 +924,16 @@ document.addEventListener("DOMContentLoaded", () => {
           body: JSON.stringify({ domestic_tracking_number: trackingNumber }),
         });
         if (!response.ok) throw new Error("更新物流單號失敗");
-        alert("大陸境內物流單號已儲存！");
+        alert("✅ 物流單號已儲存！");
         await loadOrders(headers);
       } catch (error) {
         alert(`錯誤: ${error.message}`);
+        target.disabled = false;
+        target.textContent = "存";
       }
       return;
     }
 
-    // 繼續處理其他按鈕事件 (mark-paid)
     const id = target.dataset.id;
     const headers = getAuthHeaders();
     if (!id || !headers) return;
@@ -1052,7 +998,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       try {
-        // 【修正】Admin 指派訂單的路徑是 /orders/:id，但需要 operator_id
         const response = await fetch(`${API_URL}/orders/${id}`, {
           method: "PUT",
           headers: headers,
@@ -1087,7 +1032,6 @@ document.addEventListener("DOMContentLoaded", () => {
       await loadUsers(headers);
     } catch (error) {
       if (error.message.includes("409")) {
-        // P2002 error
         alert("錯誤: 帳號已存在");
       } else {
         alert(`錯誤: ${error.message}`);
@@ -1120,8 +1064,6 @@ document.addEventListener("DOMContentLoaded", () => {
   warehousesTbody.addEventListener("click", (e) => {
     if (e.target.classList.contains("btn-edit-warehouse")) {
       const id = e.target.dataset.id;
-      // [修改] 從 Map 獲取資料
-      // 注意: allWarehouses 在這裡使用 Map 的 .get()
       const warehouse = allWarehouses.get(parseInt(id, 10));
       if (warehouse) {
         warehouseFormTitle.textContent = `編輯倉庫 (ID: ${id})`;
@@ -1264,9 +1206,7 @@ function resetCategoryForm() {
   categoryIdInput.value = "";
 }
 
-// ✅ 新增篩選器事件處理函式
 function setupOrderFilters() {
-  // 綁定篩選器變更事件
   if (statusFilterSelect) {
     statusFilterSelect.addEventListener("change", (e) => {
       currentStatusFilter = e.target.value;
