@@ -413,6 +413,9 @@ function renderOrders(orders) {
     .join("");
 
   orders.forEach((order) => {
+    // 【✅ 修正：新增這行程式碼來創建表格行，解決 ReferenceError】
+    const tr = document.createElement("tr");
+
     const costCny = Number(order.total_cost_cny);
     const profitTwd = order.total_amount_twd - costCny * exchangeRate;
     const profitClass = profitTwd >= 0 ? "profit-positive" : "profit-negative";
