@@ -1,4 +1,3 @@
-// backend/prisma/seed.js
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../auth.js";
 import dotenv from "dotenv";
@@ -45,7 +44,7 @@ async function main() {
   });
   console.log("✅ 倉庫資料填充完畢。");
 
-  // --- 填充系統設定 (包含新功能) ---
+  // --- 填充系統設定 ---
   const defaultSettings = [
     { key: "exchange_rate", value: "4.5", description: "人民幣轉台幣匯率" },
     { key: "service_fee", value: "0", description: "代購服務費率" },
@@ -60,20 +59,14 @@ async function main() {
       value: "跑得快國際貿易有限公司",
       description: "收款銀行戶名",
     },
-
-    // [新增] Email 通知設定 (SendGrid)
     { key: "email_api_key", value: "", description: "SendGrid API Key" },
     { key: "email_from_email", value: "", description: "系統發信 Email" },
-
-    // [新增] 發票 API (未來擴充)
     { key: "invoice_merchant_id", value: "", description: "電子發票商店代號" },
     {
       key: "invoice_api_key",
       value: "",
       description: "電子發票 HashKey/API Key",
     },
-
-    // [新增] 金流 API (未來擴充)
     { key: "payment_merchant_id", value: "", description: "金流商店代號" },
     { key: "payment_api_key", value: "", description: "金流 HashKey/API Key" },
   ];
@@ -81,7 +74,7 @@ async function main() {
   for (const setting of defaultSettings) {
     await prisma.systemSettings.upsert({
       where: { key: setting.key },
-      update: {}, // 若存在則不覆蓋
+      update: {},
       create: setting,
     });
   }
@@ -93,9 +86,13 @@ async function main() {
 
   if (adminUsername && adminPassword) {
     const hashedPassword = await hashPassword(adminPassword);
+
     await prisma.users.upsert({
       where: { username: adminUsername },
-      update: { password_hash: hashedPassword },
+      update: {
+        password_hash: hashedPassword,
+        role: "admin",
+      },
       create: {
         username: adminUsername,
         password_hash: hashedPassword,
@@ -106,14 +103,39 @@ async function main() {
     console.log(`✅ 管理員帳號 (${adminUsername}) 已確認/建立。`);
   }
 
-  // 設定訂單 ID 序列
+  // --- [核心修正] 動態設定訂單 ID 序列 ---
   try {
-    const setSequenceSql = `SELECT setval(pg_get_serial_sequence('"orders"', 'id'), 6001687, false)`;
+    // 1. 找出目前資料庫中最大的訂單 ID
+    const maxOrder = await prisma.orders.findFirst({
+      orderBy: { id: "desc" },
+      select: { id: true },
+    });
+
+    // 預設起始值為 6001687 (這樣下一筆會是 6001688)
+    let nextSeqVal = 6001687;
+
+    // 如果資料庫中已經有訂單，且 ID 比預設值大，就使用該 ID
+    if (maxOrder && maxOrder.id > nextSeqVal) {
+      nextSeqVal = maxOrder.id;
+    }
+
+    // 2. 設定序列值
+    // setval(sequence, value, true/false)
+    // true (預設): 下一個值會是 value + 1
+    // 我們這裡直接設定為目前的 max ID，這樣下一筆自動會 +1，不會衝突
+    const setSequenceSql = `SELECT setval(pg_get_serial_sequence('"orders"', 'id'), ${nextSeqVal})`;
+
     await prisma.$executeRawUnsafe(setSequenceSql);
-    console.log("✅ 訂單 ID 序列已設定為從 6001688 開始。");
+
+    console.log(
+      `✅ 訂單 ID 序列已動態校正。目前最大 ID: ${nextSeqVal}，下一筆將是: ${
+        nextSeqVal + 1
+      }`
+    );
   } catch (e) {
-    console.error("❌ 設定訂單 ID 序列失敗 (可能已設定過):", e);
+    console.error("❌ 設定訂單 ID 序列失敗:", e);
   }
+  // --- 修正結束 ---
 
   console.log("資料填充完畢。");
 }
