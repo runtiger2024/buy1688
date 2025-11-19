@@ -25,14 +25,16 @@ let availableOperators = [];
 let allWarehouses = new Map();
 let allCategories = [];
 let allOrders = [];
-let allUsers = []; // [新增] 全局用戶列表
+let allUsers = [];
+let allCustomers = []; // [新增] 全局客戶列表
 let currentOrder = null;
 
 let currentStatusFilter = "";
 let currentPaymentStatusFilter = "";
 let currentSearchTerm = "";
 let currentHasVoucherFilter = false;
-let userSearchTerm = ""; // [新增] 用戶搜尋詞
+let userSearchTerm = "";
+let customerSearchTerm = ""; // [新增] 客戶搜尋詞
 
 // --- 暴露給全局使用的複製函式 ---
 window.copyShippingInfo = (paopaoId, warehouseId) => {
@@ -107,6 +109,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupCategoryEvents();
   setupWarehouseEvents();
   setupUserEvents();
+  setupCustomerEvents(); // [新增]
   setupSettingsEvents();
   setupModalClosers();
 });
@@ -137,6 +140,7 @@ function setupNavigation() {
       if (targetId === "categories-section") loadCategories();
       if (targetId === "warehouses-section") loadWarehouses();
       if (targetId === "users-section") loadUsers();
+      if (targetId === "customers-section") loadCustomers(); // [新增]
       if (targetId === "stats-section") loadStats();
     });
   });
@@ -868,9 +872,6 @@ function openWarehouseModal(id) {
   document.getElementById("warehouse-modal").style.display = "block";
 }
 
-// ==========================================
-// 7. 人員管理 (優化版)
-// ==========================================
 async function loadUsers() {
   if (getUser().role !== "admin") return;
   const tbody = document.getElementById("users-tbody");
@@ -890,7 +891,6 @@ async function loadUsers() {
 function renderUsersTable(users) {
   const tbody = document.getElementById("users-tbody");
 
-  // [新增] 前端過濾
   const filtered = users.filter((u) =>
     u.username.toLowerCase().includes(userSearchTerm.toLowerCase())
   );
@@ -937,7 +937,6 @@ function renderUsersTable(users) {
     tbody.appendChild(tr);
   });
 
-  // 綁定停權按鈕
   document.querySelectorAll(".btn-toggle-user").forEach((btn) =>
     btn.addEventListener("click", async () => {
       const newStatus = btn.dataset.status === "active" ? "inactive" : "active";
@@ -948,7 +947,6 @@ function renderUsersTable(users) {
     })
   );
 
-  // [新增] 綁定編輯按鈕
   document
     .querySelectorAll(".btn-edit-user")
     .forEach((btn) =>
@@ -957,11 +955,9 @@ function renderUsersTable(users) {
 }
 
 function setupUserEvents() {
-  // 建立按鈕
   const btn = document.getElementById("btn-add-user");
   if (btn) btn.addEventListener("click", () => openUserModal(null));
 
-  // 搜尋監聽
   const searchInput = document.getElementById("user-search-input");
   if (searchInput) {
     searchInput.addEventListener("keyup", (e) => {
@@ -970,7 +966,6 @@ function setupUserEvents() {
     });
   }
 
-  // 表單提交
   const form = document.getElementById("create-user-form");
   if (form)
     form.addEventListener("submit", async (e) => {
@@ -982,22 +977,15 @@ function setupUserEvents() {
 
       try {
         if (id) {
-          // 編輯模式: 更新角色 與 (選擇性) 更新密碼
           const originalUser = allUsers.find((u) => u.id == id);
-
-          // 1. 更新角色 (若有變動)
           if (originalUser.role !== role) {
             await api.updateUserRole(id, role);
           }
-
-          // 2. 更新密碼 (若有填寫)
           if (password) {
             await api.updateUserPassword(id, password);
           }
-
           alert("用戶資料已更新");
         } else {
-          // 建立模式
           if (!password) {
             alert("建立用戶需填寫密碼");
             return;
@@ -1023,22 +1011,19 @@ function openUserModal(id) {
   const usernameInput = document.getElementById("user-username");
 
   if (id) {
-    // 編輯模式
     const user = allUsers.find((u) => u.id == id);
     if (!user) return;
 
     title.textContent = "編輯用戶";
     document.getElementById("user-id").value = user.id;
     usernameInput.value = user.username;
-    usernameInput.disabled = true; // 帳號不可修改
+    usernameInput.disabled = true;
     document.getElementById("user-role").value = user.role;
 
-    // 密碼欄位調整
     document.getElementById("user-password").required = false;
     document.getElementById("user-password").placeholder = "若不修改請留空";
     passHint.textContent = "輸入新密碼以重置，否則請留空";
   } else {
-    // 建立模式
     title.textContent = "建立新用戶";
     usernameInput.disabled = false;
     document.getElementById("user-password").required = true;
@@ -1047,6 +1032,117 @@ function openUserModal(id) {
   }
 
   document.getElementById("user-modal").style.display = "block";
+}
+
+// ==========================================
+// 8. [新增] 會員 (Customers) 管理
+// ==========================================
+async function loadCustomers() {
+  const tbody = document.getElementById("customers-tbody");
+  tbody.innerHTML =
+    "<tr><td colspan='6' class='text-center'>載入中...</td></tr>";
+  try {
+    const customers = await api.getCustomers();
+    allCustomers = customers;
+    renderCustomersTable(allCustomers);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan='6' class='text-center text-danger'>${e.message}</td></tr>`;
+  }
+}
+
+function renderCustomersTable(customers) {
+  const tbody = document.getElementById("customers-tbody");
+
+  const filtered = customers.filter(
+    (c) =>
+      c.paopao_id.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+      c.email.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+      (c.phone && c.phone.includes(customerSearchTerm))
+  );
+
+  if (filtered.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="6" class="text-center">找不到符合條件的會員</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = "";
+  filtered.forEach((c) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+            <td>${c.id}</td>
+            <td>${c.paopao_id}</td>
+            <td>${c.email}</td>
+            <td>${c.phone || "-"}</td>
+            <td>${new Date(c.created_at).toLocaleString()}</td>
+            <td>
+                <button class="btn btn-small btn-primary btn-edit-customer" data-id="${
+                  c.id
+                }">
+                    <i class="fas fa-edit"></i> 編輯/重置
+                </button>
+            </td>
+        `;
+    tbody.appendChild(tr);
+  });
+
+  document
+    .querySelectorAll(".btn-edit-customer")
+    .forEach((btn) =>
+      btn.addEventListener("click", () => openCustomerModal(btn.dataset.id))
+    );
+}
+
+function setupCustomerEvents() {
+  // 搜尋
+  const searchInput = document.getElementById("customer-search-input");
+  if (searchInput) {
+    searchInput.addEventListener("keyup", (e) => {
+      customerSearchTerm = e.target.value.trim();
+      renderCustomersTable(allCustomers);
+    });
+  }
+
+  // 表單提交
+  const form = document.getElementById("customer-form");
+  if (form)
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const id = document.getElementById("customer-id").value;
+      const email = document.getElementById("customer-email").value;
+      const phone = document.getElementById("customer-phone").value;
+      const password = document.getElementById("customer-password").value;
+
+      try {
+        // 1. 更新基本資料
+        await api.updateCustomer(id, { email, phone });
+
+        // 2. 如果有填寫密碼，則重置
+        if (password) {
+          await api.updateCustomerPassword(id, password);
+        }
+
+        alert("會員資料已更新");
+        document.getElementById("customer-modal").style.display = "none";
+        loadCustomers();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+}
+
+function openCustomerModal(id) {
+  const customer = allCustomers.find((c) => c.id == id);
+  if (!customer) return;
+
+  document.getElementById("customer-form").reset();
+  document.getElementById("customer-id").value = customer.id;
+  document.getElementById("customer-paopao-id").value = customer.paopao_id;
+  document.getElementById("customer-email").value = customer.email;
+  document.getElementById("customer-phone").value = customer.phone || "";
+  document.getElementById("customer-password").value = "";
+
+  document.getElementById("customer-modal").style.display = "block";
 }
 
 async function loadSettings() {

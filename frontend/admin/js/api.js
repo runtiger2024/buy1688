@@ -64,7 +64,7 @@ export const api = {
   archiveProduct: (id) =>
     fetchData(`/admin/products/${id}`, { method: "DELETE" }),
 
-  // 用戶
+  // 用戶 (Staff)
   getUsers: () => fetchData("/admin/users"),
   createUser: (data) =>
     fetchData("/admin/users", { method: "POST", body: JSON.stringify(data) }),
@@ -78,9 +78,21 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ role }),
     }),
-  // [新增] 更新密碼
   updateUserPassword: (id, password) =>
     fetchData(`/admin/users/${id}/password`, {
+      method: "PUT",
+      body: JSON.stringify({ password }),
+    }),
+
+  // [新增] 會員 (Customers)
+  getCustomers: () => fetchData("/admin/customers"),
+  updateCustomer: (id, data) =>
+    fetchData(`/admin/customers/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  updateCustomerPassword: (id, password) =>
+    fetchData(`/admin/customers/${id}/password`, {
       method: "PUT",
       body: JSON.stringify({ password }),
     }),

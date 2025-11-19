@@ -179,7 +179,7 @@ router.delete(
   }
 );
 
-// --- 人員管理 ---
+// --- 人員管理 (Staff) ---
 router.get("/users", authenticateToken, isAdmin, async (req, res, next) => {
   try {
     const users = await prisma.users.findMany({
@@ -257,7 +257,6 @@ router.put(
   }
 );
 
-// [新增] 重置密碼 API
 router.put(
   "/users/:id/password",
   authenticateToken,
@@ -275,6 +274,73 @@ router.put(
         data: { password_hash: hashedPassword },
       });
       res.json({ message: "密碼已重置" });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// --- [新增] 會員(客戶)管理 ---
+router.get("/customers", authenticateToken, isAdmin, async (req, res, next) => {
+  try {
+    const customers = await prisma.customers.findMany({
+      orderBy: { created_at: "desc" },
+      // 不回傳 password_hash，保護隱私
+      select: {
+        id: true,
+        paopao_id: true,
+        email: true,
+        phone: true,
+        created_at: true,
+      },
+    });
+    res.json(customers);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put(
+  "/customers/:id",
+  authenticateToken,
+  isAdmin,
+  async (req, res, next) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { email, phone } = req.body;
+
+      const updated = await prisma.customers.update({
+        where: { id },
+        data: { email, phone },
+      });
+      res.json(updated);
+    } catch (err) {
+      if (err.code === "P2002") {
+        // Prisma 錯誤碼: Unique constraint failed
+        return res.status(409).json({ message: "Email 或手機號碼已被使用" });
+      }
+      next(err);
+    }
+  }
+);
+
+router.put(
+  "/customers/:id/password",
+  authenticateToken,
+  isAdmin,
+  async (req, res, next) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { password } = req.body;
+      if (!password || password.length < 6) {
+        return res.status(400).json({ message: "密碼長度至少需 6 碼" });
+      }
+      const hashedPassword = await hashPassword(password);
+      await prisma.customers.update({
+        where: { id },
+        data: { password_hash: hashedPassword },
+      });
+      res.json({ message: "會員密碼已重置" });
     } catch (err) {
       next(err);
     }
