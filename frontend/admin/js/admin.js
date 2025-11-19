@@ -468,10 +468,11 @@ function renderOrders(orders) {
            </button>`
       : "";
 
-    // [新增] 憑證顯示邏輯
+    // [修改] 憑證顯示邏輯 (支援 Base64 查看)
     let voucherContent = "";
     if (order.payment_voucher_url) {
-      voucherContent = `<a href="${order.payment_voucher_url}" target="_blank" style="color: #28a745; font-weight: bold;">查看憑證</a>`;
+      // 使用按鈕觸發 JS 事件，而不是直接使用 href
+      voucherContent = `<button class="btn-link btn-view-voucher" data-id="${order.id}" style="color: #28a745; font-weight: bold; border: none; background: none; cursor: pointer; text-decoration: underline;">查看憑證</button>`;
     } else if (order.payment_status === "UNPAID") {
       voucherContent = '<span style="color:#dc3545;">待上傳</span>';
     } else {
@@ -937,6 +938,29 @@ document.addEventListener("DOMContentLoaded", () => {
         alert("錯誤: 缺少跑跑虎ID或集運倉ID。");
       }
       return; // 處理完畢，退出
+    }
+
+    // ✅ [新增] 查看憑證按鈕邏輯
+    if (target.classList.contains("btn-view-voucher")) {
+      const id = target.dataset.id;
+      const order = allOrders.find((o) => o.id == id);
+
+      if (order && order.payment_voucher_url) {
+        const url = order.payment_voucher_url;
+        // 判斷是否為 Base64
+        if (url.startsWith("data:image")) {
+          const w = window.open("");
+          w.document.write(
+            `<img src="${url}" style="max-width: 100%; display: block; margin: 0 auto;" />`
+          );
+        } else {
+          // 普通 URL
+          window.open(url, "_blank");
+        }
+      } else {
+        alert("查無憑證資料");
+      }
+      return;
     }
 
     // ✅ 處理儲存物流單號按鈕
