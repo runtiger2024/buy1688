@@ -76,7 +76,7 @@ model Products {
   id          Int      @id @default(autoincrement())
   name        String
   description String?
-  image_url   String[]
+  images   String[]
   cost_cny    Decimal
   price_twd   Int
   is_archived Boolean  @default(false)
