@@ -1,164 +1,117 @@
-// backend/prisma/schema.prisma
+// backend/prisma/seed.js
+import { PrismaClient } from "@prisma/client";
+import { hashPassword } from "../auth.js"; 
+import dotenv from "dotenv";
 
-// 1. 設定資料庫連線
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+dotenv.config();
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log("開始填充 (Seeding) 資料庫...");
+
+  // 1. 填充倉庫資料
+  await prisma.warehouses.upsert({
+    where: { name: "厦门漳州仓" },
+    update: {},
+    create: {
+      name: "厦门漳州仓",
+      receiver: "跑跑虎轉(會員編號)",
+      phone: "13682536948",
+      address:
+        "中国福建省漳州市龙海区東園鎮倉里路普洛斯物流園A02庫1楼一分區1號門跑跑虎(會員編號)",
+    },
+  });
+
+  await prisma.warehouses.upsert({
+    where: { name: "东莞倉" },
+    update: {},
+    create: {
+      name: "东莞倉",
+      receiver: "跑跑虎轉(會員編號)",
+      phone: "13682536948",
+      address: "中国广东省东莞市洪梅镇振華路688號2號樓跑跑虎(會員編號)",
+    },
+  });
+
+  await prisma.warehouses.upsert({
+    where: { name: "义乌倉" },
+    update: {},
+    create: {
+      name: "义乌倉",
+      receiver: "跑跑虎轉(會員編號)",
+      phone: "13682536948",
+      address: "中国浙江省金华市义乌市江东街道东新路19号1号楼跑跑虎(會員編號)",
+    },
+  });
+  console.log("✅ 倉庫資料填充完畢。");
+
+  // --- 【第十四批優化：填充預設系統設定】 ---
+  const defaultSettings = [
+    { key: "exchange_rate", value: "4.5", description: "人民幣轉台幣匯率" },
+    { key: "service_fee", value: "0", description: "代購服務費率" },
+    { key: "bank_name", value: "玉山銀行 (808)", description: "收款銀行名稱" },
+    { key: "bank_account", value: "12345678901234", description: "收款銀行帳號" },
+    { key: "bank_account_name", value: "跑得快國際貿易有限公司", description: "收款銀行戶名" },
+    
+    // [新增] Email 通知設定 (SendGrid)
+    { key: "email_api_key", value: "", description: "SendGrid API Key" },
+    { key: "email_from_email", value: "", description: "系統發信 Email" },
+
+    // [新增] 發票 API (未來擴充)
+    { key: "invoice_merchant_id", value: "", description: "電子發票商店代號" },
+    { key: "invoice_api_key", value: "", description: "電子發票 HashKey/API Key" },
+
+    // [新增] 金流 API (未來擴充)
+    { key: "payment_merchant_id", value: "", description: "金流商店代號" },
+    { key: "payment_api_key", value: "", description: "金流 HashKey/API Key" },
+  ];
+
+  for (const setting of defaultSettings) {
+    await prisma.systemSettings.upsert({
+      where: { key: setting.key },
+      update: {}, // 若存在則不覆蓋
+      create: setting,
+    });
+  }
+
+  console.log("✅ 系統設定填充完畢。");
+
+  // 2. 建立預設管理員
+  const adminUsername = process.env.ADMIN_USERNAME;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (adminUsername && adminPassword) {
+    const hashedPassword = await hashPassword(adminPassword);
+    await prisma.users.upsert({
+      where: { username: adminUsername },
+      update: { password_hash: hashedPassword },
+      create: {
+        username: adminUsername,
+        password_hash: hashedPassword,
+        role: "admin",
+        status: "active",
+      },
+    });
+    console.log(`✅ 管理員帳號 (${adminUsername}) 已確認/建立。`);
+  }
+
+  // 設定訂單 ID 序列
+  try {
+    const setSequenceSql = `SELECT setval(pg_get_serial_sequence('"orders"', 'id'), 6001687, false)`;
+    await prisma.$executeRawUnsafe(setSequenceSql);
+    console.log("✅ 訂單 ID 序列已設定為從 6001688 開始。");
+  } catch (e) {
+    console.error("❌ 設定訂單 ID 序列失敗 (可能已設定過):", e);
+  }
+
+  console.log("資料填充完畢。");
 }
 
-// 2. 設定 Prisma Client 產生器
-generator client {
-  provider = "prisma-client-js"
-}
-
-// 3. 定義您的資料模型 (Models) 和枚舉 (Enums)
-
-// ENUMs (枚舉)
-enum UserRole {
-  admin
-  operator
-}
-
-enum OrderStatus {
-  Pending
-  Processing
-  Shipped_Internal
-  Warehouse_Received
-  Completed
-  Cancelled
-}
-
-enum OrderType {
-  Standard  // 一般商城訂單
-  Assist    // 代客採購訂單
-}
-
-model SystemSettings {
-  id          Int      @id @default(autoincrement())
-  key         String   @unique
-  value       String
-  description String?
-  updated_at  DateTime @default(now())
-
-  @@map("system_settings")
-}
-
-// Models (資料模型)
-
-// 管理員/操作員
-model Users {
-  id            Int      @id @default(autoincrement())
-  username      String   @unique
-  password_hash String
-  role          UserRole @default(operator)
-  status        String   @default("active")
-  created_at    DateTime @default(now())
-
-  orders Orders[]
-
-  @@map("users")
-}
-
-// 分類
-model Categories {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  description String?
-  created_at  DateTime @default(now())
-
-  products Products[]
-
-  @@map("categories")
-}
-
-// 商品
-model Products {
-  id          Int      @id @default(autoincrement())
-  name        String
-  description String?
-  images      String[]
-  cost_cny    Decimal
-  price_twd   Int
-  is_archived Boolean  @default(false)
-  created_at  DateTime @default(now())
-
-  category_id Int?
-  category    Categories? @relation(fields: [category_id], references: [id])
-
-  order_items OrderItems[]
-
-  @@map("products")
-}
-
-// 訂單
-model Orders {
-  id                 Int         @id @default(autoincrement())
-  paopao_id          String
-  customer_email     String?
-  total_amount_twd   Int
-  total_cost_cny     Decimal
-  status             OrderStatus @default(Pending)
-  type               OrderType   @default(Standard)
-  operator_id        Int?
-  warehouse_id       Int?
-  notes              String?
-  payment_voucher_url String?    // [新增] 匯款憑證 URL
-  domestic_tracking_number String? // ✅ 新增：大陸境內物流單號
-  created_at         DateTime    @default(now())
-
-  payment_method     String?
-  payment_status     String      @default("UNPAID")
-
-  share_token        String      @unique @default(uuid())
-
-  operator Users? @relation(fields: [operator_id], references: [id])
-  warehouse Warehouses? @relation(fields: [warehouse_id], references: [id]) 
-  items OrderItems[]
-
-  @@map("orders")
-}
-
-// 訂單內的商品 (關聯表)
-model OrderItems {
-  id                Int     @id @default(autoincrement())
-  order_id          Int
-  product_id        Int?
-  item_url          String?
-  item_spec         String?
-  quantity          Int
-  snapshot_name     String?
-  snapshot_price_twd Int
-  snapshot_cost_cny Decimal
-
-  order   Orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  product Products? @relation(fields: [product_id], references: [id])
-
-  @@map("order_items")
-}
-
-// 倉庫
-model Warehouses {
-  id         Int      @id @default(autoincrement())
-  name       String   @unique
-  receiver   String
-  phone      String
-  address    String
-  is_active  Boolean  @default(true)
-  created_at DateTime @default(now())
-  
-  orders Orders[] 
-
-  @@map("warehouses")
-}
-
-// 客戶 (會員)
-model Customers {
-  id            Int      @id @default(autoincrement())
-  paopao_id     String   @unique
-  password_hash String
-  email         String   @unique
-  phone         String?
-  created_at    DateTime @default(now())
-
-  @@map("customers")
-}
+main()
+  .catch((e) => {
+    console.error("❌ 填充資料時發生錯誤:", e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

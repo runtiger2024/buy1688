@@ -26,7 +26,7 @@ let allWarehouses = new Map();
 let allCategories = [];
 let allOrders = [];
 let allUsers = [];
-let allCustomers = []; // [新增] 全局客戶列表
+let allCustomers = [];
 let currentOrder = null;
 
 let currentStatusFilter = "";
@@ -34,9 +34,11 @@ let currentPaymentStatusFilter = "";
 let currentSearchTerm = "";
 let currentHasVoucherFilter = false;
 let userSearchTerm = "";
-let customerSearchTerm = ""; // [新增] 客戶搜尋詞
+let customerSearchTerm = "";
 
-// --- 暴露給全局使用的複製函式 ---
+// --- 暴露給全局使用的函式 (供 HTML onclick 使用) ---
+
+// 1. 複製集運倉資訊
 window.copyShippingInfo = (paopaoId, warehouseId) => {
   const warehouse = allWarehouses.get(parseInt(warehouseId, 10));
   if (!warehouse) {
@@ -53,6 +55,7 @@ window.copyShippingInfo = (paopaoId, warehouseId) => {
   copyToClipboard(text, "✅ 寄送資訊已複製！");
 };
 
+// 2. 複製訂單摘要
 window.copyOrderSummary = () => {
   if (!currentOrder) return;
 
@@ -77,6 +80,41 @@ ${itemsText}
   copyToClipboard(text, "📋 訂單摘要已複製！");
 };
 
+// 3. 標記訂單為已付款
+window.markOrderPaid = async function (id) {
+  if (!confirm("確定標記為已付款？系統將發信通知客戶。")) return;
+  try {
+    await api.updateOrder(id, { payment_status: "PAID" });
+    alert("更新成功");
+    document.getElementById("order-modal").style.display = "none";
+    loadOrders();
+    loadStats();
+  } catch (e) {
+    alert(e.message);
+  }
+};
+
+// 4. 篩選待核銷憑證 (從儀表板跳轉)
+window.filterPendingVouchers = function () {
+  document
+    .querySelectorAll(".sidebar-nav .nav-link")
+    .forEach((l) => l.classList.remove("active"));
+  document
+    .querySelectorAll(".dashboard-section")
+    .forEach((s) => s.classList.remove("active"));
+
+  const orderLink = document.querySelector(
+    '.nav-link[data-target="orders-section"]'
+  );
+  if (orderLink) orderLink.classList.add("active");
+  document.getElementById("orders-section").classList.add("active");
+
+  currentHasVoucherFilter = true;
+  document.getElementById("order-status-filter").value = "";
+  document.getElementById("order-payment-status-filter").value = "UNPAID";
+  loadOrders();
+};
+
 // --- 初始化 ---
 document.addEventListener("DOMContentLoaded", async () => {
   if (!checkAuth()) return;
@@ -99,17 +137,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("logout-button").addEventListener("click", logout);
 
+  // 預先載入必要的參考資料
   await Promise.all([loadSettings(), loadWarehouses(), loadUsers()]);
 
+  // 預設載入儀表板
   loadStats();
 
+  // 綁定各區塊事件
   setupDashboardEvents();
   setupOrderEvents();
   setupProductEvents();
   setupCategoryEvents();
   setupWarehouseEvents();
   setupUserEvents();
-  setupCustomerEvents(); // [新增]
+  setupCustomerEvents();
   setupSettingsEvents();
   setupModalClosers();
 });
@@ -132,15 +173,16 @@ function setupNavigation() {
       const targetSection = document.getElementById(targetId);
       if (targetSection) targetSection.classList.add("active");
 
+      // 根據切換到的頁面載入對應資料
       if (targetId === "orders-section") {
-        currentHasVoucherFilter = false;
+        currentHasVoucherFilter = false; // 切換回訂單頁時重置特殊篩選
         loadOrders();
       }
       if (targetId === "products-section") loadProducts();
       if (targetId === "categories-section") loadCategories();
       if (targetId === "warehouses-section") loadWarehouses();
       if (targetId === "users-section") loadUsers();
-      if (targetId === "customers-section") loadCustomers(); // [新增]
+      if (targetId === "customers-section") loadCustomers();
       if (targetId === "stats-section") loadStats();
     });
   });
@@ -199,26 +241,6 @@ async function loadStats() {
   }
 }
 
-window.filterPendingVouchers = function () {
-  document
-    .querySelectorAll(".sidebar-nav .nav-link")
-    .forEach((l) => l.classList.remove("active"));
-  document
-    .querySelectorAll(".dashboard-section")
-    .forEach((s) => s.classList.remove("active"));
-
-  const orderLink = document.querySelector(
-    '.nav-link[data-target="orders-section"]'
-  );
-  if (orderLink) orderLink.classList.add("active");
-  document.getElementById("orders-section").classList.add("active");
-
-  currentHasVoucherFilter = true;
-  document.getElementById("order-status-filter").value = "";
-  document.getElementById("order-payment-status-filter").value = "UNPAID";
-  loadOrders();
-};
-
 function setupDashboardEvents() {
   document.getElementById("refresh-stats").addEventListener("click", loadStats);
 }
@@ -275,6 +297,7 @@ function renderOrdersTable(orders) {
     let paymentBadge =
       order.payment_status === "PAID" ? "badge-success" : "badge-danger";
 
+    // 憑證提醒徽章
     let voucherAlert = "";
     if (order.payment_status === "UNPAID" && order.payment_voucher_url) {
       voucherAlert = `<span class="badge badge-warning" style="margin-left:5px; background-color:#ffc107; color:#000;"><i class="fas fa-bell"></i> 新憑證</span>`;
@@ -445,7 +468,9 @@ function openOrderModal(orderId) {
                 </div>
             </div>
         </div>
+        
         <hr>
+        
         <div class="form-row-2">
             <div class="form-group">
                 <label>指派操作員 (${
@@ -465,16 +490,19 @@ function openOrderModal(orderId) {
                 }" placeholder="輸入快遞單號">
             </div>
         </div>
+
         <div class="form-group">
             <label>管理員備註</label>
             <textarea id="modal-order-notes" rows="2">${
               order.notes || ""
             }</textarea>
         </div>
+        
         <div class="form-group bg-light p-10">
             <label style="color: #d35400;">🔔 付款憑證區</label>
             <div>${voucherHtml}</div>
         </div>
+
         <h4 class="mt-5">商品清單</h4>
         <table class="data-table" style="font-size: 0.85rem;">
             <thead>
@@ -486,19 +514,6 @@ function openOrderModal(orderId) {
 
   modal.style.display = "block";
 }
-
-window.markOrderPaid = async function (id) {
-  if (!confirm("確定標記為已付款？系統將發信通知客戶。")) return;
-  try {
-    await api.updateOrder(id, { payment_status: "PAID" });
-    alert("更新成功");
-    document.getElementById("order-modal").style.display = "none";
-    loadOrders();
-    loadStats();
-  } catch (e) {
-    alert(e.message);
-  }
-};
 
 async function saveOrderChanges() {
   if (!currentOrder) return;
@@ -526,7 +541,7 @@ async function saveOrderChanges() {
 }
 
 // ==========================================
-// 4. 商品管理
+// 4. 商品管理 (Products)
 // ==========================================
 async function loadProducts() {
   const tbody = document.getElementById("products-tbody");
@@ -691,7 +706,7 @@ async function archiveProduct(id) {
 }
 
 // ==========================================
-// 5. 分類管理
+// 5. 分類管理 (Categories)
 // ==========================================
 async function loadCategories() {
   const tbody = document.getElementById("categories-tbody");
@@ -1035,7 +1050,7 @@ function openUserModal(id) {
 }
 
 // ==========================================
-// 8. [新增] 會員 (Customers) 管理
+// 7. 會員 (Customers) 管理
 // ==========================================
 async function loadCustomers() {
   const tbody = document.getElementById("customers-tbody");
@@ -1094,7 +1109,6 @@ function renderCustomersTable(customers) {
 }
 
 function setupCustomerEvents() {
-  // 搜尋
   const searchInput = document.getElementById("customer-search-input");
   if (searchInput) {
     searchInput.addEventListener("keyup", (e) => {
@@ -1103,7 +1117,6 @@ function setupCustomerEvents() {
     });
   }
 
-  // 表單提交
   const form = document.getElementById("customer-form");
   if (form)
     form.addEventListener("submit", async (e) => {
@@ -1145,9 +1158,13 @@ function openCustomerModal(id) {
   document.getElementById("customer-modal").style.display = "block";
 }
 
+// ==========================================
+// 8. 系統設置
+// ==========================================
 async function loadSettings() {
   try {
     const settings = await api.getSettings();
+    // 基礎設定
     document.getElementById("exchange-rate-input").value =
       settings.exchange_rate || 4.5;
     document.getElementById("service-fee-input").value =
@@ -1157,6 +1174,20 @@ async function loadSettings() {
       settings.bank_account || "";
     document.getElementById("bank-account-name-input").value =
       settings.bank_account_name || "";
+
+    // [新增] 新設定欄位回填
+    document.getElementById("email-api-key-input").value =
+      settings.email_api_key || "";
+    document.getElementById("email-from-input").value =
+      settings.email_from_email || "";
+    document.getElementById("invoice-merchant-id-input").value =
+      settings.invoice_merchant_id || "";
+    document.getElementById("invoice-api-key-input").value =
+      settings.invoice_api_key || "";
+    document.getElementById("payment-merchant-id-input").value =
+      settings.payment_merchant_id || "";
+    document.getElementById("payment-api-key-input").value =
+      settings.payment_api_key || "";
   } catch (e) {
     console.error(e);
   }
@@ -1174,6 +1205,19 @@ function setupSettingsEvents() {
           bank_account: document.getElementById("bank-account-input").value,
           bank_account_name: document.getElementById("bank-account-name-input")
             .value,
+          // [新增] 收集新欄位
+          email_api_key: document.getElementById("email-api-key-input").value,
+          email_from_email: document.getElementById("email-from-input").value,
+          invoice_merchant_id: document.getElementById(
+            "invoice-merchant-id-input"
+          ).value,
+          invoice_api_key: document.getElementById("invoice-api-key-input")
+            .value,
+          payment_merchant_id: document.getElementById(
+            "payment-merchant-id-input"
+          ).value,
+          payment_api_key: document.getElementById("payment-api-key-input")
+            .value,
         });
         alert("設定已儲存");
       } catch (e) {
@@ -1182,6 +1226,7 @@ function setupSettingsEvents() {
     });
 }
 
+// Modal 通用關閉
 function setupModalClosers() {
   document.querySelectorAll(".close-modal").forEach((span) => {
     span.addEventListener("click", () => {

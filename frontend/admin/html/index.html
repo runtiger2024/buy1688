@@ -335,6 +335,61 @@
             </div>
           </div>
 
+          <div class="settings-card">
+            <h3><i class="fas fa-envelope"></i> Email 通知設定 (SendGrid)</h3>
+            <div class="form-group">
+              <label>SendGrid API Key</label>
+              <input
+                type="password"
+                id="email-api-key-input"
+                placeholder="SG.xxxxxxxx..."
+              />
+              <small>若留空則使用系統預設值</small>
+            </div>
+            <div class="form-group">
+              <label>系統發信 Email (From)</label>
+              <input
+                type="text"
+                id="email-from-input"
+                placeholder="noreply@example.com"
+              />
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <h3>
+              <i class="fas fa-file-invoice-dollar"></i> 發票系統設定 (未來功能)
+            </h3>
+            <div class="form-group">
+              <label>Merchant ID (商店代號)</label>
+              <input
+                type="text"
+                id="invoice-merchant-id-input"
+                placeholder="例如: EzPay / GreenWorld 商店代號"
+              />
+            </div>
+            <div class="form-group">
+              <label>API Key / HashKey</label>
+              <input type="password" id="invoice-api-key-input" />
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <h3><i class="fas fa-credit-card"></i> 金流系統設定 (未來功能)</h3>
+            <div class="form-group">
+              <label>Merchant ID (商店代號)</label>
+              <input
+                type="text"
+                id="payment-merchant-id-input"
+                placeholder="例如: 綠界 / 藍新 商店代號"
+              />
+            </div>
+            <div class="form-group">
+              <label>API Key / HashKey</label>
+              <input type="password" id="payment-api-key-input" />
+            </div>
+          </div>
+
           <div class="settings-actions">
             <button id="save-settings-btn" class="btn btn-success btn-large">
               儲存所有設定

@@ -1,43 +1,50 @@
 // backend/emailService.js
 import sgMail from "@sendgrid/mail";
 import dotenv from "dotenv";
+import prisma from "./db.js"; // 引入 prisma 用於查詢設定
 
 dotenv.config();
 
-const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL;
 const SITE_NAME = process.env.SITE_NAME || "代採購平台";
-const SITE_URL = process.env.SITE_URL || "http://localhost:5500/frontend/html"; // [新增] 網站 URL
+const SITE_URL = process.env.SITE_URL || "http://localhost:5500/frontend/html";
 
-let isSendGridActive = false;
+/**
+ * 獲取有效的 Email 設定 (優先查 DB)
+ */
+async function getEmailConfig() {
+  // 1. 查詢資料庫
+  const settings = await prisma.systemSettings.findMany({
+    where: { key: { in: ["email_api_key", "email_from_email"] } },
+  });
+  const config = {};
+  settings.forEach((s) => (config[s.key] = s.value));
 
-if (SENDGRID_API_KEY && SENDGRID_FROM_EMAIL) {
-  sgMail.setApiKey(SENDGRID_API_KEY);
-  isSendGridActive = true;
-  console.log("✅ Email 服務 (SendGrid) 已啟用。");
-} else {
-  console.warn(
-    "⚠️ Email 服務未啟用。請在 .env 中設定 SENDGRID_API_KEY 和 SENDGRID_FROM_EMAIL"
-  );
+  // 2. DB 有值則使用，否則使用 .env
+  const apiKey = config.email_api_key || process.env.SENDGRID_API_KEY;
+  const fromEmail = config.email_from_email || process.env.SENDGRID_FROM_EMAIL;
+
+  return { apiKey, fromEmail };
 }
 
 /**
  * 統一的 Email 寄送函數
- * @param {string} to - 收件者 Email
- * @param {string} subject - 信件主旨
- * @param {string} html - 信件內容 (HTML 格式)
  */
 async function sendEmail(to, subject, html) {
-  if (!isSendGridActive) {
-    console.log(`(Email 模擬寄送至 ${to}): ${subject}`);
-    return Promise.resolve(); // 返回一個 resolved Promise
+  const { apiKey, fromEmail } = await getEmailConfig();
+
+  if (!apiKey || !fromEmail) {
+    console.log(`(模擬 Email 至 ${to}): ${subject}`);
+    console.warn("⚠️ Email 未發送：未設定 API Key 或寄件者");
+    return;
   }
+
+  sgMail.setApiKey(apiKey);
 
   const msg = {
     to: to,
     from: {
       name: SITE_NAME,
-      email: SENDGRID_FROM_EMAIL,
+      email: fromEmail,
     },
     subject: `【${SITE_NAME}】 ${subject}`,
     html: html,
@@ -124,11 +131,10 @@ export async function sendPaymentReceivedEmail(order) {
   await sendEmail(order.customer_email, subject, html);
 }
 
-// --- 模板 4：管理員更新訂單狀態 (例如：已發貨、已入倉) ---
+// --- 模板 4：管理員更新訂單狀態 ---
 export async function sendOrderStatusUpdateEmail(order) {
   const subject = `您的訂單 #${order.id} 狀態已更新為：${order.status}`;
 
-  // ✅ 新增：追蹤碼資訊
   let trackingHtml = "";
   if (order.status === "Shipped_Internal" && order.domestic_tracking_number) {
     trackingHtml = `

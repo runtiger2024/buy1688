@@ -6,17 +6,16 @@ import { hashPassword } from "../auth.js";
 
 const router = express.Router();
 
-// --- 系統設定 (匯率/服務費/銀行資訊) ---
+// --- 系統設定 (匯率/服務費/銀行/API整合) ---
 router.get("/settings", async (req, res, next) => {
   try {
     const settings = await prisma.systemSettings.findMany();
     const obj = {};
     settings.forEach((s) => {
       const numVal = parseFloat(s.value);
-      obj[s.key] = isNaN(numVal) ? s.value : numVal;
-      if (["bank_account", "bank_name", "bank_account_name"].includes(s.key)) {
-        obj[s.key] = s.value;
-      }
+      // 針對非數值欄位 (API Key, ID 等) 保持字串格式
+      const isNumericField = ["exchange_rate", "service_fee"].includes(s.key);
+      obj[s.key] = isNumericField && !isNaN(numVal) ? numVal : s.value;
     });
     res.json(obj);
   } catch (err) {
@@ -32,9 +31,20 @@ router.put("/settings", authenticateToken, isAdmin, async (req, res, next) => {
       bank_name,
       bank_account,
       bank_account_name,
+      // [新增] Email
+      email_api_key,
+      email_from_email,
+      // [新增] 發票
+      invoice_merchant_id,
+      invoice_api_key,
+      // [新增] 金流
+      payment_merchant_id,
+      payment_api_key,
     } = req.body;
 
     const updates = [];
+
+    // 基礎設定
     if (exchange_rate !== undefined)
       updates.push({ key: "exchange_rate", value: String(exchange_rate) });
     if (service_fee !== undefined)
@@ -46,6 +56,24 @@ router.put("/settings", authenticateToken, isAdmin, async (req, res, next) => {
     if (bank_account_name !== undefined)
       updates.push({ key: "bank_account_name", value: bank_account_name });
 
+    // Email 設定
+    if (email_api_key !== undefined)
+      updates.push({ key: "email_api_key", value: email_api_key });
+    if (email_from_email !== undefined)
+      updates.push({ key: "email_from_email", value: email_from_email });
+
+    // 發票設定
+    if (invoice_merchant_id !== undefined)
+      updates.push({ key: "invoice_merchant_id", value: invoice_merchant_id });
+    if (invoice_api_key !== undefined)
+      updates.push({ key: "invoice_api_key", value: invoice_api_key });
+
+    // 金流設定
+    if (payment_merchant_id !== undefined)
+      updates.push({ key: "payment_merchant_id", value: payment_merchant_id });
+    if (payment_api_key !== undefined)
+      updates.push({ key: "payment_api_key", value: payment_api_key });
+
     await Promise.all(
       updates.map((setting) =>
         prisma.systemSettings.upsert({
@@ -56,7 +84,7 @@ router.put("/settings", authenticateToken, isAdmin, async (req, res, next) => {
       )
     );
 
-    res.json({ message: "設定已更新" });
+    res.json({ message: "系統設定已更新" });
   } catch (err) {
     next(err);
   }
@@ -280,12 +308,11 @@ router.put(
   }
 );
 
-// --- [新增] 會員(客戶)管理 ---
+// --- 會員(客戶)管理 ---
 router.get("/customers", authenticateToken, isAdmin, async (req, res, next) => {
   try {
     const customers = await prisma.customers.findMany({
       orderBy: { created_at: "desc" },
-      // 不回傳 password_hash，保護隱私
       select: {
         id: true,
         paopao_id: true,
@@ -316,7 +343,6 @@ router.put(
       res.json(updated);
     } catch (err) {
       if (err.code === "P2002") {
-        // Prisma 錯誤碼: Unique constraint failed
         return res.status(409).json({ message: "Email 或手機號碼已被使用" });
       }
       next(err);

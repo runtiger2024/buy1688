@@ -1,5 +1,6 @@
+// backend/prisma/seed.js
 import { PrismaClient } from "@prisma/client";
-import { hashPassword } from "../auth.js"; // 引用 auth.js 的加密功能
+import { hashPassword } from "../auth.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -44,74 +45,57 @@ async function main() {
   });
   console.log("✅ 倉庫資料填充完畢。");
 
-  // --- 【第十四批優化：填充預設系統設定】 ---
-  // 1. 匯率 (CNY -> TWD)
-  await prisma.systemSettings.upsert({
-    where: { key: "exchange_rate" },
-    update: {},
-    create: {
-      key: "exchange_rate",
-      value: "4.5", // 預設匯率
-      description: "人民幣轉台幣匯率",
-    },
-  });
-
-  // 2. 代購服務費率 (百分比，例如 0.05 代表 5%)
-  await prisma.systemSettings.upsert({
-    where: { key: "service_fee" },
-    update: {},
-    create: {
-      key: "service_fee",
-      value: "0", // 預設 0%
-      description: "代購服務費率 (小數點，如 0.1 為 10%)",
-    },
-  });
-
-  // [新增] 銀行資訊設定
-  await prisma.systemSettings.upsert({
-    where: { key: "bank_name" },
-    update: {},
-    create: {
-      key: "bank_name",
-      value: "玉山銀行 (808)",
-      description: "收款銀行名稱/代碼",
-    },
-  });
-  await prisma.systemSettings.upsert({
-    where: { key: "bank_account" },
-    update: {},
-    create: {
+  // --- 填充系統設定 (包含新功能) ---
+  const defaultSettings = [
+    { key: "exchange_rate", value: "4.5", description: "人民幣轉台幣匯率" },
+    { key: "service_fee", value: "0", description: "代購服務費率" },
+    { key: "bank_name", value: "玉山銀行 (808)", description: "收款銀行名稱" },
+    {
       key: "bank_account",
       value: "12345678901234",
       description: "收款銀行帳號",
     },
-  });
-  await prisma.systemSettings.upsert({
-    where: { key: "bank_account_name" },
-    update: {},
-    create: {
+    {
       key: "bank_account_name",
       value: "跑得快國際貿易有限公司",
       description: "收款銀行戶名",
     },
-  });
 
+    // [新增] Email 通知設定 (SendGrid)
+    { key: "email_api_key", value: "", description: "SendGrid API Key" },
+    { key: "email_from_email", value: "", description: "系統發信 Email" },
+
+    // [新增] 發票 API (未來擴充)
+    { key: "invoice_merchant_id", value: "", description: "電子發票商店代號" },
+    {
+      key: "invoice_api_key",
+      value: "",
+      description: "電子發票 HashKey/API Key",
+    },
+
+    // [新增] 金流 API (未來擴充)
+    { key: "payment_merchant_id", value: "", description: "金流商店代號" },
+    { key: "payment_api_key", value: "", description: "金流 HashKey/API Key" },
+  ];
+
+  for (const setting of defaultSettings) {
+    await prisma.systemSettings.upsert({
+      where: { key: setting.key },
+      update: {}, // 若存在則不覆蓋
+      create: setting,
+    });
+  }
   console.log("✅ 系統設定填充完畢。");
-  // --- 【優化結束】 ---
 
-  // 2. 建立預設管理員 (從 .env 讀取)
+  // 2. 建立預設管理員
   const adminUsername = process.env.ADMIN_USERNAME;
   const adminPassword = process.env.ADMIN_PASSWORD;
 
   if (adminUsername && adminPassword) {
     const hashedPassword = await hashPassword(adminPassword);
-
     await prisma.users.upsert({
       where: { username: adminUsername },
-      update: {
-        password_hash: hashedPassword, // 如果已存在，就更新密碼
-        role: "admin",
-      },
+      update: { password_hash: hashedPassword },
       create: {
         username: adminUsername,
         password_hash: hashedPassword,
@@ -120,28 +104,16 @@ async function main() {
       },
     });
     console.log(`✅ 管理員帳號 (${adminUsername}) 已確認/建立。`);
-  } else {
-    console.warn(
-      "⚠️ 未在 .env 中找到 ADMIN_USERNAME 或 ADMIN_PASSWORD，跳過建立管理員。"
-    );
-    console.warn("   請在 .env 中加入這兩個變數，然後執行 npm run prisma:seed");
   }
 
-  // --- 【新增優化：設定訂單 ID 序列起始值為 6001688】 ---
+  // 設定訂單 ID 序列
   try {
-    // 獲取 orders 表的序列名稱 (通常是 orders_id_seq)
-    // 設置序列的起始值為 6001687 (下一筆訂單將是 6001688)
     const setSequenceSql = `SELECT setval(pg_get_serial_sequence('"orders"', 'id'), 6001687, false)`;
-
     await prisma.$executeRawUnsafe(setSequenceSql);
-
     console.log("✅ 訂單 ID 序列已設定為從 6001688 開始。");
   } catch (e) {
-    console.error("❌ 設定訂單 ID 序列失敗:", e);
-    // 注意：如果是舊的 DB 且已經有高 ID 存在，這裡會報錯，但不會影響應用程式功能。
-    // 如果是全新部署，則會成功。
+    console.error("❌ 設定訂單 ID 序列失敗 (可能已設定過):", e);
   }
-  // --- 【優化結束】 ---
 
   console.log("資料填充完畢。");
 }
