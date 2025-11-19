@@ -84,6 +84,39 @@ router.get("/warehouses", async (req, res, next) => {
     next(err);
   }
 });
+
+// [新增] 建立新倉庫路由
+router.post(
+  "/warehouses",
+  authenticateToken,
+  isAdmin,
+  async (req, res, next) => {
+    try {
+      const { name, receiver, phone, address, is_active } = req.body;
+
+      // 基本驗證 (雖然前端有 required，後端也擋一下)
+      if (!name || !receiver || !phone || !address) {
+        return res.status(400).json({ message: "請填寫所有必填欄位" });
+      }
+
+      const newWarehouse = await prisma.warehouses.create({
+        data: {
+          name,
+          receiver,
+          phone,
+          address,
+          is_active: is_active ?? true, // 預設啟用
+        },
+      });
+      res.status(201).json(newWarehouse);
+    } catch (err) {
+      if (err.code === "P2002")
+        return res.status(409).json({ message: "倉庫名稱重複，請更換名稱" });
+      next(err);
+    }
+  }
+);
+
 router.put(
   "/warehouses/:id",
   authenticateToken,
@@ -212,7 +245,7 @@ router.put(
   }
 );
 
-// [新增] 修改用戶權限路由
+// 修改用戶權限路由
 router.put(
   "/users/:id/role",
   authenticateToken,
@@ -222,12 +255,10 @@ router.put(
       const id = parseInt(req.params.id);
       const { role } = req.body;
 
-      // 安全檢查：防止修改自己的權限
       if (id === req.user.id) {
         return res.status(400).json({ message: "不能修改自己的權限" });
       }
 
-      // 驗證角色值
       if (!["admin", "operator"].includes(role)) {
         return res.status(400).json({ message: "無效的角色設定" });
       }
@@ -275,7 +306,6 @@ router.get(
 
       res.json({
         totalRevenueTWD: stats._sum.total_amount_twd || 0,
-        // [優化] 確保是數字類型
         totalCostCNY: Number(stats._sum.total_cost_cny) || 0.0,
         statusCounts: {
           Pending: statusCounts.Pending || 0,

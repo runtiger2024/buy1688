@@ -313,11 +313,11 @@
         data-role="admin"
       >
         <h2>管理倉庫</h2>
-        <p>在這裡您可以編輯倉庫資訊，前台會自動顯示「已啟用」的倉庫。</p>
+        <p>在這裡您可以管理倉庫資訊，前台會自動顯示「已啟用」的倉庫。</p>
 
         <form id="warehouse-form" class="subtle-form">
           <input type="hidden" id="warehouse-id" />
-          <h3 id="warehouse-form-title">編輯倉庫</h3>
+          <h3 id="warehouse-form-title">新增倉庫</h3>
 
           <div class="form-group">
             <label for="warehouse-name">倉庫名稱:</label>
@@ -343,8 +343,10 @@
             </select>
           </div>
           <div class="form-buttons">
-            <button type="submit" id="submit-warehouse-btn">儲存變更</button>
-            <button type="button" id="cancel-warehouse-edit-btn">取消</button>
+            <button type="submit" id="submit-warehouse-btn">儲存倉庫</button>
+            <button type="button" id="cancel-warehouse-edit-btn">
+              重置/取消
+            </button>
           </div>
         </form>
 

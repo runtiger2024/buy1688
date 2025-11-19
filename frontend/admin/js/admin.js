@@ -696,7 +696,6 @@ function populateCategoryDropdown() {
   });
 }
 
-// --- 重置表單函式 (移至外層) ---
 function resetProductForm() {
   formTitle.textContent = "新增商品";
   productForm.reset();
@@ -704,10 +703,11 @@ function resetProductForm() {
   cancelEditBtn.style.display = "none";
 }
 
+// [修改] 重置為新增模式
 function resetWarehouseForm() {
-  warehouseFormTitle.textContent = "編輯倉庫";
+  warehouseFormTitle.textContent = "新增倉庫";
   warehouseForm.reset();
-  warehouseIdInput.value = "";
+  warehouseIdInput.value = ""; // 清空 ID，代表是新增
 }
 
 function resetCategoryForm() {
@@ -1146,7 +1146,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // 監聽用戶列表的事件 (包括狀態切換)
   usersTbody.addEventListener("click", async (e) => {
+    // 狀態切換
     if (e.target.classList.contains("btn-toggle-status")) {
       const id = e.target.dataset.id;
       const newStatus = e.target.dataset.newStatus;
@@ -1168,7 +1170,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // [新增] 監聽角色變更事件
+  // 監聽角色變更事件 (使用 change 事件)
   usersTbody.addEventListener("change", async (e) => {
     if (e.target.classList.contains("user-role-select")) {
       const id = e.target.dataset.id;
@@ -1181,6 +1183,7 @@ document.addEventListener("DOMContentLoaded", () => {
           } 嗎？`
         )
       ) {
+        // 取消則重整列表以恢復原狀
         loadUsers(getAuthHeaders());
         return;
       }
@@ -1202,7 +1205,34 @@ document.addEventListener("DOMContentLoaded", () => {
         loadUsers(headers);
       } catch (error) {
         alert(`錯誤: ${error.message}`);
-        loadUsers(headers);
+        loadUsers(headers); // 失敗也重整以恢復 UI
+      }
+    }
+  });
+
+  createUserForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const headers = getAuthHeaders();
+    if (!headers) return;
+    const username = document.getElementById("user-username").value;
+    const password = document.getElementById("user-password").value;
+    const role = document.getElementById("user-role").value;
+    try {
+      const response = await fetch(`${API_URL}/admin/users`, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({ username, password, role }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "建立失敗");
+      alert("用戶建立成功！");
+      createUserForm.reset();
+      await loadUsers(headers);
+    } catch (error) {
+      if (error.message.includes("409")) {
+        alert("錯誤: 帳號已存在");
+      } else {
+        alert(`錯誤: ${error.message}`);
       }
     }
   });
@@ -1229,10 +1259,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const headers = getAuthHeaders();
     if (!headers) return;
     const id = warehouseIdInput.value;
-    if (!id) {
-      alert("錯誤：未選中任何倉庫。");
-      return;
-    }
+
     const warehouseData = {
       name: warehouseNameInput.value,
       receiver: warehouseReceiverInput.value,
@@ -1240,17 +1267,29 @@ document.addEventListener("DOMContentLoaded", () => {
       address: warehouseAddressInput.value,
       is_active: warehouseIsActiveInput.value === "true",
     };
+
     try {
-      const response = await fetch(`${API_URL}/admin/warehouses/${id}`, {
-        method: "PUT",
+      // [修改] 根據是否有 ID 決定是新增還是更新
+      let url = `${API_URL}/admin/warehouses`;
+      let method = "POST";
+
+      if (id) {
+        url = `${API_URL}/admin/warehouses/${id}`;
+        method = "PUT";
+      }
+
+      const response = await fetch(url, {
+        method: method,
         headers,
         body: JSON.stringify(warehouseData),
       });
+
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.message || "更新失敗");
+        throw new Error(err.message || "操作失敗");
       }
-      alert("倉庫資訊已更新！");
+
+      alert(id ? "倉庫資訊已更新！" : "倉庫已新增！");
       resetWarehouseForm();
       await loadWarehouses(headers);
     } catch (error) {
@@ -1332,3 +1371,92 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+
+// -------------------------------------------------
+// 6. 輔助函式 (放在最底端，確保全域可存取)
+// -------------------------------------------------
+
+function resetProductForm() {
+  formTitle.textContent = "新增商品";
+  productForm.reset();
+  productIdInput.value = "";
+  cancelEditBtn.style.display = "none";
+}
+
+function resetWarehouseForm() {
+  warehouseFormTitle.textContent = "新增倉庫";
+  warehouseForm.reset();
+  warehouseIdInput.value = "";
+}
+
+function resetCategoryForm() {
+  categoryFormTitle.textContent = "新增分類";
+  categoryForm.reset();
+  categoryIdInput.value = "";
+}
+
+function setupOrderFilters() {
+  if (statusFilterSelect) {
+    statusFilterSelect.addEventListener("change", (e) => {
+      currentStatusFilter = e.target.value;
+      loadOrders(getAuthHeaders());
+    });
+  }
+
+  if (paymentStatusFilterSelect) {
+    paymentStatusFilterSelect.addEventListener("change", (e) => {
+      currentPaymentStatusFilter = e.target.value;
+      loadOrders(getAuthHeaders());
+    });
+  }
+}
+
+function applyRolePermissions() {
+  const user = getUser();
+  if (user.role === "admin") return;
+  document.querySelectorAll('[data-role="admin"]').forEach((el) => {
+    el.style.display = "none";
+  });
+}
+
+function setupNavigation() {
+  const navLinks = document.querySelectorAll(".nav-link");
+  const sections = document.querySelectorAll(".dashboard-section");
+  const defaultLink =
+    document.querySelector('.nav-link[data-default="true"]') ||
+    document.querySelector('.nav-link:not([style*="display: none"])');
+  const defaultTargetId = defaultLink ? defaultLink.dataset.target : null;
+
+  function showTabFromHash() {
+    const hash = window.location.hash.substring(1);
+    let targetId = hash ? `${hash}-section` : defaultTargetId;
+    const targetSection = document.getElementById(targetId);
+    if (!targetSection || targetSection.style.display === "none") {
+      targetId = defaultTargetId;
+    }
+    updateActiveTabs(targetId);
+  }
+
+  function updateActiveTabs(targetId) {
+    sections.forEach((section) => {
+      section.classList.toggle("active", section.id === targetId);
+    });
+    navLinks.forEach((link) => {
+      link.classList.toggle("active", link.dataset.target === targetId);
+    });
+  }
+
+  navLinks.forEach((link) => {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      const targetId = link.dataset.target;
+      if (document.getElementById(targetId).style.display !== "none") {
+        updateActiveTabs(targetId);
+        history.pushState(null, null, `#${targetId.replace("-section", "")}`);
+      }
+    });
+  });
+
+  window.addEventListener("popstate", showTabFromHash);
+  showTabFromHash();
+}
