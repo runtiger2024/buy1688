@@ -216,10 +216,10 @@ window.handleVoucherUpload = async function (e, orderId) {
     return;
   }
 
-  // [核心修正] 確保模擬 URL 是有效的 URI，加上協議頭 (https://)
-  const mockVoucherUrl = `https://mock-storage.com/order_${orderId}/${Date.now()}_${
-    file.name
-  }`;
+  // [核心修正] 確保模擬 URL 是有效的 URI，使用 example.com 繞過 Joi 的嚴格限制
+  const encodedFileName = encodeURIComponent(file.name);
+  // VITAL NOTE: 這是模擬上傳，請在正式部署時，替換此處為您的雲端儲存上傳 API
+  const mockVoucherUrl = `https://example.com/voucher_storage/order_${orderId}/${Date.now()}_${encodedFileName}`;
 
   uploadButton.disabled = true;
   uploadButton.textContent = "上傳中...";
@@ -229,7 +229,7 @@ window.handleVoucherUpload = async function (e, orderId) {
     // 使用原有的 /orders/:id/voucher JSON endpoint，傳送模擬 URL
     const response = await fetch(`${API_URL}/orders/${orderId}/voucher`, {
       method: "POST",
-      // 注意：這裡必須是 application/json，因為後端 /voucher 路由只處理 JSON payload
+      // 注意：這裡必須是 application/json
       headers: {
         "Content-Type": "application/json",
         Authorization: headers.Authorization,
@@ -240,7 +240,6 @@ window.handleVoucherUpload = async function (e, orderId) {
     const result = await response.json();
 
     if (!response.ok) {
-      // 修正後的錯誤處理: 如果後端返回 400，顯示其錯誤信息
       const errorMsg = result.message || "憑證提交失敗";
       throw new Error(errorMsg);
     }
@@ -441,7 +440,7 @@ function renderOrderDetailContent(order) {
     } else {
       uploadSection = `
                 <div id="voucher-upload-form" style="margin-bottom: 20px;">
-                    <h4>上傳匯款憑證 (限圖片)</h4>
+                    <h4>上傳匯款憑證 (從裝置選擇檔案)</h4>
                     <form id="voucher-form-${order.id}">
                         <input type="file" id="voucher-file-${order.id}" accept="image/*" required />
                         <button type="submit" style="margin-top: 10px;">確認上傳憑證</button>
