@@ -575,7 +575,145 @@ function renderOrders(orders) {
   });
 }
 
-// ... (renderProducts, renderUsers, renderWarehouses, renderCategories, populateCategoryDropdown 保持不變)
+// -------------------------------------------------
+// 4. 渲染 (Render) 輔助函式 (補上缺失的部分)
+// -------------------------------------------------
+
+function renderProducts(products) {
+  productsTbody.innerHTML = "";
+  if (products.length === 0) {
+    productsTbody.innerHTML = '<tr><td colspan="6">目前沒有商品。</td></tr>';
+    return;
+  }
+
+  products.forEach((product) => {
+    const tr = document.createElement("tr");
+    // 顯示第一張圖片，若無則顯示預設圖或空
+    const imgUrl =
+      product.images && product.images.length > 0 ? product.images[0] : "";
+    const imgHtml = imgUrl
+      ? `<img src="${imgUrl}" alt="${product.name}" style="width: 50px; height: 50px; object-fit: cover;">`
+      : "無圖片";
+
+    tr.innerHTML = `
+            <td>${product.id}</td>
+            <td>${imgHtml}</td>
+            <td>${product.name}</td>
+            <td>${product.price_twd}</td>
+            <td>${product.cost_cny}</td>
+            <td>
+                <button class="btn btn-edit" data-id="${product.id}">編輯</button>
+                <button class="btn btn-delete" data-id="${product.id}">封存</button>
+            </td>
+        `;
+    productsTbody.appendChild(tr);
+  });
+}
+
+function renderUsers(users) {
+  usersTbody.innerHTML = "";
+  if (users.length === 0) {
+    usersTbody.innerHTML = '<tr><td colspan="5">目前沒有其他用戶。</td></tr>';
+    return;
+  }
+
+  users.forEach((user) => {
+    const tr = document.createElement("tr");
+
+    // 狀態切換按鈕邏輯
+    const isUserActive = user.status === "active";
+    const statusClass = isUserActive ? "status-active" : "status-inactive";
+    const statusText = isUserActive ? "啟用中" : "已停權";
+
+    const toggleActionText = isUserActive ? "停權" : "啟用";
+    const toggleActionValue = isUserActive ? "inactive" : "active";
+    const toggleBtnClass = isUserActive ? "btn-delete" : "btn-update"; // 紅色停權，藍色啟用
+
+    tr.innerHTML = `
+            <td>${user.id}</td>
+            <td>${user.username}</td>
+            <td>${user.role === "admin" ? "管理員" : "操作員"}</td>
+            <td><span class="${statusClass}">${statusText}</span></td>
+            <td>
+                <button class="btn ${toggleBtnClass} btn-toggle-status" 
+                        data-id="${user.id}" 
+                        data-new-status="${toggleActionValue}">
+                    ${toggleActionText}
+                </button>
+            </td>
+        `;
+    usersTbody.appendChild(tr);
+  });
+}
+
+function renderWarehouses(warehousesArray) {
+  if (!warehousesTbody) return; // 防呆
+  warehousesTbody.innerHTML = "";
+  if (warehousesArray.length === 0) {
+    warehousesTbody.innerHTML =
+      '<tr><td colspan="5">目前沒有倉庫資料。</td></tr>';
+    return;
+  }
+
+  warehousesArray.forEach((wh) => {
+    const tr = document.createElement("tr");
+    const statusText = wh.is_active
+      ? '<span class="status-active">啟用</span>'
+      : '<span class="status-inactive">停用</span>';
+
+    tr.innerHTML = `
+            <td>${wh.id}</td>
+            <td>${wh.name}</td>
+            <td><small>${wh.address}</small></td>
+            <td>${statusText}</td>
+            <td>
+                <button class="btn btn-edit btn-edit-warehouse" data-id="${wh.id}">編輯</button>
+            </td>
+        `;
+    warehousesTbody.appendChild(tr);
+  });
+}
+
+function renderCategories(categories) {
+  categoriesTbody.innerHTML = "";
+  if (categories.length === 0) {
+    categoriesTbody.innerHTML = '<tr><td colspan="4">目前沒有分類。</td></tr>';
+    return;
+  }
+
+  categories.forEach((cat) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+            <td>${cat.id}</td>
+            <td>${cat.name}</td>
+            <td>${cat.description || ""}</td>
+            <td>
+                <button class="btn btn-edit btn-edit-category" data-id="${
+                  cat.id
+                }">編輯</button>
+                <button class="btn btn-delete btn-delete-category" data-id="${
+                  cat.id
+                }">刪除</button>
+            </td>
+        `;
+    categoriesTbody.appendChild(tr);
+  });
+}
+
+function populateCategoryDropdown() {
+  if (!productCategorySelect) return;
+
+  // 保留第一個 "請選擇" 選項，清除其餘
+  productCategorySelect.innerHTML =
+    '<option value="">-- 請選擇分類 --</option>';
+
+  allCategories.forEach((cat) => {
+    const option = document.createElement("option");
+    option.value = cat.id;
+    option.textContent = cat.name;
+    productCategorySelect.appendChild(option);
+  });
+}
 
 // -------------------------------------------------
 // 5. 事件監聽 (Event Listeners)
