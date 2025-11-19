@@ -1,6 +1,7 @@
 /* --- 現代化後台 CSS --- */
 
 :root {
+  /* 核心色調 */
   --primary-color: #ff5000; /* 淘寶橙 */
   --primary-dark: #d64200;
   --secondary-color: #6c757d;
@@ -9,14 +10,17 @@
   --warning-color: #ffc107;
   --info-color: #17a2b8;
 
+  /* 側邊欄配色 */
   --sidebar-bg: #2c3e50;
   --sidebar-text: #ecf0f1;
   --sidebar-active: #34495e;
 
+  /* 背景與邊框 */
   --bg-light: #f4f6f9;
   --text-dark: #333;
   --border-color: #ddd;
 
+  /* 尺寸變數 */
   --sidebar-width: 250px;
   --header-height: 60px;
 }
@@ -32,16 +36,18 @@ body {
   background-color: var(--bg-light);
   color: var(--text-dark);
   height: 100vh;
-  overflow: hidden; /* 防止雙重捲動 */
+  overflow: hidden; /* 防止後台介面出現雙重捲動條 */
 }
 
-/* --- 佈局 --- */
+/* =========================================
+   1. 後台管理介面佈局 (Admin Layout)
+   ========================================= */
 .admin-container {
   display: flex;
   height: 100vh;
 }
 
-/* Sidebar */
+/* 側邊欄 (Sidebar) */
 .sidebar {
   width: var(--sidebar-width);
   background-color: var(--sidebar-bg);
@@ -130,15 +136,15 @@ body {
   text-decoration: none;
 }
 
-/* Main Content */
+/* 主要內容區 (Main Content) */
 .main-content {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: auto; /* 內容過長時捲動 */
   padding: 20px 30px;
   position: relative;
 }
 
-/* Sections */
+/* 功能區塊切換 */
 .dashboard-section {
   display: none; /* 預設隱藏 */
   animation: fadeIn 0.3s;
@@ -172,7 +178,11 @@ body {
   color: var(--text-dark);
 }
 
-/* --- 儀表板數據卡片 --- */
+/* =========================================
+   2. 儀表板元件 (Components)
+   ========================================= */
+
+/* 數據卡片 (Stats Cards) */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -185,6 +195,10 @@ body {
   border-radius: 8px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
   border-left: 4px solid var(--primary-color);
+  transition: transform 0.2s;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
 }
 .stat-card h4 {
   margin: 0 0 10px 0;
@@ -210,7 +224,7 @@ body {
   border-left-color: var(--info-color);
 }
 
-/* --- 工具列與篩選 --- */
+/* 工具列與篩選 (Toolbar) */
 .toolbar {
   background: white;
   padding: 15px;
@@ -221,6 +235,7 @@ body {
   flex-wrap: wrap;
   gap: 15px;
   justify-content: space-between;
+  align-items: center;
 }
 .search-box,
 .filter-box {
@@ -236,7 +251,7 @@ body {
   min-width: 150px;
 }
 
-/* --- 表格樣式 --- */
+/* 表格樣式 (Table) */
 .table-responsive {
   background: white;
   border-radius: 8px;
@@ -267,7 +282,7 @@ body {
   background-color: #f9f9f9;
 }
 
-/* Badge 狀態標籤 */
+/* 狀態標籤 (Badge) */
 .badge {
   display: inline-block;
   padding: 4px 8px;
@@ -296,7 +311,7 @@ body {
   color: #383d41;
 }
 
-/* 按鈕樣式 */
+/* 按鈕樣式 (Buttons) */
 .btn {
   padding: 8px 15px;
   border: none;
@@ -351,7 +366,7 @@ body {
   font-size: 1rem;
 }
 
-/* --- 設定頁面 --- */
+/* 設定卡片 (Settings Card) */
 .settings-card {
   background: white;
   padding: 25px;
@@ -369,7 +384,9 @@ body {
   text-align: right;
 }
 
-/* --- Modal 彈窗 --- */
+/* =========================================
+   3. 彈窗樣式 (Modals)
+   ========================================= */
 .modal {
   display: none;
   position: fixed;
@@ -455,9 +472,21 @@ body {
   padding-top: 15px;
 }
 
-/* 輔助 */
+/* 輔助類別 */
 .text-right {
   text-align: right;
+}
+.text-center {
+  text-align: center;
+}
+.text-muted {
+  color: #6c757d;
+}
+.text-success {
+  color: var(--success-color);
+}
+.text-danger {
+  color: var(--danger-color);
 }
 .bg-light {
   background-color: #f8f9fa;
@@ -476,7 +505,193 @@ body {
   cursor: pointer;
 }
 
-/* RWD */
+/* =========================================
+   4. 登入頁面專用樣式 (Login Page)
+   ========================================= */
+body.login-body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 現代感漸層背景 */
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.login-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+}
+
+.login-card {
+  background-color: #ffffff;
+  width: 100%;
+  max-width: 400px;
+  padding: 40px;
+  border-radius: 16px;
+  /* 柔和且深邃的陰影 */
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  animation: slideUp 0.5s ease-out;
+}
+
+/* 進場動畫 */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 頂部裝飾條 */
+.login-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 5px;
+  background: var(--primary-color);
+}
+
+.login-header {
+  margin-bottom: 30px;
+}
+
+.login-icon {
+  font-size: 3rem;
+  color: var(--primary-color);
+  margin-bottom: 15px;
+  background: rgba(255, 80, 0, 0.1);
+  padding: 15px;
+  border-radius: 50%;
+}
+
+.login-header h2 {
+  margin: 0;
+  color: #333;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.login-header p {
+  margin: 5px 0 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+/* 登入表單元素 */
+#login-form {
+  text-align: left;
+}
+
+#login-form .form-group {
+  margin-bottom: 20px;
+}
+
+#login-form label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #444;
+  font-size: 0.9rem;
+}
+
+#login-form label i {
+  color: #888;
+  margin-right: 5px;
+  width: 16px;
+}
+
+#login-form input {
+  width: 100%;
+  padding: 12px 15px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s;
+  background-color: #f8f9fa;
+  box-sizing: border-box;
+}
+
+#login-form input:focus {
+  border-color: var(--primary-color);
+  background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 80, 0, 0.15);
+  outline: none;
+}
+
+#login-button {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.3s, transform 0.2s;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+#login-button:hover {
+  background-color: var(--primary-dark);
+  transform: translateY(-2px);
+}
+
+#login-button:active {
+  transform: translateY(0);
+}
+
+#login-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.error-message {
+  color: #e74c3c;
+  font-size: 0.9rem;
+  margin-top: 15px;
+  text-align: center;
+  min-height: 1.2em;
+}
+
+.login-footer {
+  margin-top: 25px;
+  border-top: 1px solid #eee;
+  padding-top: 15px;
+  font-size: 0.85rem;
+}
+
+.login-footer a {
+  color: #888;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.login-footer a:hover {
+  color: var(--primary-color);
+}
+
+/* =========================================
+   RWD: 手機版適配
+   ========================================= */
 @media (max-width: 768px) {
   .admin-container {
     flex-direction: column;
@@ -486,8 +701,15 @@ body {
     height: auto;
   }
   .sidebar-nav {
-    display: none;
-  } /* 手機版可考慮做漢堡選單，這裡先簡化 */
+    /* 若需要漢堡選單可在此實作，目前簡單處理為顯示 */
+    display: flex;
+    overflow-x: auto;
+    padding: 10px;
+  }
+  .nav-link {
+    padding: 10px;
+    white-space: nowrap;
+  }
   .main-content {
     padding: 10px;
   }
