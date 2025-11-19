@@ -2,7 +2,7 @@
 import { checkAuth, getUser, logout, copyToClipboard } from "./utils.js";
 import { api } from "./api.js";
 
-// 常數映射 (保持與 constants.js 一致)
+// 常數映射
 const ORDER_STATUS_MAP = {
   Pending: "待處理",
   Processing: "採購中",
@@ -31,8 +31,51 @@ let currentStatusFilter = "";
 let currentPaymentStatusFilter = "";
 let currentSearchTerm = "";
 
-// --- DOM 元素 ---
-// (省略大量 getElementById，直接在邏輯中使用)
+// --- 修復：暴露給全局使用的複製函式 ---
+
+// 1. 複製集運倉資訊 (修復您原本的功能)
+window.copyShippingInfo = (paopaoId, warehouseId) => {
+  const warehouse = allWarehouses.get(parseInt(warehouseId, 10));
+  if (!warehouse) {
+    alert("錯誤: 找不到集運倉資料");
+    return;
+  }
+  // 替換會員編號變數
+  const receiver = warehouse.receiver.replace(
+    /[\(（]會員編號[\)）]/g,
+    paopaoId
+  );
+  const address = warehouse.address.replace(/[\(（]會員編號[\)）]/g, paopaoId);
+
+  const text = `收件人: ${receiver}\n電話: ${warehouse.phone}\n地址: ${address}`;
+
+  copyToClipboard(text, "✅ 寄送資訊已複製！");
+};
+
+// 2. [新增] 複製整筆訂單摘要 (方便發送給客戶)
+window.copyOrderSummary = () => {
+  if (!currentOrder) return;
+
+  const warehouse = allWarehouses.get(currentOrder.warehouse_id);
+  const warehouseName = warehouse ? warehouse.name : "未指定";
+
+  let itemsText = currentOrder.items
+    .map((item, idx) => `${idx + 1}. ${item.snapshot_name} (x${item.quantity})`)
+    .join("\n");
+
+  const text = `
+【訂單確認】 #${currentOrder.id}
+會員: ${currentOrder.paopao_id}
+狀態: ${ORDER_STATUS_MAP[currentOrder.status]}
+----------------
+${itemsText}
+----------------
+總金額: TWD ${currentOrder.total_amount_twd.toLocaleString()}
+集運倉: ${warehouseName}
+`.trim();
+
+  copyToClipboard(text, "📋 訂單摘要已複製！");
+};
 
 // --- 初始化 ---
 document.addEventListener("DOMContentLoaded", async () => {
@@ -349,13 +392,16 @@ function openOrderModal(orderId) {
   content.innerHTML = `
         <div class="form-row-2">
             <div>
-                <p><strong>訂單編號:</strong> #${order.id}</p>
+                <p>
+                    <strong>訂單編號:</strong> #${order.id}
+                    <button class="btn btn-small btn-light" onclick="copyOrderSummary()" style="margin-left:10px;">📋 複製訂單摘要</button>
+                </p>
                 <p><strong>會員:</strong> ${order.paopao_id}</p>
                 <p><strong>Email:</strong> ${order.customer_email || "-"}</p>
                 <p><strong>集運倉:</strong> ${warehouseName} 
                    ${
                      order.warehouse_id
-                       ? `<button class="btn btn-small btn-light" onclick="copyShippingInfo('${order.paopao_id}', ${order.warehouse_id})">複製資訊</button>`
+                       ? `<button class="btn btn-small btn-light" onclick="copyShippingInfo('${order.paopao_id}', ${order.warehouse_id})">複製倉庫資訊</button>`
                        : ""
                    }
                 </p>
