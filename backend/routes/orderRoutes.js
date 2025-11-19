@@ -2,7 +2,7 @@
 import express from "express";
 import Joi from "joi";
 import prisma from "../db.js";
-import { randomUUID } from "crypto"; // [新增] 引入 UUID 產生器
+import { randomUUID } from "crypto"; // 引入 UUID 產生器
 import {
   authenticateToken,
   isCustomer,
@@ -17,7 +17,7 @@ import {
 
 const router = express.Router();
 
-// --- [優化] 共通函式：載入系統設定與銀行資訊 ---
+// --- 共通函式：載入系統設定與銀行資訊 ---
 async function getSettingsAndBankInfo() {
   const settings = await prisma.systemSettings.findMany();
   const config = {};
@@ -30,7 +30,6 @@ async function getSettingsAndBankInfo() {
     bank_account: config.bank_account || "未設定帳號",
     bank_account_name: config.bank_account_name || "未設定戶名",
   };
-
   return { rate, fee, bankInfo };
 }
 // --- 共通函式結束 ---
@@ -96,6 +95,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
     });
     if (!warehouse) throw new Error("無效的集運倉 ID");
 
+    // 手動生成 share_token 避免資料庫預設值未生效導致 500 錯誤
     const newOrder = await prisma.orders.create({
       data: {
         paopao_id: userPaopaoId,
@@ -106,7 +106,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
         type: "Standard",
         payment_method: value.payment_method,
         warehouse_id: value.warehouse_id,
-        share_token: randomUUID(), // [修正] 明確產生 share_token
+        share_token: randomUUID(),
         items: { create: orderItemsData },
       },
       include: { items: true },
@@ -133,7 +133,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
   }
 });
 
-// --- 憑證上傳路由 ---
+// --- 憑證上傳路由 (已修復重複上傳問題) ---
 router.post(
   "/:id/voucher",
   authenticateToken,
@@ -160,6 +160,13 @@ router.post(
 
       if (order.payment_status !== "UNPAID")
         return res.status(400).json({ message: "該訂單狀態無法上傳憑證" });
+
+      // [新增修復] 檢查是否已上傳過憑證
+      if (order.payment_voucher_url) {
+        return res.status(400).json({
+          message: "您已上傳過憑證，請勿重複上傳。如需修改請聯繫客服。",
+        });
+      }
 
       const updatedOrder = await prisma.orders.update({
         where: { id: orderId },
@@ -243,6 +250,7 @@ router.post(
         });
       }
 
+      // 同樣手動生成 share_token
       const newOrder = await prisma.orders.create({
         data: {
           paopao_id: userPaopaoId,
@@ -253,7 +261,7 @@ router.post(
           type: "Assist",
           payment_method: value.payment_method,
           warehouse_id: value.warehouse_id,
-          share_token: randomUUID(), // [修正] 明確產生 share_token
+          share_token: randomUUID(),
           items: { create: orderItemsData },
         },
         include: { items: true },
@@ -280,7 +288,7 @@ router.post(
   }
 );
 
-// --- 公開查詢訂單 ---
+// --- 公開查詢訂單 (不需登入) ---
 router.get("/share/:token", async (req, res, next) => {
   try {
     const { token } = req.params;
@@ -320,7 +328,7 @@ router.get("/share/:token", async (req, res, next) => {
   }
 });
 
-// --- 客戶查詢訂單 ---
+// --- 客戶查詢自己的訂單 ---
 router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
   try {
     const orders = await prisma.orders.findMany({
@@ -360,7 +368,7 @@ router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
   }
 });
 
-// --- [修改] 操作員查詢 (支援搜尋 + 憑證篩選) ---
+// --- 操作員查詢 (支援搜尋 + 憑證篩選) ---
 router.get(
   "/operator",
   authenticateToken,
@@ -385,7 +393,6 @@ router.get(
           { paopao_id: { contains: search, mode: "insensitive" } },
           { customer_email: { contains: search, mode: "insensitive" } },
         ];
-        // 只有當 search 是有效整數時，才加入 ID 搜尋
         if (!isNaN(searchInt)) {
           OR.push({ id: searchInt });
         }
@@ -427,7 +434,7 @@ router.get(
   }
 );
 
-// --- [修改] 管理員查詢 (支援搜尋 + 憑證篩選) ---
+// --- 管理員查詢 (支援搜尋 + 憑證篩選) ---
 router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
   try {
     const { status, paymentStatus, search, hasVoucher } = req.query;
