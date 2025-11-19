@@ -9,6 +9,8 @@ import {
   addToCart,
   loadAvailableWarehouses,
   populateWarehouseSelect,
+  checkAuth, // [新增]
+  getAuthToken, // [新增]
 } from "./sharedUtils.js"; // <-- 導入共用函式
 
 let shoppingCart = {};
@@ -42,17 +44,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   const searchInput = document.getElementById("product-search-input");
   const searchButton = document.getElementById("product-search-button");
 
-  searchButton.addEventListener("click", () => {
-    currentSearchTerm = searchInput.value;
-    fetchProducts();
-  });
-
-  searchInput.addEventListener("keyup", (event) => {
-    if (event.key === "Enter") {
+  if (searchButton) {
+    searchButton.addEventListener("click", () => {
       currentSearchTerm = searchInput.value;
       fetchProducts();
-    }
-  });
+    });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener("keyup", (event) => {
+      if (event.key === "Enter") {
+        currentSearchTerm = searchInput.value;
+        fetchProducts();
+      }
+    });
+  }
 
   setupCartModal();
   setupCheckoutForm();
@@ -377,6 +383,10 @@ function setupCheckoutForm() {
   checkoutForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
+    // [新增] 強制檢查登入
+    if (!checkAuth()) return;
+    const token = getAuthToken();
+
     const paopaoId = document.getElementById("checkout-paopao-id").value;
     const customerEmail = document.getElementById(
       "checkout-customer-email"
@@ -421,6 +431,7 @@ function setupCheckoutForm() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // [重要] 加上 Token
         },
         body: JSON.stringify(orderData),
       });
@@ -428,6 +439,11 @@ function setupCheckoutForm() {
       const result = await response.json();
 
       if (!response.ok) {
+        if (response.status === 403 || response.status === 401) {
+          alert("登入已過期，請重新登入");
+          window.location.href = "../html/login.html";
+          return;
+        }
         throw new Error(result.message || "訂單提交失敗");
       }
 

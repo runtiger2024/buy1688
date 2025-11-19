@@ -34,10 +34,11 @@ async function getSettingsAndBankInfo() {
 }
 // --- 共通函式結束 ---
 
-// --- 建立一般訂單 ---
-router.post("/", async (req, res, next) => {
+// --- 建立一般訂單 (強制登入) ---
+router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
   const schema = Joi.object({
-    paopaoId: Joi.string().required(),
+    // 前端顯示用的 paopaoId，後端會用 Token 覆蓋，所以設為可選
+    paopaoId: Joi.string().allow("").optional(),
     customerEmail: Joi.string().email().required(),
     payment_method: Joi.string().required(),
     // [新增] 驗證 warehouse_id
@@ -59,6 +60,9 @@ router.post("/", async (req, res, next) => {
   try {
     // 1. 讀取設定 (用於匯款資訊)
     const { bankInfo } = await getSettingsAndBankInfo();
+
+    // [安全修正] 強制使用 Token 中的身份
+    const userPaopaoId = req.user.paopao_id;
 
     const productIds = value.items.map((item) => parseInt(item.id));
     const products = await prisma.products.findMany({
@@ -102,7 +106,7 @@ router.post("/", async (req, res, next) => {
     // share_token 會由 DB 自動生成 (@default(uuid))
     const newOrder = await prisma.orders.create({
       data: {
-        paopao_id: value.paopaoId,
+        paopao_id: userPaopaoId, // 使用 Token 中的 ID
         customer_email: value.customerEmail,
         total_amount_twd: totalTwd,
         total_cost_cny: totalCny,
@@ -189,100 +193,109 @@ router.post(
   }
 );
 
-// --- [修改] 建立代購訂單 (回傳 Share Token 與 動態銀行資訊) ---
-router.post("/assist", async (req, res, next) => {
-  const schema = Joi.object({
-    paopaoId: Joi.string().required(),
-    customerEmail: Joi.string().email().required(),
-    payment_method: Joi.string().required(),
-    // [新增] 驗證 warehouse_id
-    warehouse_id: Joi.number().integer().min(1).required(),
-    items: Joi.array()
-      .items(
-        Joi.object({
-          item_url: Joi.string().uri().required(),
-          item_name: Joi.string().required(),
-          item_spec: Joi.string().allow("").optional(),
-          price_cny: Joi.number().min(0).required(),
-          quantity: Joi.number().integer().min(1).required(),
-        })
-      )
-      .min(1)
-      .required(),
-  });
-
-  const { error, value } = schema.validate(req.body);
-  if (error) return res.status(400).json({ message: error.details[0].message });
-
-  try {
-    // 1. 讀取設定 (匯率 + 銀行資訊) (使用共通函式)
-    const { rate, fee, bankInfo } = await getSettingsAndBankInfo();
-
-    // [新增] 檢查倉庫 ID 是否有效
-    const warehouse = await prisma.warehouses.findUnique({
-      where: { id: value.warehouse_id, is_active: true },
+// --- [修改] 建立代購訂單 (強制登入) ---
+router.post(
+  "/assist",
+  authenticateToken,
+  isCustomer,
+  async (req, res, next) => {
+    const schema = Joi.object({
+      paopaoId: Joi.string().allow("").optional(),
+      customerEmail: Joi.string().email().required(),
+      payment_method: Joi.string().required(),
+      // [新增] 驗證 warehouse_id
+      warehouse_id: Joi.number().integer().min(1).required(),
+      items: Joi.array()
+        .items(
+          Joi.object({
+            item_url: Joi.string().uri().required(),
+            item_name: Joi.string().required(),
+            item_spec: Joi.string().allow("").optional(),
+            price_cny: Joi.number().min(0).required(),
+            quantity: Joi.number().integer().min(1).required(),
+          })
+        )
+        .min(1)
+        .required(),
     });
-    if (!warehouse) throw new Error("無效的集運倉 ID");
 
-    let totalTwd = 0;
-    let totalCny = 0;
-    const orderItemsData = [];
+    const { error, value } = schema.validate(req.body);
+    if (error)
+      return res.status(400).json({ message: error.details[0].message });
 
-    for (const item of value.items) {
-      const qty = parseInt(item.quantity);
-      const cny = parseFloat(item.price_cny);
+    try {
+      // 1. 讀取設定 (匯率 + 銀行資訊) (使用共通函式)
+      const { rate, fee, bankInfo } = await getSettingsAndBankInfo();
 
-      totalCny = Math.round((totalCny + cny * qty) * 100) / 100;
-      const itemTwd = Math.ceil(cny * rate * (1 + fee));
-      totalTwd += itemTwd * qty;
+      // [安全修正] 使用 Token 中的 ID
+      const userPaopaoId = req.user.paopao_id;
 
-      orderItemsData.push({
-        item_url: item.item_url,
-        item_spec: item.item_spec,
-        quantity: qty,
-        snapshot_name: item.item_name,
-        snapshot_cost_cny: cny,
-        snapshot_price_twd: itemTwd,
+      // [新增] 檢查倉庫 ID 是否有效
+      const warehouse = await prisma.warehouses.findUnique({
+        where: { id: value.warehouse_id, is_active: true },
       });
+      if (!warehouse) throw new Error("無效的集運倉 ID");
+
+      let totalTwd = 0;
+      let totalCny = 0;
+      const orderItemsData = [];
+
+      for (const item of value.items) {
+        const qty = parseInt(item.quantity);
+        const cny = parseFloat(item.price_cny);
+
+        totalCny = Math.round((totalCny + cny * qty) * 100) / 100;
+        const itemTwd = Math.ceil(cny * rate * (1 + fee));
+        totalTwd += itemTwd * qty;
+
+        orderItemsData.push({
+          item_url: item.item_url,
+          item_spec: item.item_spec,
+          quantity: qty,
+          snapshot_name: item.item_name,
+          snapshot_cost_cny: cny,
+          snapshot_price_twd: itemTwd,
+        });
+      }
+
+      const newOrder = await prisma.orders.create({
+        data: {
+          paopao_id: userPaopaoId, // 使用 Token ID
+          customer_email: value.customerEmail,
+          total_amount_twd: totalTwd,
+          total_cost_cny: totalCny,
+          status: "Pending",
+          type: "Assist",
+          payment_method: value.payment_method,
+          // [新增] 儲存 warehouse_id
+          warehouse_id: value.warehouse_id,
+          items: { create: orderItemsData },
+        },
+        include: { items: true },
+      });
+
+      // 生成動態付款說明
+      let paymentDetails = null;
+      if (value.payment_method === "OFFLINE_TRANSFER") {
+        paymentDetails = {
+          ...bankInfo,
+          // [優化] 備註文字更清晰
+          note: `銀行：${bankInfo.bank_name}\n帳號：${bankInfo.bank_account}\n戶名：${bankInfo.bank_account_name}\n\n代購訂單已提交！預估金額 TWD ${totalTwd}。\n請匯款後聯繫客服，並告知訂單編號 (${newOrder.id})。`,
+        };
+      }
+
+      sendOrderConfirmationEmail(newOrder, paymentDetails).catch(console.error);
+
+      res.status(201).json({
+        message: "代購申請已提交",
+        order: newOrder, // 這裡面現在包含了 share_token
+        payment_details: paymentDetails,
+      });
+    } catch (err) {
+      next(err);
     }
-
-    const newOrder = await prisma.orders.create({
-      data: {
-        paopao_id: value.paopaoId,
-        customer_email: value.customerEmail,
-        total_amount_twd: totalTwd,
-        total_cost_cny: totalCny,
-        status: "Pending",
-        type: "Assist",
-        payment_method: value.payment_method,
-        // [新增] 儲存 warehouse_id
-        warehouse_id: value.warehouse_id,
-        items: { create: orderItemsData },
-      },
-      include: { items: true },
-    });
-
-    // 生成動態付款說明
-    let paymentDetails = null;
-    if (value.payment_method === "OFFLINE_TRANSFER") {
-      paymentDetails = {
-        ...bankInfo,
-        // [優化] 備註文字更清晰
-        note: `銀行：${bankInfo.bank_name}\n帳號：${bankInfo.bank_account}\n戶名：${bankInfo.bank_account_name}\n\n代購訂單已提交！預估金額 TWD ${totalTwd}。\n請匯款後聯繫客服，並告知訂單編號 (${newOrder.id})。`,
-      };
-    }
-
-    sendOrderConfirmationEmail(newOrder, paymentDetails).catch(console.error);
-
-    res.status(201).json({
-      message: "代購申請已提交",
-      order: newOrder, // 這裡面現在包含了 share_token
-      payment_details: paymentDetails,
-    });
-  } catch (err) {
-    next(err);
   }
-});
+);
 
 // --- [新增] 公開查詢訂單 (透過 Share Token) ---
 router.get("/share/:token", async (req, res, next) => {

@@ -7,6 +7,8 @@ import {
   setupHamburgerMenu,
   loadAvailableWarehouses,
   populateWarehouseSelect,
+  checkAuth, // [新增]
+  getAuthToken, // [新增]
 } from "./sharedUtils.js"; // <-- 導入共用函式
 
 // --- 全域變數 ---
@@ -20,6 +22,9 @@ let availableWarehouses = []; // 存放倉庫資料
 // --- 核心邏輯 ---
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // [新增] 進入此頁面即檢查登入 (您也可以選擇只在提交時檢查)
+  if (!checkAuth()) return;
+
   await loadComponent("../html/_navbar.html", "navbar-placeholder");
   setupHamburgerMenu();
   setupCustomerAuth();
@@ -201,6 +206,10 @@ function renderAssistList() {
 async function handleSubmitOrder(e) {
   e.preventDefault();
 
+  // [新增] 二次檢查與獲取 Token
+  if (!checkAuth()) return;
+  const token = getAuthToken();
+
   if (assistList.length === 0) {
     alert("請先加入商品！");
     return;
@@ -241,16 +250,24 @@ async function handleSubmitOrder(e) {
       items: itemsToSend,
     };
 
-    // [優化] 使用 /orders/assist 路徑
+    // [優化] 使用 /orders/assist 路徑，帶上 Token
     const response = await fetch(`${API_URL}/orders/assist`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`, // [重要]
+      },
       body: JSON.stringify(orderData),
     });
 
     const result = await response.json();
 
     if (!response.ok) {
+      if (response.status === 403 || response.status === 401) {
+        alert("登入已過期，請重新登入");
+        window.location.href = "../html/login.html";
+        return;
+      }
       throw new Error(result.message || "提交失敗");
     }
 

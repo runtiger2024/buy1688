@@ -35,6 +35,28 @@ export function getCustomer() {
 }
 
 /**
+ * [新增] 檢查是否已登入，若無則跳轉
+ */
+export function checkAuth(redirect = true) {
+  const token = localStorage.getItem("customerToken");
+  if (!token) {
+    if (redirect) {
+      alert("請先登入會員才能進行此操作。");
+      window.location.href = "./login.html"; // 假設相對路徑是正確的
+    }
+    return false;
+  }
+  return true;
+}
+
+/**
+ * [新增] 獲取 Token (供 API 呼叫使用)
+ */
+export function getAuthToken() {
+  return localStorage.getItem("customerToken");
+}
+
+/**
  * 客戶登出
  */
 export function customerLogout() {
