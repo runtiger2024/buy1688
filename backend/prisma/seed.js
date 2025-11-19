@@ -127,6 +127,22 @@ async function main() {
     console.warn("   請在 .env 中加入這兩個變數，然後執行 npm run prisma:seed");
   }
 
+  // --- 【新增優化：設定訂單 ID 序列起始值為 6001688】 ---
+  try {
+    // 獲取 orders 表的序列名稱 (通常是 orders_id_seq)
+    // 設置序列的起始值為 6001687 (下一筆訂單將是 6001688)
+    const setSequenceSql = `SELECT setval(pg_get_serial_sequence('"orders"', 'id'), 6001687, false)`;
+
+    await prisma.$executeRawUnsafe(setSequenceSql);
+
+    console.log("✅ 訂單 ID 序列已設定為從 6001688 開始。");
+  } catch (e) {
+    console.error("❌ 設定訂單 ID 序列失敗:", e);
+    // 注意：如果是舊的 DB 且已經有高 ID 存在，這裡會報錯，但不會影響應用程式功能。
+    // 如果是全新部署，則會成功。
+  }
+  // --- 【優化結束】 ---
+
   console.log("資料填充完畢。");
 }
 

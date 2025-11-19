@@ -353,18 +353,25 @@ router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
   }
 });
 
-// --- 操作員查詢 ---
-// [優化] 路由變更為 /operator，並在 server.js 中設定 /orders/operator 的路由
+// --- 操作員查詢 (新增篩選與改為降序) ---
 router.get(
   "/operator",
   authenticateToken,
   isOperator,
   async (req, res, next) => {
     try {
+      // ✅ 新增篩選邏輯
+      const { status, paymentStatus } = req.query;
+      const whereClause = {};
+
+      if (status) whereClause.status = status;
+      if (paymentStatus) whereClause.payment_status = paymentStatus;
+
       const orders = await prisma.orders.findMany({
+        where: whereClause, // ✅ 應用篩選條件
         include: {
           operator: { select: { username: true } },
-          warehouse: { select: { name: true } }, // [修改] Include warehouse info
+          warehouse: { select: { name: true } },
           items: {
             select: {
               quantity: true,
@@ -372,7 +379,7 @@ router.get(
             },
           },
         },
-        orderBy: { created_at: "asc" },
+        orderBy: { created_at: "desc" }, // ✅ 排序改為降序 (最新在前)
       });
       // [優化] 計算預估成本總和
       const ordersWithCost = orders.map((o) => {
@@ -397,11 +404,18 @@ router.get(
   }
 );
 
-// --- 管理員查詢 ---
-// [優化] 路由變更為 /admin，並在 server.js 中設定 /orders/admin 的路由
+// --- 管理員查詢 (新增篩選與改為降序) ---
 router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
   try {
+    // ✅ 新增篩選邏輯
+    const { status, paymentStatus } = req.query;
+    const whereClause = {};
+
+    if (status) whereClause.status = status;
+    if (paymentStatus) whereClause.payment_status = paymentStatus;
+
     const orders = await prisma.orders.findMany({
+      where: whereClause, // ✅ 應用篩選條件
       include: {
         warehouse: { select: { name: true } }, // [修改] Include warehouse info
         items: {
@@ -411,7 +425,7 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
           },
         },
       },
-      orderBy: { created_at: "desc" },
+      orderBy: { created_at: "desc" }, // ✅ 排序改為降序 (最新在前)
     });
     // [優化] 計算預估成本總和 (與 operator 路由邏輯相似，但資料可能更多)
     const ordersWithCost = orders.map((o) => {
@@ -433,22 +447,28 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
   }
 });
 
-// --- 操作員/管理員 更新訂單 ---
+// --- 操作員/管理員 更新訂單 (允許更新物流單號) ---
 router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
   try {
-    const { status, notes, payment_status, operator_id } = req.body;
+    const {
+      status,
+      notes,
+      payment_status,
+      operator_id,
+      domestic_tracking_number,
+    } = req.body;
     const data = {};
     if (status) data.status = status;
-    if (notes) data.notes = notes;
+    if (notes !== undefined) data.notes = notes; // 允許傳入 null 清空備註
     if (payment_status) data.payment_status = payment_status;
+    if (domestic_tracking_number !== undefined)
+      data.domestic_tracking_number = domestic_tracking_number; // ✅ 儲存新的欄位
 
     // 只有 admin 可以指派 operator_id
     if (operator_id !== undefined && req.user.role === "admin") {
       // 如果傳入空字串或 0，則設為 null
       data.operator_id = operator_id ? parseInt(operator_id) : null;
     }
-    // [修正] 如果是 operator 且嘗試指派，應該擋掉，但 middleware.js 已經用 isOperator 驗證了。
-    // 這裡只需要確保非 admin 無法修改 operator_id
 
     const updated = await prisma.orders.update({
       where: { id: parseInt(req.params.id) },

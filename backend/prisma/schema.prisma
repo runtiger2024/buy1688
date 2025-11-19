@@ -100,9 +100,10 @@ model Orders {
   status             OrderStatus @default(Pending)
   type               OrderType   @default(Standard)
   operator_id        Int?
-  warehouse_id       Int?        
+  warehouse_id       Int?
   notes              String?
   payment_voucher_url String?    // [新增] 匯款憑證 URL
+  domestic_tracking_number String? // ✅ 新增：大陸境內物流單號
   created_at         DateTime    @default(now())
 
   payment_method     String?

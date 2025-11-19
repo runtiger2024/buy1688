@@ -319,6 +319,22 @@ function renderOrderDetailContent(order) {
         </table>
     `;
 
+  // ✅ 新增：境內物流單號顯示
+  let trackingInfoHtml = "";
+  if (order.status === "Shipped_Internal" && order.domestic_tracking_number) {
+    trackingInfoHtml = `
+            <div class="bank-info-box" style="border-left: 5px solid #007bff; background-color: #e3f2fd;">
+                <h4>🚚 大陸境內物流單號 (已發貨往集運倉)</h4>
+                <p style="font-size: 1.1em; font-weight: bold;">
+                    單號: ${order.domestic_tracking_number}
+                </p>
+                <p style="font-size: 0.85em; color: #555;">
+                    此單號為大陸境內物流單號，是寄送到跑跑虎集運倉的物流單號。
+                </p>
+            </div>
+        `;
+  }
+
   // 2. 渲染匯款資訊與上傳區塊
   let bankInfoHtml = "";
   let uploadSection = "";
@@ -385,7 +401,7 @@ function renderOrderDetailContent(order) {
 
   return `
         <div class="order-detail-expanded">
-            ${bankInfoHtml}
+            ${trackingInfoHtml} ${bankInfoHtml}
             ${uploadSection}
             ${itemTable}
         </div>

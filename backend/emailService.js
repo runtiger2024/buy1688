@@ -1,3 +1,4 @@
+// backend/emailService.js
 import sgMail from "@sendgrid/mail";
 import dotenv from "dotenv";
 
@@ -126,11 +127,23 @@ export async function sendPaymentReceivedEmail(order) {
 // --- 模板 4：管理員更新訂單狀態 (例如：已發貨、已入倉) ---
 export async function sendOrderStatusUpdateEmail(order) {
   const subject = `您的訂單 #${order.id} 狀態已更新為：${order.status}`;
+
+  // ✅ 新增：追蹤碼資訊
+  let trackingHtml = "";
+  if (order.status === "Shipped_Internal" && order.domestic_tracking_number) {
+    trackingHtml = `
+            <p><strong>大陸境內物流單號：</strong> ${order.domestic_tracking_number}</p>
+            <p style="color:#d32f2f;">請注意：貨物已發往集運倉，此單號僅供大陸境內查詢，請登入您的跑跑虎集運APP追蹤後續國際運單。</p>
+        `;
+  }
+
   const html = `
         <h1>訂單 #${order.id} 狀態更新</h1>
         <p>嗨, ${order.paopao_id}！</p>
         <p>您的訂單狀態已更新為： <strong>${order.status}</strong></p>
-        
+
+        ${trackingHtml}
+
         ${
           order.notes
             ? `<p><strong>操作員備註：</strong> ${order.notes}</p>`

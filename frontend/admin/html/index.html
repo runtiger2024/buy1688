@@ -121,8 +121,26 @@
       </section>
       <section class="dashboard-section" id="orders-section">
         <div class="section-header-controls">
-          <h2>訂單管理 (待處理/採購中)</h2>
-          <button id="refresh-data" class="btn btn-primary">刷新訂單</button>
+          <h2>訂單管理 (最新在最前)</h2>
+          <div class="form-group-inline">
+            <label for="order-status-filter">篩選狀態:</label>
+            <select id="order-status-filter">
+              <option value="">所有狀態</option>
+              <option value="Pending">待處理</option>
+              <option value="Processing">採購中</option>
+              <option value="Shipped_Internal">已發貨 (往集運倉)</option>
+              <option value="Warehouse_Received">已入倉</option>
+              <option value="Completed">已完成</option>
+              <option value="Cancelled">已取消</option>
+            </select>
+            <label for="order-payment-status-filter">付款狀態:</label>
+            <select id="order-payment-status-filter">
+              <option value="">所有付款</option>
+              <option value="UNPAID">待付款</option>
+              <option value="PAID">已付款</option>
+            </select>
+            <button id="refresh-data" class="btn btn-primary">刷新訂單</button>
+          </div>
         </div>
         <table id="orders-table">
           <thead>
@@ -135,6 +153,7 @@
               <th>預估利潤 (TWD)</th>
               <th>集運倉/寄送資訊</th>
               <th>付款憑證</th>
+              <th>大陸境內物流單號</th>
               <th>訂單狀態</th>
               <th>付款狀態</th>
               <th>操作</th>

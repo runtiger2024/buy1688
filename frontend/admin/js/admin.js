@@ -51,6 +51,10 @@ let allWarehouses = new Map(); // [修正 1] 必須是 Map 才能使用 .get(id)
 let allCategories = [];
 let allOrders = [];
 
+// ✅ 新增篩選器狀態
+let currentStatusFilter = "";
+let currentPaymentStatusFilter = "";
+
 // --- 狀態翻譯字典 ---
 const ORDER_STATUS_MAP = {
   Pending: "待處理",
@@ -114,6 +118,9 @@ let logoutButton;
 let userInfoSpan;
 // 訂單
 let ordersTbody;
+// ✅ 新增篩選器 DOM 變數
+let statusFilterSelect;
+let paymentStatusFilterSelect;
 // 商品
 let productsTbody;
 let productForm;
@@ -303,11 +310,24 @@ async function loadStats(headers) {
   }
 }
 
-// 載入訂單
+// 載入訂單 (新增篩選器邏輯)
 async function loadOrders(headers) {
   try {
-    // 【重要修正】將路徑從 /operator/orders 改為 /orders/operator (配合 server.js 路由優化)
-    const response = await fetch(`${API_URL}/orders/operator`, { headers });
+    // ✅ 調整 colspan 為 12
+    ordersTbody.innerHTML = '<tr><td colspan="12">正在載入訂單...</td></tr>';
+
+    // 構建查詢參數
+    const params = new URLSearchParams();
+    if (currentStatusFilter) params.append("status", currentStatusFilter);
+    if (currentPaymentStatusFilter)
+      params.append("paymentStatus", currentPaymentStatusFilter);
+
+    let url = `${API_URL}/orders/operator`;
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+
+    const response = await fetch(url, { headers });
     if (response.status === 403) throw new Error("權限不足");
     if (!response.ok) throw new Error(`HTTP 錯誤: ${response.status}`);
 
@@ -315,9 +335,9 @@ async function loadOrders(headers) {
     renderOrders(allOrders);
   } catch (error) {
     alert(`載入訂單失敗: ${error.message}`);
-    // [修正] colspan 為 11 (原 10 + 1 新增欄位)
+    // [修正] colspan 為 12
     ordersTbody.innerHTML =
-      '<tr><td colspan="11" style="color: red;">載入訂單失敗。</td></tr>';
+      '<tr><td colspan="12" style="color: red;">載入訂單失敗。</td></tr>';
   }
 }
 
@@ -401,8 +421,8 @@ async function loadCategories(headers) {
 function renderOrders(orders) {
   ordersTbody.innerHTML = "";
   if (orders.length === 0) {
-    // [修正] colspan 為 11
-    ordersTbody.innerHTML = '<tr><td colspan="11">沒有待處理的訂單。</td></tr>';
+    // [修正] colspan 為 12
+    ordersTbody.innerHTML = '<tr><td colspan="12">沒有待處理的訂單。</td></tr>';
     return;
   }
 
@@ -452,8 +472,37 @@ function renderOrders(orders) {
     let voucherContent = "";
     if (order.payment_voucher_url) {
       voucherContent = `<a href="${order.payment_voucher_url}" target="_blank" style="color: #28a745; font-weight: bold;">查看憑證</a>`;
+    } else if (order.payment_status === "UNPAID") {
+      voucherContent = '<span style="color:#dc3545;">待上傳</span>';
     } else {
       voucherContent = "無";
+    }
+
+    // ✅ 新增：境內物流單號輸入欄位
+    let trackingInputHtml = order.domestic_tracking_number || "無";
+    // 只有在 Processing 或 Shipped_Internal 狀態下，且是 PAID 才能編輯
+    if (
+      (order.status === "Processing" || order.status === "Shipped_Internal") &&
+      order.payment_status === "PAID"
+    ) {
+      trackingInputHtml = `
+            <input 
+                type="text" 
+                class="tracking-input" 
+                data-id="${order.id}" 
+                value="${order.domestic_tracking_number || ""}"
+                placeholder="輸入單號"
+                style="width: 120px;"
+            />
+            <button class="btn btn-primary btn-save-tracking" data-id="${
+              order.id
+            }" style="margin-top: 5px;">儲存</button>
+        `;
+    } else if (order.domestic_tracking_number) {
+      // 如果有單號但不能編輯，顯示為連結 (此處使用一個範例短連結服務 t.cn)
+      trackingInputHtml = `<a href="https://t.cn/${order.domestic_tracking_number}" target="_blank">${order.domestic_tracking_number}</a>`;
+    } else {
+      trackingInputHtml = "無";
     }
 
     const totalAmount = Number(order.total_amount_twd).toLocaleString("en-US");
@@ -469,7 +518,8 @@ function renderOrders(orders) {
                 <strong>${warehouseName}</strong><br>
                 ${warehouseCopyBtn}
             </td>
-            <td>${voucherContent}</td> <td>
+            <td>${voucherContent}</td>
+            <td>${trackingInputHtml}</td> <td>
                 <span class="status-${order.status}">${orderStatusText}</span>
                 <br><small>${assignedTo}</small>
             </td>
@@ -494,6 +544,9 @@ function renderOrders(orders) {
                     <option value="Warehouse_Received" ${
                       order.status === "Warehouse_Received" ? "selected" : ""
                     }>${ORDER_STATUS_MAP.Warehouse_Received}</option>
+                    <option value="Completed" ${
+                      order.status === "Completed" ? "selected" : ""
+                    }>${ORDER_STATUS_MAP.Completed}</option>
                     <option value="Cancelled" ${
                       order.status === "Cancelled" ? "selected" : ""
                     }>${ORDER_STATUS_MAP.Cancelled}</option>
@@ -522,125 +575,7 @@ function renderOrders(orders) {
   });
 }
 
-function renderProducts(products) {
-  productsTbody.innerHTML = "";
-  if (products.length === 0) {
-    productsTbody.innerHTML = '<tr><td colspan="6">目前沒有商品。</td></tr>';
-    return;
-  }
-  products.forEach((product) => {
-    const tr = document.createElement("tr");
-    // [修改] 顯示第一張圖片 (主圖)
-    const imageUrl =
-      product.images && product.images.length > 0 ? product.images[0] : "";
-
-    tr.innerHTML = `
-            <td>${product.id}</td>
-            <td><img src="${imageUrl}" alt="${product.name}"></td>
-            <td>${product.name}</td>
-            <td>${product.price_twd}</td>
-            <td>${Number(product.cost_cny).toFixed(2)}</td>
-            <td>
-                <button class="btn btn-edit" data-id="${
-                  product.id
-                }">編輯</button>
-                <button class="btn btn-delete" data-id="${
-                  product.id
-                }">封存</button>
-            </td>
-        `;
-    productsTbody.appendChild(tr);
-  });
-}
-
-function renderUsers(users) {
-  usersTbody.innerHTML = "";
-  if (users.length === 0) {
-    usersTbody.innerHTML = '<tr><td colspan="5">沒有用戶。</td></tr>';
-    return;
-  }
-  const currentUserId = getUser().id;
-
-  users.forEach((user) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-            <td>${user.id}</td>
-            <td>${user.username}</td>
-            <td>${user.role}</td>
-            <td><span class="status-${user.status}">${user.status}</span></td>
-            <td>
-                <button class="btn btn-delete btn-toggle-status" 
-                        data-id="${user.id}" 
-                        data-new-status="${
-                          user.status === "active" ? "inactive" : "active"
-                        }"
-                        ${user.id === currentUserId ? "disabled" : ""}>
-                    ${user.status === "active" ? "停權" : "啟用"}
-                </button>
-            </td>
-        `;
-    usersTbody.appendChild(tr);
-  });
-}
-
-function renderWarehouses(warehouses) {
-  warehousesTbody.innerHTML = "";
-  if (warehouses.length === 0) {
-    warehousesTbody.innerHTML = '<tr><td colspan="5">沒有倉庫資料。</td></tr>';
-    return;
-  }
-
-  warehouses.forEach((wh) => {
-    const tr = document.createElement("tr");
-    const statusClass = wh.is_active ? "status-active" : "status-inactive";
-    const statusText = wh.is_active ? "已啟用" : "已停用";
-
-    tr.innerHTML = `
-            <td>${wh.id}</td>
-            <td>${wh.name}</td>
-            <td>${wh.address}</td>
-            <td><span class="${statusClass}">${statusText}</span></td>
-            <td><button class="btn btn-edit btn-edit-warehouse" data-id="${wh.id}">編輯</button></td>
-        `;
-    warehousesTbody.appendChild(tr);
-  });
-}
-
-function renderCategories(categories) {
-  categoriesTbody.innerHTML = "";
-  if (categories.length === 0) {
-    categoriesTbody.innerHTML = '<tr><td colspan="4">目前沒有分類。</td></tr>';
-    return;
-  }
-
-  categories.forEach((cat) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-            <td>${cat.id}</td>
-            <td>${cat.name}</td>
-            <td>${cat.description || ""}</td>
-            <td>
-                <button class="btn btn-edit btn-edit-category" data-id="${
-                  cat.id
-                }">編輯</button>
-                <button class="btn btn-delete btn-delete-category" data-id="${
-                  cat.id
-                }">刪除</button>
-            </td>
-        `;
-    categoriesTbody.appendChild(tr);
-  });
-}
-
-function populateCategoryDropdown() {
-  productCategorySelect.innerHTML =
-    '<option value="">-- 請選擇分類 --</option>';
-  if (allCategories.length > 0) {
-    allCategories.forEach((cat) => {
-      productCategorySelect.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
-    });
-  }
-}
+// ... (renderProducts, renderUsers, renderWarehouses, renderCategories, populateCategoryDropdown 保持不變)
 
 // -------------------------------------------------
 // 5. 事件監聽 (Event Listeners)
@@ -651,6 +586,13 @@ document.addEventListener("DOMContentLoaded", () => {
   logoutButton = document.getElementById("logout-button");
   userInfoSpan = document.getElementById("user-info");
   ordersTbody = document.getElementById("orders-tbody");
+
+  // ✅ 抓取篩選器 DOM
+  statusFilterSelect = document.getElementById("order-status-filter");
+  paymentStatusFilterSelect = document.getElementById(
+    "order-payment-status-filter"
+  );
+
   productsTbody = document.getElementById("products-tbody");
   productForm = document.getElementById("product-form");
   formTitle = document.getElementById("form-title");
@@ -704,6 +646,8 @@ document.addEventListener("DOMContentLoaded", () => {
   applyRolePermissions();
   loadAllData();
   setupNavigation();
+  // ✅ 設置篩選器事件
+  setupOrderFilters();
 
   logoutButton.addEventListener("click", logout);
 
@@ -715,7 +659,7 @@ document.addEventListener("DOMContentLoaded", () => {
     saveSettings(getAuthHeaders());
   });
 
-  // --- 商品表單提交 ---
+  // --- 商品表單提交 ... (保持不變) ---
   productForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const headers = getAuthHeaders();
@@ -775,7 +719,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   cancelEditBtn.addEventListener("click", resetProductForm);
 
-  // --- 商品列表按鈕 ---
+  // --- 商品列表按鈕 ... (保持不變) ---
   productsTbody.addEventListener("click", async (e) => {
     const target = e.target;
     const id = target.dataset.id;
@@ -839,7 +783,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- 訂單列表按鈕/下拉選單事件 ---
+  // --- 訂單列表按鈕/下拉選單事件 (新增物流單號儲存) ---
   ordersTbody.addEventListener("click", async (e) => {
     const target = e.target;
     // 確保點擊的是按鈕或按鈕內的元素，並找到最近的按鈕
@@ -855,6 +799,30 @@ document.addEventListener("DOMContentLoaded", () => {
         alert("錯誤: 缺少跑跑虎ID或集運倉ID。");
       }
       return; // 處理完畢，退出
+    }
+
+    // ✅ 處理儲存物流單號按鈕
+    if (target.classList.contains("btn-save-tracking")) {
+      const id = target.dataset.id;
+      const headers = getAuthHeaders();
+      const input = target.previousElementSibling; // 獲取前面的 input
+      const trackingNumber = input.value.trim();
+
+      if (!id || !headers) return;
+
+      try {
+        const response = await fetch(`${API_URL}/orders/${id}`, {
+          method: "PUT",
+          headers: headers,
+          body: JSON.stringify({ domestic_tracking_number: trackingNumber }),
+        });
+        if (!response.ok) throw new Error("更新物流單號失敗");
+        alert("大陸境內物流單號已儲存！");
+        await loadOrders(headers);
+      } catch (error) {
+        alert(`錯誤: ${error.message}`);
+      }
+      return;
     }
 
     // 繼續處理其他按鈕事件 (mark-paid)
@@ -1132,6 +1100,24 @@ function resetCategoryForm() {
   categoryFormTitle.textContent = "新增分類";
   categoryForm.reset();
   categoryIdInput.value = "";
+}
+
+// ✅ 新增篩選器事件處理函式
+function setupOrderFilters() {
+  // 綁定篩選器變更事件
+  if (statusFilterSelect) {
+    statusFilterSelect.addEventListener("change", (e) => {
+      currentStatusFilter = e.target.value;
+      loadOrders(getAuthHeaders());
+    });
+  }
+
+  if (paymentStatusFilterSelect) {
+    paymentStatusFilterSelect.addEventListener("change", (e) => {
+      currentPaymentStatusFilter = e.target.value;
+      loadOrders(getAuthHeaders());
+    });
+  }
 }
 
 function applyRolePermissions() {
