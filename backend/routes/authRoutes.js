@@ -1,3 +1,4 @@
+// backend/routes/authRoutes.js
 import express from "express";
 import Joi from "joi";
 import prisma from "../db.js";
@@ -103,12 +104,15 @@ router.post("/customer-login", async (req, res, next) => {
     if (!isMatch) return res.status(401).json({ message: "密碼錯誤" });
 
     const token = generateToken({ ...customer, role: "customer" });
+
+    // [修改] 回傳資料加入 phone
     res.json({
       token,
       customer: {
         id: customer.id,
         paopao_id: customer.paopao_id,
         email: customer.email,
+        phone: customer.phone,
       },
     });
   } catch (err) {

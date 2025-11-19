@@ -6,11 +6,13 @@ import {
   setupHamburgerMenu,
   checkAuth,
   getAuthToken,
-  loadCart, // 為了更新購物車數字
+  getCustomer,
+  customerLogout,
+  loadCart,
 } from "./sharedUtils.js";
 
 let allOrdersData = [];
-let currentTab = "all"; // all, UNPAID, Processing, Shipped, Completed
+let currentTab = "all";
 let bankInfo = null;
 
 const STATUS_LABEL = {
@@ -30,7 +32,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupCustomerAuth();
   setupBottomNav();
 
-  // 更新購物車數字 (雖不顯示購物車內容，但更新 Badge)
+  // 載入購物車數量
   let cart = {};
   loadCart(cart);
   const count = Object.values(cart).reduce((a, b) => a + b.quantity, 0);
@@ -40,11 +42,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     badge.style.display = count > 0 ? "block" : "none";
   }
 
+  // [新增] 渲染個人資料
+  renderUserProfile();
+
   await loadBankInfo();
   loadOrders();
 
   setupTabs();
 });
+
+function renderUserProfile() {
+  const customer = getCustomer();
+  if (!customer) return;
+
+  document.getElementById("profile-id").textContent =
+    customer.paopao_id || "未知";
+  document.getElementById("profile-email").textContent = customer.email || "-";
+  document.getElementById("profile-phone").textContent =
+    customer.phone || "未設定 (重新登入更新)";
+
+  document
+    .getElementById("profile-logout-btn")
+    .addEventListener("click", (e) => {
+      e.preventDefault();
+      customerLogout();
+    });
+}
 
 function setupBottomNav() {
   document.getElementById("tab-account")?.classList.add("active");
@@ -88,7 +111,6 @@ function renderOrders() {
   const container = document.getElementById("order-history-container");
   container.innerHTML = "";
 
-  // 篩選訂單
   const filteredOrders = allOrdersData.filter((order) => {
     if (currentTab === "all") return true;
     if (currentTab === "UNPAID") return order.payment_status === "UNPAID";
@@ -117,7 +139,6 @@ function renderOrders() {
     const statusText = STATUS_LABEL[order.status] || order.status;
     const isUnpaid = order.payment_status === "UNPAID";
 
-    // 訂單商品摘要 (最多顯示2個)
     const itemsHtml = order.items
       .slice(0, 2)
       .map(
@@ -137,7 +158,6 @@ function renderOrders() {
           } 項商品</div>`
         : "";
 
-    // 底部操作按鈕
     let actionsHtml = "";
     if (isUnpaid) {
       actionsHtml = `
@@ -190,7 +210,6 @@ function renderOrders() {
   });
 }
 
-// 顯示/隱藏憑證上傳框
 window.toggleVoucherForm = function (id) {
   const area = document.getElementById(`voucher-area-${id}`);
   if (area.style.display === "none") {
@@ -200,7 +219,6 @@ window.toggleVoucherForm = function (id) {
   }
 };
 
-// 獲取 Header
 function getAuthHeaders() {
   const token = getAuthToken();
   if (!token) return null;
@@ -226,7 +244,6 @@ async function loadBankInfo() {
   }
 }
 
-// 複製匯款資訊
 window.copyBankInfo = function (orderId, amount) {
   if (!bankInfo) return alert("讀取銀行資訊失敗");
   const text = `
@@ -240,7 +257,6 @@ window.copyBankInfo = function (orderId, amount) {
   navigator.clipboard.writeText(text).then(() => alert("匯款資訊已複製！"));
 };
 
-// 處理上傳
 window.handleVoucherUpload = function (e, orderId) {
   e.preventDefault();
   const headers = getAuthHeaders();
@@ -268,7 +284,7 @@ window.handleVoucherUpload = function (e, orderId) {
       });
       if (!response.ok) throw new Error("上傳失敗");
       alert("憑證上傳成功！");
-      loadOrders(); // 重新整理列表
+      loadOrders();
     } catch (error) {
       statusDiv.textContent = `錯誤: ${error.message}`;
       btn.disabled = false;

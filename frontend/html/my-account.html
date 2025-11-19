@@ -17,6 +17,27 @@
     <div id="navbar-placeholder"></div>
 
     <main>
+      <div class="profile-card">
+        <div class="profile-header">
+          <div class="profile-avatar">
+            <i class="fas fa-user"></i>
+          </div>
+          <div class="profile-info">
+            <h3 id="profile-id">載入中...</h3>
+            <span class="profile-role">VIP 會員</span>
+          </div>
+        </div>
+        <div class="profile-details">
+          <p>
+            <i class="fas fa-envelope"></i> <span id="profile-email">-</span>
+          </p>
+          <p><i class="fas fa-phone"></i> <span id="profile-phone">-</span></p>
+        </div>
+        <button id="profile-logout-btn" class="btn-logout-full">
+          登出帳戶
+        </button>
+      </div>
+
       <div class="order-tabs" id="order-status-tabs">
         <div class="order-tab-item active" data-status="all">全部</div>
         <div class="order-tab-item" data-status="UNPAID">待付款</div>

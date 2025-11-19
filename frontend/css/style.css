@@ -769,8 +769,92 @@ img {
 }
 
 /* =========================================
-   6. 會員中心 (My Account)
+   6. 會員中心 (My Account) - 新增 Profile 與 Tabs
    ========================================= */
+
+/* 個人資料卡片 (Profile Card) - 新增 */
+.profile-card {
+  background: linear-gradient(
+    135deg,
+    var(--taobao-orange),
+    var(--taobao-yellow)
+  );
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  color: white;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 12px rgba(255, 80, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.profile-avatar {
+  width: 60px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.profile-info h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.profile-role {
+  font-size: 0.8rem;
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-top: 5px;
+  display: inline-block;
+}
+
+.profile-details {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.profile-details p {
+  margin: 5px 0;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.profile-details i {
+  width: 20px;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.btn-logout-full {
+  background: white;
+  color: var(--taobao-red);
+  border: none;
+  padding: 8px;
+  border-radius: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.2s;
+}
+.btn-logout-full:hover {
+  background: #f0f0f0;
+}
 
 /* 訂單狀態 Tabs */
 .order-tabs {
@@ -1016,22 +1100,6 @@ img {
   font-size: 1rem;
 }
 
-/* 頁尾 */
-.site-footer {
-  background-color: #333;
-  color: #aaa;
-  padding: 40px 20px 80px 20px; /* 底部加高，避免被 Bottom Nav 擋住 */
-  text-align: center;
-  font-size: 0.85rem;
-}
-.site-footer a {
-  color: #ccc;
-}
-.site-footer a:hover {
-  color: white;
-  text-decoration: underline;
-}
-
 /* =========================================
    8. 懸浮按鈕 (Floating Buttons)
    ========================================= */
@@ -1090,6 +1158,22 @@ img {
 }
 .line-float-button:hover {
   transform: translateY(-3px);
+}
+
+/* 頁尾 */
+.site-footer {
+  background-color: #333;
+  color: #aaa;
+  padding: 40px 20px 80px 20px; /* 底部加高 */
+  text-align: center;
+  font-size: 0.85rem;
+}
+.site-footer a {
+  color: #ccc;
+}
+.site-footer a:hover {
+  color: white;
+  text-decoration: underline;
 }
 
 /* =========================================
