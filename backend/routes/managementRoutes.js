@@ -1,3 +1,4 @@
+// backend/routes/managementRoutes.js
 import express from "express";
 import prisma from "../db.js";
 import { authenticateToken, isAdmin } from "../middleware.js";
@@ -17,7 +18,6 @@ router.get("/settings", async (req, res, next) => {
       const numVal = parseFloat(s.value);
       obj[s.key] = isNaN(numVal) ? s.value : numVal;
       // 特例：銀行帳號可能是純數字字串，不應轉成 float (會丟失前導0)，這裡做個簡單判斷
-      // [優化] 集中判斷不需要轉換為數字的 key
       if (["bank_account", "bank_name", "bank_account_name"].includes(s.key)) {
         obj[s.key] = s.value;
       }
@@ -73,7 +73,6 @@ router.put("/settings", authenticateToken, isAdmin, async (req, res, next) => {
   }
 });
 
-// ... (下方的 warehouses, categories, users, dashboard/stats 等程式碼保持不變) ...
 // --- 倉庫管理 ---
 router.get("/warehouses", async (req, res, next) => {
   try {
@@ -205,6 +204,37 @@ router.put(
       const updated = await prisma.users.update({
         where: { id: parseInt(req.params.id) },
         data: { status: req.body.status },
+      });
+      res.json(updated);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// [新增] 修改用戶權限路由
+router.put(
+  "/users/:id/role",
+  authenticateToken,
+  isAdmin,
+  async (req, res, next) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { role } = req.body;
+
+      // 安全檢查：防止修改自己的權限
+      if (id === req.user.id) {
+        return res.status(400).json({ message: "不能修改自己的權限" });
+      }
+
+      // 驗證角色值
+      if (!["admin", "operator"].includes(role)) {
+        return res.status(400).json({ message: "無效的角色設定" });
+      }
+
+      const updated = await prisma.users.update({
+        where: { id },
+        data: { role },
       });
       res.json(updated);
     } catch (err) {

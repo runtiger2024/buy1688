@@ -49,7 +49,7 @@ let allOrders = [];
 
 let currentStatusFilter = "";
 let currentPaymentStatusFilter = "";
-let currentSearchTerm = ""; // [新增] 搜尋關鍵字
+let currentSearchTerm = "";
 
 const ORDER_STATUS_MAP = {
   Pending: "待處理",
@@ -112,8 +112,8 @@ let userInfoSpan;
 let ordersTbody;
 let statusFilterSelect;
 let paymentStatusFilterSelect;
-let orderSearchInput; // [新增]
-let orderSearchBtn; // [新增]
+let orderSearchInput;
+let orderSearchBtn;
 let productsTbody;
 let productForm;
 let formTitle;
@@ -291,7 +291,6 @@ async function loadStats(headers) {
   }
 }
 
-// [修改] loadOrders 支援搜尋參數
 async function loadOrders(headers) {
   try {
     ordersTbody.innerHTML = '<tr><td colspan="12">正在載入訂單...</td></tr>';
@@ -300,7 +299,7 @@ async function loadOrders(headers) {
     if (currentStatusFilter) params.append("status", currentStatusFilter);
     if (currentPaymentStatusFilter)
       params.append("paymentStatus", currentPaymentStatusFilter);
-    if (currentSearchTerm) params.append("search", currentSearchTerm); // 加入搜尋
+    if (currentSearchTerm) params.append("search", currentSearchTerm);
 
     let url = `${API_URL}/orders/operator`;
     if (params.toString()) {
@@ -576,6 +575,8 @@ function renderUsers(users) {
     return;
   }
 
+  const currentUser = getUser();
+
   users.forEach((user) => {
     const tr = document.createElement("tr");
 
@@ -587,17 +588,41 @@ function renderUsers(users) {
     const toggleActionValue = isUserActive ? "inactive" : "active";
     const toggleBtnClass = isUserActive ? "btn-delete" : "btn-update";
 
+    // [新增] 角色選擇器邏輯
+    const isSelf = currentUser && currentUser.id === user.id;
+    let roleCellContent;
+    if (isSelf) {
+      roleCellContent =
+        user.role === "admin" ? "管理員 (自己)" : "操作員 (自己)";
+    } else {
+      roleCellContent = `
+            <select class="user-role-select" data-id="${user.id}">
+                <option value="operator" ${
+                  user.role === "operator" ? "selected" : ""
+                }>操作員</option>
+                <option value="admin" ${
+                  user.role === "admin" ? "selected" : ""
+                }>管理員</option>
+            </select>
+        `;
+    }
+
     tr.innerHTML = `
             <td>${user.id}</td>
             <td>${user.username}</td>
-            <td>${user.role === "admin" ? "管理員" : "操作員"}</td>
+            <td>${roleCellContent}</td>
             <td><span class="${statusClass}">${statusText}</span></td>
             <td>
+                ${
+                  !isSelf
+                    ? `
                 <button class="btn ${toggleBtnClass} btn-toggle-status" 
                         data-id="${user.id}" 
                         data-new-status="${toggleActionValue}">
                     ${toggleActionText}
-                </button>
+                </button>`
+                    : '<span style="color:#ccc">不可操作</span>'
+                }
             </td>
         `;
     usersTbody.appendChild(tr);
@@ -682,8 +707,8 @@ document.addEventListener("DOMContentLoaded", () => {
   paymentStatusFilterSelect = document.getElementById(
     "order-payment-status-filter"
   );
-  orderSearchInput = document.getElementById("order-search-input"); // [新增]
-  orderSearchBtn = document.getElementById("order-search-btn"); // [新增]
+  orderSearchInput = document.getElementById("order-search-input");
+  orderSearchBtn = document.getElementById("order-search-btn");
 
   productsTbody = document.getElementById("products-tbody");
   productForm = document.getElementById("product-form");
@@ -741,21 +766,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   logoutButton.addEventListener("click", logout);
 
-  // [修改] 刷新按鈕同時重置搜尋
   refreshButton.addEventListener("click", () => {
     if (orderSearchInput) orderSearchInput.value = "";
     currentSearchTerm = "";
     loadOrders(getAuthHeaders());
   });
 
-  // [新增] 搜尋按鈕事件
   if (orderSearchBtn && orderSearchInput) {
     orderSearchBtn.addEventListener("click", () => {
       currentSearchTerm = orderSearchInput.value.trim();
       loadOrders(getAuthHeaders());
     });
 
-    // 支援按 Enter 搜尋
     orderSearchInput.addEventListener("keyup", (e) => {
       if (e.key === "Enter") {
         currentSearchTerm = orderSearchInput.value.trim();
@@ -1035,6 +1057,70 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // [新增] 監聽用戶列表的事件 (包括狀態切換與角色變更)
+  usersTbody.addEventListener("click", async (e) => {
+    // 狀態切換
+    if (e.target.classList.contains("btn-toggle-status")) {
+      const id = e.target.dataset.id;
+      const newStatus = e.target.dataset.newStatus;
+      if (!confirm(`確定要將用戶 ${id} 的狀態改為 "${newStatus}" 嗎？`)) return;
+      const headers = getAuthHeaders();
+      if (!headers) return;
+      try {
+        const response = await fetch(`${API_URL}/admin/users/${id}/status`, {
+          method: "PUT",
+          headers: headers,
+          body: JSON.stringify({ status: newStatus }),
+        });
+        if (!response.ok) throw new Error("更新失敗");
+        alert("用戶狀態已更新！");
+        await loadUsers(headers);
+      } catch (error) {
+        alert(`錯誤: ${error.message}`);
+      }
+    }
+  });
+
+  // [新增] 監聽角色變更事件 (使用 change 事件)
+  usersTbody.addEventListener("change", async (e) => {
+    if (e.target.classList.contains("user-role-select")) {
+      const id = e.target.dataset.id;
+      const newRole = e.target.value;
+
+      if (
+        !confirm(
+          `確定要將用戶 ID ${id} 的權限修改為 ${
+            newRole === "admin" ? "管理員" : "操作員"
+          } 嗎？`
+        )
+      ) {
+        // 取消則重整列表以恢復原狀
+        loadUsers(getAuthHeaders());
+        return;
+      }
+
+      const headers = getAuthHeaders();
+      try {
+        const response = await fetch(`${API_URL}/admin/users/${id}/role`, {
+          method: "PUT",
+          headers: headers,
+          body: JSON.stringify({ role: newRole }),
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.message || "更新失敗");
+        }
+
+        alert("權限已更新！");
+        loadUsers(headers);
+      } catch (error) {
+        alert(`錯誤: ${error.message}`);
+        loadUsers(headers); // 失敗也重整以恢復 UI
+      }
+    }
+  });
+
   createUserForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const headers = getAuthHeaders();
@@ -1057,28 +1143,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (error.message.includes("409")) {
         alert("錯誤: 帳號已存在");
       } else {
-        alert(`錯誤: ${error.message}`);
-      }
-    }
-  });
-
-  usersTbody.addEventListener("click", async (e) => {
-    if (e.target.classList.contains("btn-toggle-status")) {
-      const id = e.target.dataset.id;
-      const newStatus = e.target.dataset.newStatus;
-      if (!confirm(`確定要將用戶 ${id} 的狀態改為 "${newStatus}" 嗎？`)) return;
-      const headers = getAuthHeaders();
-      if (!headers) return;
-      try {
-        const response = await fetch(`${API_URL}/admin/users/${id}/status`, {
-          method: "PUT",
-          headers: headers,
-          body: JSON.stringify({ status: newStatus }),
-        });
-        if (!response.ok) throw new Error("更新失敗");
-        alert("用戶狀態已更新！");
-        await loadUsers(headers);
-      } catch (error) {
         alert(`錯誤: ${error.message}`);
       }
     }
@@ -1209,88 +1273,3 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
-
-function resetProductForm() {
-  formTitle.textContent = "新增商品";
-  productForm.reset();
-  productIdInput.value = "";
-  cancelEditBtn.style.display = "none";
-}
-
-function resetWarehouseForm() {
-  warehouseFormTitle.textContent = "編輯倉庫";
-  warehouseForm.reset();
-  warehouseIdInput.value = "";
-}
-
-function resetCategoryForm() {
-  categoryFormTitle.textContent = "新增分類";
-  categoryForm.reset();
-  categoryIdInput.value = "";
-}
-
-function setupOrderFilters() {
-  if (statusFilterSelect) {
-    statusFilterSelect.addEventListener("change", (e) => {
-      currentStatusFilter = e.target.value;
-      loadOrders(getAuthHeaders());
-    });
-  }
-
-  if (paymentStatusFilterSelect) {
-    paymentStatusFilterSelect.addEventListener("change", (e) => {
-      currentPaymentStatusFilter = e.target.value;
-      loadOrders(getAuthHeaders());
-    });
-  }
-}
-
-function applyRolePermissions() {
-  const user = getUser();
-  if (user.role === "admin") return;
-  document.querySelectorAll('[data-role="admin"]').forEach((el) => {
-    el.style.display = "none";
-  });
-}
-
-function setupNavigation() {
-  const navLinks = document.querySelectorAll(".nav-link");
-  const sections = document.querySelectorAll(".dashboard-section");
-  const defaultLink =
-    document.querySelector('.nav-link[data-default="true"]') ||
-    document.querySelector('.nav-link:not([style*="display: none"])');
-  const defaultTargetId = defaultLink ? defaultLink.dataset.target : null;
-
-  function showTabFromHash() {
-    const hash = window.location.hash.substring(1);
-    let targetId = hash ? `${hash}-section` : defaultTargetId;
-    const targetSection = document.getElementById(targetId);
-    if (!targetSection || targetSection.style.display === "none") {
-      targetId = defaultTargetId;
-    }
-    updateActiveTabs(targetId);
-  }
-
-  function updateActiveTabs(targetId) {
-    sections.forEach((section) => {
-      section.classList.toggle("active", section.id === targetId);
-    });
-    navLinks.forEach((link) => {
-      link.classList.toggle("active", link.dataset.target === targetId);
-    });
-  }
-
-  navLinks.forEach((link) => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      const targetId = link.dataset.target;
-      if (document.getElementById(targetId).style.display !== "none") {
-        updateActiveTabs(targetId);
-        history.pushState(null, null, `#${targetId.replace("-section", "")}`);
-      }
-    });
-  });
-
-  window.addEventListener("popstate", showTabFromHash);
-  showTabFromHash();
-}
