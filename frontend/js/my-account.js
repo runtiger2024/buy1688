@@ -59,9 +59,28 @@ function renderUserProfile() {
   const emailEl = document.getElementById("profile-email");
   const phoneEl = document.getElementById("profile-phone");
 
+  // [新增] 抓取顯示角色的元素 (對應 my-account.html 中的 .profile-role)
+  const roleEl = document.querySelector(".profile-role");
+
   if (idEl) idEl.textContent = customer.paopao_id || "未知";
   if (emailEl) emailEl.textContent = customer.email || "-";
   if (phoneEl) phoneEl.textContent = customer.phone || "未設定 (重新登入更新)";
+
+  // [新增] 根據 is_vip 改變顯示文字與樣式
+  if (roleEl) {
+    if (customer.is_vip) {
+      roleEl.textContent = "👑 VIP 會員";
+      roleEl.style.background = "linear-gradient(90deg, #FFD700, #FFA500)";
+      roleEl.style.color = "#000";
+      roleEl.style.fontWeight = "bold";
+      roleEl.style.padding = "4px 12px";
+      roleEl.style.boxShadow = "0 2px 5px rgba(0,0,0,0.2)";
+    } else {
+      roleEl.textContent = "一般會員";
+      roleEl.style.background = "rgba(0, 0, 0, 0.1)";
+      roleEl.style.color = "#fff";
+    }
+  }
 
   const logoutBtn = document.getElementById("profile-logout-btn");
   if (logoutBtn) {

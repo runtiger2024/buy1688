@@ -160,7 +160,8 @@ model Customers {
   password_hash String
   email         String   @unique
   phone         String?
+  is_vip        Boolean  @default(false)  // [新增] VIP 狀態欄位，預設為 false
   created_at    DateTime @default(now())
-
+  
   @@map("customers")
 }

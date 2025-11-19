@@ -318,6 +318,7 @@ router.get("/customers", authenticateToken, isAdmin, async (req, res, next) => {
         paopao_id: true,
         email: true,
         phone: true,
+        is_vip: true, // [新增] 查詢 VIP 狀態供列表顯示
         created_at: true,
       },
     });
@@ -334,11 +335,23 @@ router.put(
   async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
-      const { email, phone } = req.body;
+      // [修改] 這裡新增接收 is_vip
+      const { email, phone, is_vip } = req.body;
+
+      const dataToUpdate = { email, phone };
+
+      // 只有當 is_vip 明確傳入 true 或 false 時才更新 (避免 undefined 覆蓋)
+      if (
+        typeof is_vip === "boolean" ||
+        is_vip === "true" ||
+        is_vip === "false"
+      ) {
+        dataToUpdate.is_vip = is_vip === "true" || is_vip === true;
+      }
 
       const updated = await prisma.customers.update({
         where: { id },
-        data: { email, phone },
+        data: dataToUpdate,
       });
       res.json(updated);
     } catch (err) {

@@ -105,7 +105,7 @@ router.post("/customer-login", async (req, res, next) => {
 
     const token = generateToken({ ...customer, role: "customer" });
 
-    // [修改] 回傳資料加入 phone
+    // [修改] 回傳資料加入 phone 和 is_vip
     res.json({
       token,
       customer: {
@@ -113,6 +113,7 @@ router.post("/customer-login", async (req, res, next) => {
         paopao_id: customer.paopao_id,
         email: customer.email,
         phone: customer.phone,
+        is_vip: customer.is_vip, // [新增] 確保前端能拿到 VIP 狀態
       },
     });
   } catch (err) {

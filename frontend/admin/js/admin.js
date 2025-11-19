@@ -1089,17 +1089,22 @@ function renderCustomersTable(customers) {
 
   tbody.innerHTML = "";
   filtered.forEach((c) => {
+    // [新增] 判斷 VIP 樣式
+    const vipBadge = c.is_vip
+      ? '<span class="badge" style="background:gold; color:#333; margin-top: 4px; display: inline-block;">👑 VIP</span>'
+      : '<span class="badge badge-secondary" style="margin-top: 4px; display: inline-block;">一般</span>';
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
             <td>${c.id}</td>
-            <td>${c.paopao_id}</td>
+            <td>${c.paopao_id} <br> ${vipBadge}</td>
             <td>${c.email}</td>
             <td>${c.phone || "-"}</td>
             <td>${new Date(c.created_at).toLocaleString()}</td>
             <td>
                 <button class="btn btn-small btn-primary btn-edit-customer" data-id="${
                   c.id
-                }"><i class="fas fa-edit"></i> 編輯/重置</button>
+                }"><i class="fas fa-edit"></i> 編輯</button>
             </td>
         `;
     tbody.appendChild(tr);
@@ -1130,8 +1135,14 @@ function setupCustomerEvents() {
       const phone = document.getElementById("customer-phone").value;
       const password = document.getElementById("customer-password").value;
 
+      // [新增] 獲取 VIP 狀態
+      const isVipStr = document.getElementById("customer-is-vip").value;
+      const is_vip = isVipStr === "true";
+
       try {
-        await api.updateCustomer(id, { email, phone });
+        // [修改] 傳送 is_vip
+        await api.updateCustomer(id, { email, phone, is_vip });
+
         if (password) {
           await api.updateCustomerPassword(id, password);
         }
@@ -1153,6 +1164,13 @@ function openCustomerModal(id) {
   document.getElementById("customer-paopao-id").value = customer.paopao_id;
   document.getElementById("customer-email").value = customer.email;
   document.getElementById("customer-phone").value = customer.phone || "";
+
+  // [新增] 回填 VIP 選單
+  const vipSelect = document.getElementById("customer-is-vip");
+  if (vipSelect) {
+    vipSelect.value = customer.is_vip ? "true" : "false";
+  }
+
   document.getElementById("customer-password").value = "";
 
   document.getElementById("customer-modal").style.display = "block";
