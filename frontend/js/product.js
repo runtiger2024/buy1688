@@ -8,18 +8,15 @@ import {
   addToCart,
 } from "./sharedUtils.js";
 
-// --- 全域變數 ---
 let shoppingCart = {};
-
-// --- 核心邏輯 ---
+let currentProduct = null;
+let selectedSpec = null; // 儲存當前選擇的規格
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // 1. 載入 Navbar
   await loadComponent("../html/_navbar.html", "navbar-placeholder");
   setupHamburgerMenu();
   setupCustomerAuth();
 
-  // 2. 處理 Navbar 購物車連結 (導回首頁)
   const navCartLink = document.getElementById("nav-cart-link");
   if (navCartLink) {
     navCartLink.addEventListener("click", (e) => {
@@ -28,10 +25,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // 3. 載入購物車狀態
   loadCart(shoppingCart);
 
-  // 4. 獲取商品資料
   const params = new URLSearchParams(window.location.search);
   const productId = params.get("id");
 
@@ -46,23 +41,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 async function fetchProductDetails(id) {
   try {
     const response = await fetch(`${API_URL}/products/${id}`);
-    if (!response.ok) {
-      throw new Error("找不到商品或載入失敗");
-    }
-    const product = await response.json();
-    renderProduct(product);
+    if (!response.ok) throw new Error("找不到商品");
+    currentProduct = await response.json();
+    renderProduct(currentProduct);
   } catch (error) {
-    console.error("獲取商品詳情失敗:", error);
+    console.error(error);
     displayError(error.message);
   }
 }
 
 function renderProduct(product) {
   const container = document.getElementById("product-detail-container");
-
   document.title = `${product.name} - 代採購平台`;
 
-  // 設定麵包屑
   if (product.category) {
     document.getElementById("breadcrumb-separator").style.display = "inline";
     const categoryLink = document.getElementById("breadcrumb-category");
@@ -70,14 +61,11 @@ function renderProduct(product) {
     categoryLink.href = `./index.html?category=${product.category_id}`;
   }
 
-  // 處理圖片
   const images =
     product.images && product.images.length > 0
       ? product.images
       : ["https://via.placeholder.com/500"];
   const mainImageSrc = images[0];
-
-  // 生成縮圖 HTML
   let thumbnailsHtml = "";
   if (images.length > 1) {
     thumbnailsHtml = `<div class="thumbnail-list">`;
@@ -88,35 +76,43 @@ function renderProduct(product) {
     thumbnailsHtml += `</div>`;
   }
 
-  // 渲染主體 HTML (Phase 2 Layout)
+  // [新增] 規格 HTML 生成
+  let specsHtml = "";
+  if (product.specs && product.specs.length > 0) {
+    specsHtml = `
+        <div class="specs-container" style="margin-bottom:20px;">
+            <div class="specs-title">規格選項：</div>
+            <div class="specs-list" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;">
+                ${product.specs
+                  .map(
+                    (s) =>
+                      `<div class="spec-btn" onclick="selectSpec(this, '${s}')">${s}</div>`
+                  )
+                  .join("")}
+            </div>
+        </div>
+      `;
+  }
+
   container.innerHTML = `
     <div class="product-detail-layout">
         <div class="product-detail-image">
-            <div class="main-image-container">
-                <img id="main-image" src="${mainImageSrc}" alt="${
+            <div class="main-image-container"><img id="main-image" src="${mainImageSrc}" alt="${
     product.name
-  }">
-            </div>
+  }"></div>
             ${thumbnailsHtml}
         </div>
-
         <div class="product-detail-info">
-            <div class="product-price-large">
-                <small>TWD</small> ${product.price_twd}
-            </div>
-
+            <div class="product-price-large"><small>TWD</small> ${
+              product.price_twd
+            }</div>
             <div class="product-title-section">
                 <h1>${product.name}</h1>
-                <span style="color:#999; font-size:0.9rem;">月銷 ${Math.floor(
-                  Math.random() * 200
-                )} | 庫存充足</span>
+                <span style="color:#999; font-size:0.9rem;">庫存充足</span>
             </div>
-
-            <div class="product-detail-description">
-                <strong>商品描述：</strong><br>
-                ${product.description || "此商品沒有額外描述。"}
-            </div>
-
+            ${specsHtml} <div class="product-detail-description"><strong>商品描述：</strong><br>${
+    product.description || "無描述"
+  }</div>
             <div class="desktop-actions">
                 <button class="btn-add-cart-lg" id="desktop-add-cart">加入購物車</button>
                 <button class="btn-buy-now-lg" id="desktop-buy-now">立即購買</button>
@@ -125,29 +121,52 @@ function renderProduct(product) {
     </div>
   `;
 
-  // 綁定桌面版按鈕事件
-  document.getElementById("desktop-add-cart").addEventListener("click", () => {
-    handleAddToCart(product.id, product.name, product.price_twd);
-  });
+  document
+    .getElementById("desktop-add-cart")
+    .addEventListener("click", () => handleAddToCart());
   document.getElementById("desktop-buy-now").addEventListener("click", () => {
-    handleAddToCart(product.id, product.name, product.price_twd);
-    // 導向首頁並開啟購物車
-    window.location.href = "./index.html";
+    if (handleAddToCart()) window.location.href = "./index.html";
   });
-
-  // 綁定手機版底部按鈕事件
-  document.getElementById("mobile-add-cart").addEventListener("click", () => {
-    handleAddToCart(product.id, product.name, product.price_twd);
-  });
+  document
+    .getElementById("mobile-add-cart")
+    .addEventListener("click", () => handleAddToCart());
   document.getElementById("mobile-buy-now").addEventListener("click", () => {
-    handleAddToCart(product.id, product.name, product.price_twd);
-    window.location.href = "./index.html";
+    if (handleAddToCart()) window.location.href = "./index.html";
   });
 }
 
-function handleAddToCart(id, name, price) {
-  addToCart(shoppingCart, id, name, price);
-  alert(`已將 ${name} 加入購物車！`);
+// [新增] 規格選擇函式 (掛載到 window)
+window.selectSpec = function (el, spec) {
+  document
+    .querySelectorAll(".spec-btn")
+    .forEach((b) => b.classList.remove("active"));
+  el.classList.add("active");
+  selectedSpec = spec;
+};
+
+function handleAddToCart() {
+  if (!currentProduct) return false;
+
+  // [新增] 檢查是否選擇了規格
+  if (
+    currentProduct.specs &&
+    currentProduct.specs.length > 0 &&
+    !selectedSpec
+  ) {
+    alert("請先選擇規格！");
+    return false;
+  }
+
+  // 傳入 spec
+  addToCart(
+    shoppingCart,
+    currentProduct.id,
+    currentProduct.name,
+    currentProduct.price_twd,
+    selectedSpec
+  );
+  alert(`已將 ${currentProduct.name} ${selectedSpec || ""} 加入購物車！`);
+  return true;
 }
 
 function displayError(message) {
@@ -155,11 +174,9 @@ function displayError(message) {
   container.innerHTML = `<p style="color:red; text-align:center; padding:50px;">${message}</p>`;
 }
 
-// 全域圖片切換函式
 window.changeMainImage = function (src, thumbnailElement) {
   const mainImg = document.getElementById("main-image");
   mainImg.src = src;
-
   document
     .querySelectorAll(".thumbnail")
     .forEach((el) => el.classList.remove("active"));

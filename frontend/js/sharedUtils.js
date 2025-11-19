@@ -7,7 +7,7 @@ import { API_URL } from "./config.js";
 export async function loadComponent(componentPath, placeholderId) {
   const placeholder = document.getElementById(placeholderId);
   if (!placeholder) {
-    console.warn(`警告: 找不到 ID 為 "${placeholderId}" 的佔位符。`);
+    // console.warn(`警告: 找不到 ID 為 "${placeholderId}" 的佔位符。`);
     return;
   }
   try {
@@ -35,14 +35,15 @@ export function getCustomer() {
 }
 
 /**
- * [新增] 檢查是否已登入，若無則跳轉
+ * 檢查是否已登入，若無則跳轉
+ * @param {boolean} redirect - 是否自動跳轉到登入頁
  */
 export function checkAuth(redirect = true) {
   const token = localStorage.getItem("customerToken");
   if (!token) {
     if (redirect) {
       alert("請先登入會員才能進行此操作。");
-      window.location.href = "./login.html"; // 假設相對路徑是正確的
+      window.location.href = "./login.html";
     }
     return false;
   }
@@ -50,7 +51,7 @@ export function checkAuth(redirect = true) {
 }
 
 /**
- * [新增] 獲取 Token (供 API 呼叫使用)
+ * 獲取 Token (供 API 呼叫使用)
  */
 export function getAuthToken() {
   return localStorage.getItem("customerToken");
@@ -63,45 +64,61 @@ export function customerLogout() {
   localStorage.removeItem("customerToken");
   localStorage.removeItem("customerUser");
   alert("您已成功登出。");
-  // 假設登出後都導回首頁
   window.location.href = "./index.html";
 }
 
 /**
- * 設置導覽列上的客戶認證狀態和連結
+ * 設置導覽列上的客戶認證狀態 (包含桌面版與手機版)
  */
 export function setupCustomerAuth() {
   const customer = getCustomer();
+
+  // 1. 桌面版頂部導航處理
   const desktopLinks = document.getElementById("nav-auth-links-desktop");
-  const mobileLinks = document.getElementById("nav-auth-links-mobile");
-  const footerLinks = document.getElementById("footer-auth-links");
-
-  // 1. Navbar 連結處理
-  if (desktopLinks && mobileLinks) {
+  if (desktopLinks) {
     if (customer) {
-      const commonLinks = `
-        <a href="../html/my-account.html" class="nav-link">我的訂單</a>
-        <button id="logout-btn" class="btn-small-delete">登出</button>
-      `;
-      desktopLinks.innerHTML = commonLinks;
-      mobileLinks.innerHTML = commonLinks;
-
-      // 綁定所有登出按鈕
-      document.querySelectorAll("#logout-btn").forEach((btn) => {
-        btn.addEventListener("click", customerLogout);
-      });
-    } else {
+      // 已登入狀態
       desktopLinks.innerHTML = `
-        <a href="../html/login.html" class="nav-link-button">會員登入</a>
+        <span style="font-size:0.9rem; color:#666; margin-right:10px;">Hi, ${customer.paopao_id}</span>
+        <a href="./my-account.html" class="nav-link">我的訂單</a>
+        <span style="color:#ddd; margin:0 5px;">|</span>
+        <a href="#" id="logout-btn-desktop" class="nav-link">登出</a>
       `;
-      mobileLinks.innerHTML = `
-        <a href="../html/login.html" class="nav-link-button">會員登入</a>
-        <a href="../html/register.html" class="nav-link">免費註冊</a>
+      // 綁定登出
+      document
+        .getElementById("logout-btn-desktop")
+        .addEventListener("click", (e) => {
+          e.preventDefault();
+          customerLogout();
+        });
+    } else {
+      // 未登入狀態
+      desktopLinks.innerHTML = `
+        <a href="./login.html" class="nav-link">登入</a>
+        <span style="color:#ddd; margin:0 5px;">|</span>
+        <a href="./register.html" class="nav-link" style="color:var(--taobao-orange); font-weight:bold;">免費註冊</a>
       `;
     }
   }
 
-  // 2. Footer 連結處理
+  // 2. 手機版底部導航處理
+  const tabAccount = document.getElementById("tab-account");
+  if (tabAccount) {
+    const text = tabAccount.querySelector("span");
+
+    if (customer) {
+      // 已登入
+      tabAccount.href = "./my-account.html";
+      if (text) text.textContent = "我的";
+    } else {
+      // 未登入 (引導去登入)
+      tabAccount.href = "./login.html";
+      if (text) text.textContent = "登入";
+    }
+  }
+
+  // 3. 頁尾連結 (如果有)
+  const footerLinks = document.getElementById("footer-auth-links");
   if (footerLinks) {
     footerLinks.style.display = customer ? "none" : "block";
   }
@@ -123,12 +140,10 @@ export function setupHamburgerMenu() {
 
 /**
  * 從 localStorage 載入購物車
- * @param {object} shoppingCart - 傳入當前的購物車物件 (會被修改)
- * @returns {object} - 更新後的購物車物件
  */
 export function loadCart(shoppingCart) {
   const savedCart = localStorage.getItem("shoppingCart");
-  // 清空舊的購物車物件並複製新資料
+  // 清空舊物件並載入新資料
   Object.keys(shoppingCart).forEach((key) => delete shoppingCart[key]);
   if (savedCart) {
     try {
@@ -141,23 +156,28 @@ export function loadCart(shoppingCart) {
 }
 
 /**
- * 將商品加入購物車
- * @param {object} shoppingCart - 傳入當前的購物車物件 (會被修改)
+ * 將商品加入購物車 (支援規格)
+ * @param {object} shoppingCart - 購物車物件
  * @param {string} id - 商品 ID
  * @param {string} name - 商品名稱
- * @param {number} price - 商品價格
+ * @param {number} price - 價格
+ * @param {string|null} spec - 規格 (可選)
  */
-export function addToCart(shoppingCart, id, name, price) {
-  if (shoppingCart[id]) {
-    shoppingCart[id].quantity++;
+export function addToCart(shoppingCart, id, name, price, spec = null) {
+  // 使用 複合 Key (ID + 規格) 來區分不同規格的同一商品
+  const cartKey = spec ? `${id}_${spec}` : `${id}`;
+
+  if (shoppingCart[cartKey]) {
+    shoppingCart[cartKey].quantity++;
   } else {
-    shoppingCart[id] = {
+    shoppingCart[cartKey] = {
+      id: id, // 保留原始 ID (API用)
       name: name,
       price: price,
+      spec: spec,
       quantity: 1,
     };
   }
-
   try {
     localStorage.setItem("shoppingCart", JSON.stringify(shoppingCart));
   } catch (e) {
@@ -166,8 +186,7 @@ export function addToCart(shoppingCart, id, name, price) {
 }
 
 /**
- * [新增] 載入已啟用的倉庫資料
- * @returns {Promise<Array>} - 已啟用的倉庫陣列
+ * 載入已啟用的倉庫資料
  */
 export async function loadAvailableWarehouses() {
   try {
@@ -182,9 +201,7 @@ export async function loadAvailableWarehouses() {
 }
 
 /**
- * [新增] 填充倉庫下拉選單
- * @param {string} selectId - 下拉選單的 ID
- * @param {Array} warehouses - 倉庫資料陣列
+ * 填充倉庫下拉選單 (只顯示名稱)
  */
 export function populateWarehouseSelect(selectId, warehouses) {
   const selectEl = document.getElementById(selectId);
@@ -202,7 +219,7 @@ export function populateWarehouseSelect(selectId, warehouses) {
   warehouses.forEach((wh) => {
     const option = document.createElement("option");
     option.value = wh.id;
-    // [修改] 這裡改為只顯示倉庫名稱
+    // [優化] 這裡只顯示倉庫名稱，讓介面更簡潔
     option.textContent = wh.name;
     selectEl.appendChild(option);
   });

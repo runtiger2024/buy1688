@@ -6,6 +6,8 @@ import {
   setupHamburgerMenu,
   checkAuth,
   getAuthToken,
+  getCustomer,
+  customerLogout,
   loadCart, // 為了更新購物車數字
 } from "./sharedUtils.js";
 
@@ -30,7 +32,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupCustomerAuth();
   setupBottomNav();
 
-  // 更新購物車數字
+  // 更新購物車數字 (雖不顯示購物車內容，但更新 Badge)
   let cart = {};
   loadCart(cart);
   const count = Object.values(cart).reduce((a, b) => a + b.quantity, 0);
@@ -50,7 +52,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 function renderUserProfile() {
-  const customer = JSON.parse(localStorage.getItem("customerUser"));
+  const customer = getCustomer();
   if (!customer) return;
 
   const idEl = document.getElementById("profile-id");
@@ -65,10 +67,7 @@ function renderUserProfile() {
   if (logoutBtn) {
     logoutBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      localStorage.removeItem("customerToken");
-      localStorage.removeItem("customerUser");
-      alert("您已成功登出。");
-      window.location.href = "./index.html";
+      customerLogout();
     });
   }
 }
@@ -145,18 +144,26 @@ function renderOrders() {
     const isUnpaid = order.payment_status === "UNPAID";
     const hasVoucher = !!order.payment_voucher_url; // 檢查是否有憑證
 
-    // 商品摘要
+    // 訂單商品摘要
     const itemsHtml = order.items
       .slice(0, 2)
       .map(
         (item) => `
             <div class="order-item">
-                <div class="item-name">${item.snapshot_name}</div>
+                <div class="item-name">
+                    ${item.snapshot_name}
+                    ${
+                      item.item_spec
+                        ? `<br><small style="color:#999;">規格: ${item.item_spec}</small>`
+                        : ""
+                    }
+                </div>
                 <div class="item-qty">x${item.quantity}</div>
             </div>
         `
       )
       .join("");
+
     const moreItemsHtml =
       order.items.length > 2
         ? `<div style="font-size:0.8rem; color:#999; margin-top:5px;">...還有 ${
@@ -164,7 +171,7 @@ function renderOrders() {
           } 項商品</div>`
         : "";
 
-    // --- [核心修復] 動態決定操作按鈕與隱藏區塊內容 ---
+    // 動態決定操作按鈕與隱藏區塊內容
     let actionsHtml = "";
     let hiddenAreaHtml = "";
 
@@ -176,7 +183,7 @@ function renderOrders() {
         // [已上傳過] -> 顯示「查看憑證」按鈕，隱藏上傳表單
         actionsHtml = `${bankBtn} <button class="btn-action" onclick="toggleVoucherForm('${order.id}')">查看已傳憑證</button>`;
 
-        // 顯示憑證圖片 (判斷是 Base64 還是網址)
+        // 顯示憑證圖片
         let imgDisplay = "";
         if (order.payment_voucher_url.startsWith("data:image")) {
           imgDisplay = `<img src="${order.payment_voucher_url}" style="max-width:100%; border-radius:4px; margin-top:10px;">`;
@@ -241,6 +248,7 @@ function renderOrders() {
   });
 }
 
+// 顯示/隱藏憑證上傳或查看區
 window.toggleVoucherForm = function (id) {
   const area = document.getElementById(`voucher-area-${id}`);
   if (area) {
@@ -273,6 +281,7 @@ async function loadBankInfo() {
   }
 }
 
+// 複製匯款資訊
 window.copyBankInfo = function (orderId, amount) {
   if (!bankInfo) return alert("讀取銀行資訊失敗");
   const text = `
@@ -286,6 +295,7 @@ window.copyBankInfo = function (orderId, amount) {
   navigator.clipboard.writeText(text).then(() => alert("匯款資訊已複製！"));
 };
 
+// 處理上傳
 window.handleVoucherUpload = function (e, orderId) {
   e.preventDefault();
   const headers = getAuthHeaders();

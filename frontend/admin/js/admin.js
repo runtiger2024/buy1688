@@ -2,7 +2,7 @@
 import { checkAuth, getUser, logout, copyToClipboard } from "./utils.js";
 import { api } from "./api.js";
 
-// 常數映射
+// --- 1. 常數與全域變數 ---
 const ORDER_STATUS_MAP = {
   Pending: "待處理",
   Processing: "採購中",
@@ -20,21 +20,24 @@ const ORDER_TYPE_MAP = {
   Assist: "代客採購",
 };
 
-// --- 全局狀態 ---
 let availableOperators = [];
 let allWarehouses = new Map();
 let allCategories = [];
 let allOrders = [];
+let allUsers = [];
+let allCustomers = [];
 let currentOrder = null; // 當前 Modal 編輯的訂單
 
 let currentStatusFilter = "";
 let currentPaymentStatusFilter = "";
 let currentSearchTerm = "";
-let currentHasVoucherFilter = false; // [新增] 憑證篩選狀態
+let currentHasVoucherFilter = false;
+let userSearchTerm = "";
+let customerSearchTerm = "";
 
-// --- 暴露給全局使用的函式 (供 HTML onclick 使用) ---
+// --- 2. 暴露給全局的工具函式 (供 HTML onclick 使用) ---
 
-// 1. 複製集運倉資訊
+// 複製集運倉資訊
 window.copyShippingInfo = (paopaoId, warehouseId) => {
   const warehouse = allWarehouses.get(parseInt(warehouseId, 10));
   if (!warehouse) {
@@ -51,7 +54,7 @@ window.copyShippingInfo = (paopaoId, warehouseId) => {
   copyToClipboard(text, "✅ 寄送資訊已複製！");
 };
 
-// 2. 複製訂單摘要
+// 複製訂單摘要
 window.copyOrderSummary = () => {
   if (!currentOrder) return;
 
@@ -59,7 +62,12 @@ window.copyOrderSummary = () => {
   const warehouseName = warehouse ? warehouse.name : "未指定";
 
   let itemsText = currentOrder.items
-    .map((item, idx) => `${idx + 1}. ${item.snapshot_name} (x${item.quantity})`)
+    .map(
+      (item, idx) =>
+        `${idx + 1}. ${item.snapshot_name} ${
+          item.item_spec ? `(${item.item_spec})` : ""
+        } (x${item.quantity})`
+    )
     .join("\n");
 
   const text = `
@@ -76,27 +84,23 @@ ${itemsText}
   copyToClipboard(text, "📋 訂單摘要已複製！");
 };
 
-// 3. [修正] 標記訂單為已付款 (不關閉視窗，原地更新)
+// 標記訂單為已付款 (原地更新，不關閉視窗)
 window.markOrderPaid = async function (id) {
   if (!confirm("確定標記為已付款？系統將發信通知客戶。")) return;
   try {
     await api.updateOrder(id, { payment_status: "PAID" });
-    // alert("更新成功"); // 可選擇移除 alert 讓體驗更順暢
-
-    // 重新載入列表資料以獲取最新狀態
-    await loadOrders();
-
-    // 重新打開(刷新) Modal，讓按鈕變成「已付款」標籤
-    openOrderModal(id);
-
-    loadStats(); // 更新背景的統計數字
+    // 不跳 alert，直接刷新體驗更好
+    await loadOrders(); // 重新拉取資料
+    openOrderModal(id); // 重新渲染 Modal 內容
+    loadStats(); // 更新背景統計
   } catch (e) {
     alert(e.message);
   }
 };
 
-// 4. 篩選待核銷憑證 (從儀表板跳轉)
+// 篩選待核銷憑證 (從儀表板跳轉)
 window.filterPendingVouchers = function () {
+  // 切換 UI 到訂單頁
   document
     .querySelectorAll(".sidebar-nav .nav-link")
     .forEach((l) => l.classList.remove("active"));
@@ -110,20 +114,19 @@ window.filterPendingVouchers = function () {
   if (orderLink) orderLink.classList.add("active");
   document.getElementById("orders-section").classList.add("active");
 
+  // 設定篩選條件
   currentHasVoucherFilter = true;
   document.getElementById("order-status-filter").value = "";
   document.getElementById("order-payment-status-filter").value = "UNPAID";
   loadOrders();
 };
 
-// --- 初始化 ---
+// --- 3. 初始化 ---
 document.addEventListener("DOMContentLoaded", async () => {
   if (!checkAuth()) return;
 
-  // 1. 綁定 Sidebar 導航
   setupNavigation();
 
-  // 2. 顯示用戶資訊
   const user = getUser();
   if (user) {
     document.getElementById("user-info").innerHTML = `
@@ -138,16 +141,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // 3. 綁定登出
   document.getElementById("logout-button").addEventListener("click", logout);
 
-  // 4. 載入基礎資料
+  // 預載資料
   await Promise.all([loadSettings(), loadWarehouses(), loadUsers()]);
 
-  // 5. 預設載入 Dashboard
   loadStats();
 
-  // 6. 綁定各區塊事件
+  // 綁定事件
   setupDashboardEvents();
   setupOrderEvents();
   setupProductEvents();
@@ -159,9 +160,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupModalClosers();
 });
 
-// ==========================================
-// 1. 導航邏輯
-// ==========================================
+// --- 4. 導航邏輯 ---
 function setupNavigation() {
   const links = document.querySelectorAll(".sidebar-nav .nav-link");
   const sections = document.querySelectorAll(".dashboard-section");
@@ -177,9 +176,8 @@ function setupNavigation() {
       const targetSection = document.getElementById(targetId);
       if (targetSection) targetSection.classList.add("active");
 
-      // 根據切換到的頁面載入對應資料
       if (targetId === "orders-section") {
-        currentHasVoucherFilter = false; // 切換回訂單頁時重置特殊篩選
+        currentHasVoucherFilter = false;
         loadOrders();
       }
       if (targetId === "products-section") loadProducts();
@@ -192,9 +190,7 @@ function setupNavigation() {
   });
 }
 
-// ==========================================
-// 2. 儀表板 (Stats)
-// ==========================================
+// --- 5. 儀表板 (Stats) ---
 async function loadStats() {
   const container = document.getElementById("stats-cards-container");
   const refreshBtn = document.getElementById("refresh-stats");
@@ -210,7 +206,7 @@ async function loadStats() {
 
     container.innerHTML = `
             <div class="stat-card danger" style="cursor: pointer;" onclick="filterPendingVouchers()">
-                <h4>🔔 待核銷憑證 (點擊篩選)</h4>
+                <h4>🔔 待核銷憑證</h4>
                 <div class="value">${stats.pendingVoucherCount || 0}</div>
             </div>
             <div class="stat-card success">
@@ -249,12 +245,9 @@ function setupDashboardEvents() {
   document.getElementById("refresh-stats").addEventListener("click", loadStats);
 }
 
-// ==========================================
-// 3. 訂單管理 (Orders)
-// ==========================================
+// --- 6. 訂單管理 (Orders) ---
 async function loadOrders() {
   const tbody = document.getElementById("orders-tbody");
-  // 僅在第一次載入時顯示 Loading，避免閃爍
   if (tbody.innerHTML.trim() === "") {
     tbody.innerHTML =
       '<tr><td colspan="9" class="text-center">載入中...</td></tr>';
@@ -304,10 +297,9 @@ function renderOrdersTable(orders) {
     let paymentBadge =
       order.payment_status === "PAID" ? "badge-success" : "badge-danger";
 
-    // 憑證提醒徽章
     let voucherAlert = "";
     if (order.payment_status === "UNPAID" && order.payment_voucher_url) {
-      voucherAlert = `<span class="badge badge-warning" style="margin-left:5px; background-color:#ffc107; color:#000;"><i class="fas fa-bell"></i> 新憑證</span>`;
+      voucherAlert = `<span class="badge badge-warning" style="margin-left:5px; background-color:#ffc107; color:#000;"><i class="fas fa-bell"></i></span>`;
     }
 
     const tr = document.createElement("tr");
@@ -335,7 +327,7 @@ function renderOrdersTable(orders) {
                 <button class="btn btn-small btn-primary btn-view-order" data-id="${
                   order.id
                 }">
-                    <i class="fas fa-eye"></i> 詳情/編輯
+                    <i class="fas fa-eye"></i>
                 </button>
             </td>
         `;
@@ -383,7 +375,6 @@ function setupOrderEvents() {
     .addEventListener("click", saveOrderChanges);
 }
 
-// --- 訂單 Modal 邏輯 (包含商品詳情修正) ---
 function openOrderModal(orderId) {
   const order = allOrders.find((o) => o.id == orderId);
   if (!order) return;
@@ -418,11 +409,11 @@ function openOrderModal(orderId) {
     .map(
       (item) => `
         <tr>
-            <td>${
-              item.snapshot_name || item.product?.name || "商品"
-            } <br> <small class="text-muted">${
-        item.item_spec || ""
-      }</small></td>
+            <td>
+                ${item.snapshot_name || item.product?.name || "商品"} 
+                <br> 
+                <small class="text-muted">${item.item_spec || "無規格"}</small>
+            </td>
             <td>${
               item.item_url
                 ? `<a href="${item.item_url}" target="_blank"><i class="fas fa-link"></i></a>`
@@ -440,14 +431,14 @@ function openOrderModal(orderId) {
             <div>
                 <p>
                     <strong>訂單編號:</strong> #${order.id}
-                    <button class="btn btn-small btn-light" onclick="copyOrderSummary()" style="margin-left:10px;">📋 複製訂單摘要</button>
+                    <button class="btn btn-small btn-light" onclick="copyOrderSummary()" style="margin-left:10px;">📋 複製摘要</button>
                 </p>
                 <p><strong>會員:</strong> ${order.paopao_id}</p>
                 <p><strong>Email:</strong> ${order.customer_email || "-"}</p>
                 <p><strong>集運倉:</strong> ${warehouseName} 
                    ${
                      order.warehouse_id
-                       ? `<button class="btn btn-small btn-light" onclick="copyShippingInfo('${order.paopao_id}', ${order.warehouse_id})">複製倉庫資訊</button>`
+                       ? `<button class="btn btn-small btn-light" onclick="copyShippingInfo('${order.paopao_id}', ${order.warehouse_id})">複製地址</button>`
                        : ""
                    }
                 </p>
@@ -494,7 +485,7 @@ function openOrderModal(orderId) {
                 </select>
             </div>
             <div class="form-group">
-                <label>大陸物流單號 (發往集運倉)</label>
+                <label>大陸物流單號</label>
                 <input type="text" id="modal-order-tracking" value="${
                   order.domestic_tracking_number || ""
                 }" placeholder="輸入快遞單號">
@@ -516,7 +507,7 @@ function openOrderModal(orderId) {
         <h4 class="mt-5">商品清單</h4>
         <table class="data-table" style="font-size: 0.85rem;">
             <thead>
-                <tr><th>商品</th><th>連結</th><th>成本</th><th>數量</th></tr>
+                <tr><th>商品/規格</th><th>連結</th><th>成本(CNY)</th><th>數量</th></tr>
             </thead>
             <tbody>${itemsHtml}</tbody>
         </table>
@@ -552,9 +543,7 @@ async function saveOrderChanges() {
   }
 }
 
-// ==========================================
-// 4. 商品管理 (Products)
-// ==========================================
+// --- 7. 商品管理 (Products) - 包含規格 ---
 async function loadProducts() {
   const tbody = document.getElementById("products-tbody");
   tbody.innerHTML =
@@ -578,27 +567,22 @@ function renderProductsTable(products) {
   }
 
   products.forEach((p) => {
-    const imgUrl = p.images && p.images.length > 0 ? p.images[0] : "";
+    const imgUrl =
+      p.images && p.images.length > 0
+        ? p.images[0]
+        : "https://via.placeholder.com/50?text=No+Img";
     const categoryName = p.category ? p.category.name : "-";
     const tr = document.createElement("tr");
     tr.innerHTML = `
             <td>${p.id}</td>
-            <td>${
-              imgUrl
-                ? `<img src="${imgUrl}" class="img-thumb" onclick="window.open('${imgUrl}')">`
-                : "無"
-            }</td>
+            <td><img src="${imgUrl}" class="img-thumb" onclick="window.open('${imgUrl}')"></td>
             <td>${p.name}</td>
             <td>${categoryName}</td>
             <td>${p.price_twd}</td>
             <td>${p.cost_cny}</td>
             <td>
-                <button class="btn btn-small btn-primary btn-edit-product" data-id="${
-                  p.id
-                }"><i class="fas fa-edit"></i> 編輯</button>
-                <button class="btn btn-small btn-danger btn-delete-product" data-id="${
-                  p.id
-                }"><i class="fas fa-trash"></i> 封存</button>
+                <button class="btn btn-small btn-primary btn-edit-product" data-id="${p.id}"><i class="fas fa-edit"></i> 編輯</button>
+                <button class="btn btn-small btn-danger btn-delete-product" data-id="${p.id}"><i class="fas fa-trash"></i> 封存</button>
             </td>
         `;
     tbody.appendChild(tr);
@@ -635,6 +619,15 @@ function setupProductEvents() {
         .map((i) => i.value.trim())
         .filter((v) => v);
 
+      // [規格處理] 將逗號分隔字串轉為陣列
+      const specsStr = document.getElementById("product-specs").value;
+      const specs = specsStr
+        ? specsStr
+            .split(/,|，/)
+            .map((s) => s.trim())
+            .filter((s) => s)
+        : [];
+
       const data = {
         name: document.getElementById("product-name").value,
         category_id: document.getElementById("product-category").value,
@@ -642,6 +635,7 @@ function setupProductEvents() {
         cost_cny: document.getElementById("product-cost").value,
         description: document.getElementById("product-description").value,
         images: images,
+        specs: specs, // 傳送規格
       };
 
       try {
@@ -671,6 +665,7 @@ async function openProductModal(id) {
   document.getElementById("product-images-container").innerHTML =
     '<input type="text" class="product-img-input" placeholder="主圖 URL" required>';
   document.getElementById("product-id").value = "";
+  document.getElementById("product-specs").value = "";
   document.getElementById("product-modal-title").textContent = "新增商品";
 
   if (id) {
@@ -685,6 +680,11 @@ async function openProductModal(id) {
       document.getElementById("product-cost").value = p.cost_cny;
       document.getElementById("product-description").value =
         p.description || "";
+
+      // [規格回填] 陣列轉字串
+      document.getElementById("product-specs").value = p.specs
+        ? p.specs.join(", ")
+        : "";
 
       const container = document.getElementById("product-images-container");
       container.innerHTML = "";
@@ -717,9 +717,7 @@ async function archiveProduct(id) {
   }
 }
 
-// ==========================================
-// 5. 分類管理 (Categories)
-// ==========================================
+// --- 8. 分類管理 (Categories) ---
 async function loadCategories() {
   const tbody = document.getElementById("categories-tbody");
   tbody.innerHTML =
@@ -804,7 +802,7 @@ function openCategoryModal(id) {
 }
 
 async function deleteCategory(id) {
-  if (confirm("確定刪除？若分類下有商品將無法刪除。")) {
+  if (confirm("確定刪除？")) {
     try {
       await api.deleteCategory(id);
       loadCategories();
@@ -814,9 +812,7 @@ async function deleteCategory(id) {
   }
 }
 
-// ==========================================
-// 6. 倉庫與其他
-// ==========================================
+// --- 9. 倉庫管理 (Warehouses) ---
 async function loadWarehouses() {
   try {
     const warehouses = await api.getWarehouses();
@@ -899,14 +895,15 @@ function openWarehouseModal(id) {
   document.getElementById("warehouse-modal").style.display = "block";
 }
 
+// --- 10. 人員管理 (Users) ---
 async function loadUsers() {
   if (getUser().role !== "admin") return;
   const tbody = document.getElementById("users-tbody");
   tbody.innerHTML = "<tr><td>載入中...</td></tr>";
   try {
     const users = await api.getUsers();
-    allUsers = users; // 緩存供搜尋用
-    renderUsersTable(allUsers); // 預設顯示全部
+    allUsers = users;
+    renderUsersTable(allUsers);
     availableOperators = users.filter(
       (u) => u.role === "operator" && u.status === "active"
     );
@@ -1061,9 +1058,7 @@ function openUserModal(id) {
   document.getElementById("user-modal").style.display = "block";
 }
 
-// ==========================================
-// 7. 會員 (Customers) 管理
-// ==========================================
+// --- 11. 會員管理 (Customers) ---
 async function loadCustomers() {
   const tbody = document.getElementById("customers-tbody");
   tbody.innerHTML =
@@ -1079,7 +1074,6 @@ async function loadCustomers() {
 
 function renderCustomersTable(customers) {
   const tbody = document.getElementById("customers-tbody");
-
   const filtered = customers.filter(
     (c) =>
       c.paopao_id.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
@@ -1105,9 +1099,7 @@ function renderCustomersTable(customers) {
             <td>
                 <button class="btn btn-small btn-primary btn-edit-customer" data-id="${
                   c.id
-                }">
-                    <i class="fas fa-edit"></i> 編輯/重置
-                </button>
+                }"><i class="fas fa-edit"></i> 編輯/重置</button>
             </td>
         `;
     tbody.appendChild(tr);
@@ -1139,14 +1131,10 @@ function setupCustomerEvents() {
       const password = document.getElementById("customer-password").value;
 
       try {
-        // 1. 更新基本資料
         await api.updateCustomer(id, { email, phone });
-
-        // 2. 如果有填寫密碼，則重置
         if (password) {
           await api.updateCustomerPassword(id, password);
         }
-
         alert("會員資料已更新");
         document.getElementById("customer-modal").style.display = "none";
         loadCustomers();
@@ -1170,9 +1158,7 @@ function openCustomerModal(id) {
   document.getElementById("customer-modal").style.display = "block";
 }
 
-// ==========================================
-// 8. 系統設置
-// ==========================================
+// --- 12. 系統設置 ---
 async function loadSettings() {
   try {
     const settings = await api.getSettings();
@@ -1187,7 +1173,7 @@ async function loadSettings() {
     document.getElementById("bank-account-name-input").value =
       settings.bank_account_name || "";
 
-    // [新增] 新設定欄位回填
+    // 新設定欄位回填
     document.getElementById("email-api-key-input").value =
       settings.email_api_key || "";
     document.getElementById("email-from-input").value =
@@ -1217,7 +1203,6 @@ function setupSettingsEvents() {
           bank_account: document.getElementById("bank-account-input").value,
           bank_account_name: document.getElementById("bank-account-name-input")
             .value,
-          // [新增] 收集新欄位
           email_api_key: document.getElementById("email-api-key-input").value,
           email_from_email: document.getElementById("email-from-input").value,
           invoice_merchant_id: document.getElementById(
@@ -1238,7 +1223,7 @@ function setupSettingsEvents() {
     });
 }
 
-// Modal 通用關閉
+// --- Modal 通用關閉 ---
 function setupModalClosers() {
   document.querySelectorAll(".close-modal").forEach((span) => {
     span.addEventListener("click", () => {

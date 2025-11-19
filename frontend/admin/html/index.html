@@ -84,7 +84,6 @@
               <i class="fas fa-sync"></i> 刷新
             </button>
           </div>
-
           <div id="stats-cards-container" class="stats-grid">
             <p>載入數據中...</p>
           </div>
@@ -94,7 +93,6 @@
           <div class="section-header">
             <h2><i class="fas fa-shopping-cart"></i> 訂單列表</h2>
           </div>
-
           <div class="toolbar">
             <div class="search-box">
               <input
@@ -124,7 +122,6 @@
               <button id="refresh-orders" class="btn btn-light">重置</button>
             </div>
           </div>
-
           <div class="table-responsive">
             <table class="data-table">
               <thead>
@@ -132,8 +129,8 @@
                   <th>ID</th>
                   <th>類型</th>
                   <th>建立時間</th>
-                  <th>會員 (ID)</th>
-                  <th>總金額 (TWD)</th>
+                  <th>會員</th>
+                  <th>總金額</th>
                   <th>預估利潤</th>
                   <th>狀態</th>
                   <th>付款</th>
@@ -160,8 +157,8 @@
                   <th>圖片</th>
                   <th>名稱</th>
                   <th>分類</th>
-                  <th>售價 (TWD)</th>
-                  <th>成本 (CNY)</th>
+                  <th>售價</th>
+                  <th>成本</th>
                   <th>操作</th>
                 </tr>
               </thead>
@@ -265,7 +262,6 @@
               <i class="fas fa-plus"></i> 建立新用戶
             </button>
           </div>
-
           <div class="toolbar">
             <div class="search-box">
               <input
@@ -275,7 +271,6 @@
               />
             </div>
           </div>
-
           <div class="table-responsive">
             <table class="data-table">
               <thead>
@@ -300,99 +295,67 @@
           <div class="section-header">
             <h2><i class="fas fa-cog"></i> 系統參數設置</h2>
           </div>
-
           <div class="settings-card">
             <h3><i class="fas fa-coins"></i> 費率設定</h3>
             <div class="form-group">
-              <label>匯率 (CNY → TWD)</label>
-              <input type="number" id="exchange-rate-input" step="0.01" />
-              <small>例: 4.5 表示 1 人民幣 = 4.5 台幣</small>
+              <label>匯率 (CNY → TWD)</label
+              ><input type="number" id="exchange-rate-input" step="0.01" />
             </div>
             <div class="form-group">
-              <label>代購服務費率</label>
-              <input type="number" id="service-fee-input" step="0.01" />
-              <small>例: 0.05 表示 5%</small>
+              <label>代購服務費率</label
+              ><input type="number" id="service-fee-input" step="0.01" />
             </div>
           </div>
-
           <div class="settings-card">
-            <h3><i class="fas fa-university"></i> 收款銀行資訊 (前台顯示)</h3>
+            <h3><i class="fas fa-university"></i> 收款銀行資訊</h3>
             <div class="form-group">
-              <label>銀行名稱與代碼</label>
-              <input
-                type="text"
-                id="bank-name-input"
-                placeholder="例: 玉山銀行 (808)"
-              />
+              <label>銀行名稱</label><input type="text" id="bank-name-input" />
             </div>
             <div class="form-group">
-              <label>銀行帳號</label>
-              <input type="text" id="bank-account-input" />
+              <label>銀行帳號</label
+              ><input type="text" id="bank-account-input" />
             </div>
             <div class="form-group">
-              <label>戶名</label>
-              <input type="text" id="bank-account-name-input" />
+              <label>戶名</label
+              ><input type="text" id="bank-account-name-input" />
             </div>
           </div>
-
           <div class="settings-card">
-            <h3><i class="fas fa-envelope"></i> Email 通知設定 (SendGrid)</h3>
+            <h3><i class="fas fa-envelope"></i> Email 通知設定</h3>
             <div class="form-group">
-              <label>SendGrid API Key</label>
-              <input
-                type="password"
-                id="email-api-key-input"
-                placeholder="SG.xxxxxxxx..."
-              />
-              <small>若留空則使用系統預設值</small>
+              <label>SendGrid API Key</label
+              ><input type="password" id="email-api-key-input" />
             </div>
             <div class="form-group">
-              <label>系統發信 Email (From)</label>
-              <input
-                type="text"
-                id="email-from-input"
-                placeholder="noreply@example.com"
-              />
+              <label>系統發信 Email</label
+              ><input type="text" id="email-from-input" />
             </div>
           </div>
-
           <div class="settings-card">
-            <h3>
-              <i class="fas fa-file-invoice-dollar"></i> 發票系統設定 (未來功能)
-            </h3>
+            <h3><i class="fas fa-file-invoice-dollar"></i> 發票設定</h3>
             <div class="form-group">
-              <label>Merchant ID (商店代號)</label>
-              <input
-                type="text"
-                id="invoice-merchant-id-input"
-                placeholder="例如: EzPay / GreenWorld 商店代號"
-              />
+              <label>Merchant ID</label
+              ><input type="text" id="invoice-merchant-id-input" />
             </div>
             <div class="form-group">
-              <label>API Key / HashKey</label>
-              <input type="password" id="invoice-api-key-input" />
+              <label>API Key</label
+              ><input type="password" id="invoice-api-key-input" />
             </div>
           </div>
-
           <div class="settings-card">
-            <h3><i class="fas fa-credit-card"></i> 金流系統設定 (未來功能)</h3>
+            <h3><i class="fas fa-credit-card"></i> 金流設定</h3>
             <div class="form-group">
-              <label>Merchant ID (商店代號)</label>
-              <input
-                type="text"
-                id="payment-merchant-id-input"
-                placeholder="例如: 綠界 / 藍新 商店代號"
-              />
+              <label>Merchant ID</label
+              ><input type="text" id="payment-merchant-id-input" />
             </div>
             <div class="form-group">
-              <label>API Key / HashKey</label>
-              <input type="password" id="payment-api-key-input" />
+              <label>API Key</label
+              ><input type="password" id="payment-api-key-input" />
             </div>
           </div>
-
           <div class="settings-actions">
             <button id="save-settings-btn" class="btn btn-success btn-large">
-              儲存所有設定
+              儲存設定
             </button>
           </div>
         </section>
@@ -403,9 +366,7 @@
       <div class="modal-content large-modal">
         <span class="close-modal">&times;</span>
         <h3 id="order-modal-title">訂單詳情</h3>
-        <div class="modal-body">
-          <div id="order-modal-content"></div>
-        </div>
+        <div class="modal-body"><div id="order-modal-content"></div></div>
         <div class="modal-footer">
           <button id="btn-save-order" class="btn btn-primary">儲存變更</button>
         </div>
@@ -419,26 +380,34 @@
         <form id="product-form">
           <input type="hidden" id="product-id" />
           <div class="form-group">
-            <label>商品名稱 *</label>
-            <input type="text" id="product-name" required />
+            <label>商品名稱 *</label
+            ><input type="text" id="product-name" required />
           </div>
           <div class="form-group">
-            <label>分類 *</label>
-            <select id="product-category" required></select>
+            <label>分類 *</label
+            ><select id="product-category" required></select>
           </div>
           <div class="form-row-2">
             <div class="form-group">
-              <label>售價 (TWD) *</label>
-              <input type="number" id="product-price" required />
+              <label>售價 (TWD) *</label
+              ><input type="number" id="product-price" required />
             </div>
             <div class="form-group">
-              <label>成本 (CNY) *</label>
-              <input type="number" id="product-cost" step="0.01" required />
+              <label>成本 (CNY) *</label
+              ><input type="number" id="product-cost" step="0.01" required />
             </div>
           </div>
           <div class="form-group">
-            <label>描述</label>
-            <textarea id="product-description" rows="3"></textarea>
+            <label>規格選項 (用逗號分隔，如：紅色, 藍色, S, M)</label>
+            <input
+              type="text"
+              id="product-specs"
+              placeholder="紅色, 藍色, S, M"
+            />
+          </div>
+          <div class="form-group">
+            <label>描述</label
+            ><textarea id="product-description" rows="3"></textarea>
           </div>
           <div class="form-group bg-light p-10">
             <label>圖片連結 (URL)</label>
@@ -472,12 +441,10 @@
         <form id="category-form">
           <input type="hidden" id="category-id" />
           <div class="form-group">
-            <label>分類名稱</label>
-            <input type="text" id="category-name" required />
+            <label>名稱</label><input type="text" id="category-name" required />
           </div>
           <div class="form-group">
-            <label>描述</label>
-            <textarea id="category-description"></textarea>
+            <label>描述</label><textarea id="category-description"></textarea>
           </div>
           <div class="modal-footer">
             <button type="submit" class="btn btn-primary">儲存</button>
@@ -485,7 +452,6 @@
         </form>
       </div>
     </div>
-
     <div id="warehouse-modal" class="modal">
       <div class="modal-content">
         <span class="close-modal">&times;</span>
@@ -493,24 +459,24 @@
         <form id="warehouse-form">
           <input type="hidden" id="warehouse-id" />
           <div class="form-group">
-            <label>倉庫名稱</label>
-            <input type="text" id="warehouse-name" required />
+            <label>名稱</label
+            ><input type="text" id="warehouse-name" required />
           </div>
           <div class="form-group">
-            <label>收件人 (用 (會員編號) 代表變數)</label>
-            <input type="text" id="warehouse-receiver" required />
+            <label>收件人</label
+            ><input type="text" id="warehouse-receiver" required />
           </div>
           <div class="form-group">
-            <label>電話</label>
-            <input type="text" id="warehouse-phone" required />
+            <label>電話</label
+            ><input type="text" id="warehouse-phone" required />
           </div>
           <div class="form-group">
-            <label>地址</label>
-            <textarea id="warehouse-address" required></textarea>
+            <label>地址</label
+            ><textarea id="warehouse-address" required></textarea>
           </div>
           <div class="form-group">
-            <label>狀態</label>
-            <select id="warehouse-is-active">
+            <label>狀態</label
+            ><select id="warehouse-is-active">
               <option value="true">啟用</option>
               <option value="false">停用</option>
             </select>
@@ -521,25 +487,24 @@
         </form>
       </div>
     </div>
-
     <div id="user-modal" class="modal">
       <div class="modal-content">
         <span class="close-modal">&times;</span>
-        <h3 id="user-modal-title">建立新用戶</h3>
+        <h3 id="user-modal-title">用戶</h3>
         <form id="create-user-form">
           <input type="hidden" id="user-id" />
           <div class="form-group">
-            <label>帳號</label>
-            <input type="text" id="user-username" required />
+            <label>帳號</label><input type="text" id="user-username" required />
           </div>
           <div class="form-group">
-            <label id="user-password-label">密碼</label>
-            <input type="text" id="user-password" />
-            <small id="user-password-hint" style="color: #666"></small>
+            <label id="user-password-label">密碼</label
+            ><input type="text" id="user-password" /><small
+              id="user-password-hint"
+            ></small>
           </div>
           <div class="form-group">
-            <label>角色</label>
-            <select id="user-role">
+            <label>角色</label
+            ><select id="user-role">
               <option value="operator">操作員</option>
               <option value="admin">管理員</option>
             </select>
@@ -550,56 +515,40 @@
         </form>
       </div>
     </div>
-
     <div id="customer-modal" class="modal">
       <div class="modal-content">
         <span class="close-modal">&times;</span>
-        <h3>編輯會員資料</h3>
+        <h3>編輯會員</h3>
         <form id="customer-form">
           <input type="hidden" id="customer-id" />
           <div class="form-group">
-            <label>跑跑虎 ID (不可修改)</label>
-            <input
+            <label>ID</label
+            ><input
               type="text"
               id="customer-paopao-id"
               disabled
-              style="background-color: #eee"
+              style="background: #eee"
             />
           </div>
           <div class="form-group">
-            <label>Email</label>
-            <input type="email" id="customer-email" required />
+            <label>Email</label
+            ><input type="email" id="customer-email" required />
           </div>
           <div class="form-group">
-            <label>電話</label>
-            <input type="text" id="customer-phone" />
+            <label>電話</label><input type="text" id="customer-phone" />
           </div>
           <div class="form-group bg-light p-10">
-            <label>重置密碼</label>
-            <input
+            <label>重置密碼</label
+            ><input
               type="text"
               id="customer-password"
               placeholder="若不修改請留空"
             />
-            <small style="color: #666">輸入新密碼以強制重置會員密碼。</small>
           </div>
           <div class="modal-footer">
-            <button type="submit" class="btn btn-primary">儲存變更</button>
+            <button type="submit" class="btn btn-primary">儲存</button>
           </div>
         </form>
-      </div>
-    </div>
-
-    <div id="image-preview-modal" class="modal" style="z-index: 2000">
-      <div class="modal-content" style="width: auto; max-width: 90%">
-        <span class="close-modal">&times;</span>
-        <div style="text-align: center">
-          <img
-            id="preview-image"
-            src=""
-            style="max-width: 100%; max-height: 80vh"
-          />
-        </div>
       </div>
     </div>
 

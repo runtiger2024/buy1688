@@ -2,7 +2,7 @@
 import express from "express";
 import Joi from "joi";
 import prisma from "../db.js";
-import { randomUUID } from "crypto"; // 引入 UUID 產生器
+import { randomUUID } from "crypto";
 import {
   authenticateToken,
   isCustomer,
@@ -17,7 +17,7 @@ import {
 
 const router = express.Router();
 
-// --- 共通函式：載入系統設定與銀行資訊 ---
+// --- 共通函式 ---
 async function getSettingsAndBankInfo() {
   const settings = await prisma.systemSettings.findMany();
   const config = {};
@@ -32,7 +32,6 @@ async function getSettingsAndBankInfo() {
   };
   return { rate, fee, bankInfo };
 }
-// --- 共通函式結束 ---
 
 // --- 建立一般訂單 (強制登入) ---
 router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
@@ -46,6 +45,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
         Joi.object({
           id: Joi.string().required(),
           quantity: Joi.number().integer().min(1).required(),
+          spec: Joi.string().allow("").allow(null).optional(), // [新增] 允許規格字串
         })
       )
       .min(1)
@@ -87,6 +87,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
         snapshot_name: product.name,
         snapshot_price_twd: product.price_twd,
         snapshot_cost_cny: product.cost_cny,
+        item_spec: item.spec || null, // [新增] 儲存選的規格
       });
     }
 
@@ -95,7 +96,6 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
     });
     if (!warehouse) throw new Error("無效的集運倉 ID");
 
-    // 手動生成 share_token
     const newOrder = await prisma.orders.create({
       data: {
         paopao_id: userPaopaoId,
@@ -161,7 +161,6 @@ router.post(
       if (order.payment_status !== "UNPAID")
         return res.status(400).json({ message: "該訂單狀態無法上傳憑證" });
 
-      // 檢查是否已上傳過憑證
       if (order.payment_voucher_url) {
         return res.status(400).json({
           message: "您已上傳過憑證，請勿重複上傳。如需修改請聯繫客服。",
@@ -250,7 +249,6 @@ router.post(
         });
       }
 
-      // 手動生成 share_token
       const newOrder = await prisma.orders.create({
         data: {
           paopao_id: userPaopaoId,
@@ -288,7 +286,7 @@ router.post(
   }
 );
 
-// --- 公開查詢訂單 (不需登入) ---
+// --- 公開查詢訂單 ---
 router.get("/share/:token", async (req, res, next) => {
   try {
     const { token } = req.params;
@@ -328,7 +326,7 @@ router.get("/share/:token", async (req, res, next) => {
   }
 });
 
-// --- 客戶查詢自己的訂單 ---
+// --- 客戶查詢訂單 ---
 router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
   try {
     const orders = await prisma.orders.findMany({
@@ -368,7 +366,7 @@ router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
   }
 });
 
-// --- 操作員查詢 (支援搜尋 + 憑證篩選) ---
+// --- 操作員查詢 ---
 router.get(
   "/operator",
   authenticateToken,
@@ -403,15 +401,14 @@ router.get(
         include: {
           operator: { select: { username: true } },
           warehouse: { select: { name: true } },
-          // [修正] 補上完整的商品欄位
           items: {
             select: {
               quantity: true,
               snapshot_cost_cny: true,
-              snapshot_name: true, // 新增
-              snapshot_price_twd: true, // 新增
-              item_spec: true, // 新增
-              item_url: true, // 新增
+              snapshot_name: true,
+              snapshot_price_twd: true,
+              item_spec: true,
+              item_url: true,
             },
           },
         },
@@ -438,7 +435,7 @@ router.get(
   }
 );
 
-// --- 管理員查詢 (支援搜尋 + 憑證篩選) ---
+// --- 管理員查詢 ---
 router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
   try {
     const { status, paymentStatus, search, hasVoucher } = req.query;
@@ -468,15 +465,14 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
       where: whereClause,
       include: {
         warehouse: { select: { name: true } },
-        // [修正] 補上完整的商品欄位
         items: {
           select: {
             quantity: true,
             snapshot_cost_cny: true,
-            snapshot_name: true, // 新增
-            snapshot_price_twd: true, // 新增
-            item_spec: true, // 新增
-            item_url: true, // 新增
+            snapshot_name: true,
+            snapshot_price_twd: true,
+            item_spec: true,
+            item_url: true,
           },
         },
       },

@@ -1345,3 +1345,33 @@ body.login-body {
     display: none;
   }
 }
+/* 商品規格按鈕 */
+.spec-btn {
+  padding: 6px 15px;
+  border: 1px solid #ddd;
+  background: #fff;
+  border-radius: 6px;
+  margin-right: 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+.spec-btn:hover {
+  border-color: var(--taobao-orange);
+}
+.spec-btn.active {
+  border-color: var(--taobao-orange);
+  color: var(--taobao-orange);
+  background: #fff0e6;
+  font-weight: bold;
+}
+.specs-container {
+  margin-bottom: 20px;
+}
+.specs-title {
+  font-size: 0.9rem;
+  color: var(--text-gray);
+  margin-bottom: 8px;
+  font-weight: bold;
+}

@@ -25,8 +25,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 2. 初始化功能
   setupHamburgerMenu();
-  setupCustomerAuth(); // 處理登入狀態顯示
-  setupBottomNav(); // [新增] 設置底部導航狀態
+  setupCustomerAuth();
+  setupBottomNav();
 
   // 3. 載入資料
   loadCart(shoppingCart);
@@ -40,9 +40,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 4. 處理 URL 參數
   const params = new URLSearchParams(window.location.search);
   const categoryFromUrl = params.get("category");
-  if (categoryFromUrl) {
-    currentCategoryId = categoryFromUrl;
-  }
+  if (categoryFromUrl) currentCategoryId = categoryFromUrl;
+
   fetchProducts();
 
   // 5. 綁定搜尋事件
@@ -53,28 +52,25 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupCheckoutForm();
 });
 
-// [新增] 設置底部導航的 Active 狀態與購物車點擊
+// --- 導航與 UI 邏輯 ---
+
 function setupBottomNav() {
-  // 根據當前頁面點亮圖標
   const path = window.location.pathname;
-  if (path.includes("index.html") || path === "/") {
+  // 簡單判斷首頁 HighLight
+  if (path.includes("index.html") || path === "/" || path.endsWith("/")) {
     document.getElementById("tab-home")?.classList.add("active");
-  } else if (path.includes("assist.html")) {
-    document.getElementById("tab-assist")?.classList.add("active");
-  } else if (path.includes("my-account.html")) {
-    document.getElementById("tab-account")?.classList.add("active");
   }
 
-  // 綁定底部購物車按鈕 -> 打開 Modal
+  // 綁定底部購物車按鈕 -> 觸發 Modal
   const bottomCartBtn = document.getElementById("tab-cart");
   if (bottomCartBtn) {
     bottomCartBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      document.getElementById("cart-button").click(); // 觸發既有的 Modal 邏輯
+      document.getElementById("cart-button").click();
     });
   }
 
-  // 綁定桌面版購物車按鈕
+  // 綁定桌面版購物車按鈕 (Navbar 裡的)
   const desktopCartLink = document.getElementById("nav-cart-link-desktop");
   if (desktopCartLink) {
     desktopCartLink.addEventListener("click", (e) => {
@@ -105,6 +101,8 @@ function setupSearchEvents() {
   }
 }
 
+// --- 分類與商品載入邏輯 ---
+
 async function loadCategories() {
   const filterBar = document.getElementById("category-filter-bar");
   try {
@@ -132,7 +130,6 @@ async function loadCategories() {
       filterBar.appendChild(btn);
     });
 
-    // 設置 Active 狀態
     if (currentCategoryId) {
       const activeButton = document.querySelector(
         `.category-filter-btn[data-id="${currentCategoryId}"]`
@@ -143,7 +140,7 @@ async function loadCategories() {
     }
   } catch (error) {
     console.error("獲取分類失敗:", error);
-    filterBar.innerHTML = '<p style="color: red; margin: 0;">無法載入分類</p>';
+    filterBar.innerHTML = '<p style="color: red; margin: 0;">載入失敗</p>';
   }
 }
 
@@ -155,7 +152,6 @@ function handleCategoryClick(categoryId, clickedButton) {
   currentCategoryId = categoryId;
   fetchProducts();
 
-  // 更新 URL 但不刷新
   const url = new URL(window.location);
   if (currentCategoryId) {
     url.searchParams.set("category", currentCategoryId);
@@ -175,8 +171,7 @@ async function fetchProducts() {
     if (currentCategoryId) params.append("category", currentCategoryId);
     if (currentSearchTerm) params.append("search", currentSearchTerm);
 
-    const url = `${API_URL}/products?${params.toString()}`;
-    const response = await fetch(url);
+    const response = await fetch(`${API_URL}/products?${params.toString()}`);
     if (!response.ok) throw new Error("載入商品失敗");
     const products = await response.json();
 
@@ -185,8 +180,7 @@ async function fetchProducts() {
     if (products.length === 0) {
       productListDiv.innerHTML = `
         <div style="grid-column: 1/-1; text-align:center; padding: 40px;">
-            <i class="fas fa-box-open" style="font-size: 40px; color: #ccc;"></i>
-            <p style="color: #999; margin-top: 10px;">暫無符合的商品</p>
+            <p style="color: #999;">暫無符合的商品</p>
         </div>`;
       return;
     }
@@ -199,9 +193,10 @@ async function fetchProducts() {
         product.images && product.images.length > 0
           ? product.images[0]
           : "https://via.placeholder.com/300x300?text=No+Image";
-
-      // 假銷量 (模擬熱鬧感)
       const fakeSold = Math.floor(Math.random() * 500) + 10;
+
+      // 判斷是否有規格
+      const hasSpecs = product.specs && product.specs.length > 0;
 
       card.innerHTML = `
         <a href="../html/product.html?id=${product.id}" class="product-card-link">
@@ -209,7 +204,6 @@ async function fetchProducts() {
         </a>
         <div class="product-info">
             <h3>${product.name}</h3>
-            
             <div class="product-meta">
                 <div class="price-wrapper">
                     <span class="price-currency">TWD</span>
@@ -219,7 +213,8 @@ async function fetchProducts() {
                 <button class="btn-add-cart-icon" 
                         data-id="${product.id}" 
                         data-name="${product.name}" 
-                        data-price="${product.price_twd}">
+                        data-price="${product.price_twd}"
+                        data-has-specs="${hasSpecs}">
                     <i class="fas fa-cart-plus"></i>
                 </button>
             </div>
@@ -228,22 +223,28 @@ async function fetchProducts() {
       productListDiv.appendChild(card);
     });
 
-    // 綁定加入購物車
+    // 綁定「加入購物車」按鈕事件
     document.querySelectorAll(".btn-add-cart-icon").forEach((button) => {
       button.addEventListener("click", (e) => {
         e.stopPropagation(); // 防止點擊跳轉詳情頁
+
+        // [重要] 如果有規格，必須強制跳轉詳情頁
+        if (button.dataset.hasSpecs === "true") {
+          window.location.href = `../html/product.html?id=${button.dataset.id}`;
+          return;
+        }
+
+        // 無規格商品直接加入
         const id = button.dataset.id;
         const name = button.dataset.name;
         const price = parseInt(button.dataset.price, 10);
 
         addToCart(shoppingCart, id, name, price);
 
-        // 簡單動畫反饋
+        // 按鈕動畫
+        const originalContent = button.innerHTML;
         button.innerHTML = '<i class="fas fa-check"></i>';
-        setTimeout(
-          () => (button.innerHTML = '<i class="fas fa-cart-plus"></i>'),
-          1000
-        );
+        setTimeout(() => (button.innerHTML = originalContent), 1000);
 
         updateCartCount();
       });
@@ -251,65 +252,67 @@ async function fetchProducts() {
   } catch (error) {
     console.error("獲取商品失敗:", error);
     productListDiv.innerHTML =
-      '<p style="color: red; text-align:center;">載入失敗，請稍後再試。</p>';
+      '<p style="color: red; text-align:center;">載入失敗</p>';
   }
 }
 
-// --- 購物車 Modal 相關邏輯 (保留大部分原有邏輯，僅微調 UI) ---
+// --- 購物車 Modal 與 結帳邏輯 ---
+
 const modal = document.getElementById("cart-modal");
-const openBtn = document.getElementById("cart-button");
+const openBtn = document.getElementById("cart-button"); // 桌面版懸浮按鈕
 const closeBtn = document.getElementById("close-modal");
-const checkoutFormContainer = document.getElementById(
-  "checkout-form-container"
-);
-const checkoutSuccessMessage = document.getElementById(
-  "checkout-success-message"
-);
 
 function setupCartModal() {
-  openBtn.addEventListener("click", () => {
-    if (!checkAuth(false)) {
-      if (
-        confirm(
-          "請先登入或註冊會員才能查看購物車與結帳。\n\n是否前往登入頁面？"
-        )
-      ) {
-        window.location.href = "../html/login.html";
+  if (openBtn) {
+    openBtn.addEventListener("click", () => {
+      if (!checkAuth(false)) {
+        if (
+          confirm("請先登入或註冊會員才能查看購物車。\n\n是否前往登入頁面？")
+        ) {
+          window.location.href = "../html/login.html";
+        }
+        return;
       }
-      return;
-    }
 
-    autofillCheckoutForm();
-    renderCart();
-    checkoutFormContainer.style.display = "block";
-    checkoutSuccessMessage.style.display = "none";
-    modal.style.display = "block";
-  });
+      autofillCheckoutForm();
+      renderCart();
 
-  closeBtn.addEventListener("click", () => {
-    modal.style.display = "none";
-  });
+      // 顯示結帳表單
+      const formContainer = document.getElementById("checkout-form-container");
+      if (formContainer) formContainer.style.display = "block";
+
+      modal.style.display = "flex"; // 使用 flex 支援 RWD 居中/底部
+      modal.classList.add("active");
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      modal.style.display = "none";
+      modal.classList.remove("active");
+    });
+  }
 
   window.addEventListener("click", (event) => {
     if (event.target == modal) {
       modal.style.display = "none";
+      modal.classList.remove("active");
     }
   });
 
   // 購物車項目操作 (加減/刪除)
-  document
-    .getElementById("cart-items-list")
-    .addEventListener("click", (event) => {
+  const cartList = document.getElementById("cart-items-list");
+  if (cartList) {
+    cartList.addEventListener("click", (event) => {
       const target = event.target;
-      const id = target.dataset.id;
-      const action = target.dataset.action;
+      const id = target.dataset.id; // 這裡的 id 是 cartKey
 
       if (target.classList.contains("qty-btn") && id) {
         if (!shoppingCart[id]) return;
         let newQuantity = shoppingCart[id].quantity;
 
-        if (action === "plus") newQuantity++;
-        else if (action === "minus") newQuantity--;
+        if (target.dataset.action === "plus") newQuantity++;
+        else if (target.dataset.action === "minus") newQuantity--;
 
         if (newQuantity <= 0) delete shoppingCart[id];
         else shoppingCart[id].quantity = newQuantity;
@@ -323,6 +326,7 @@ function setupCartModal() {
         renderCart();
       }
     });
+  }
 }
 
 function renderCart() {
@@ -331,38 +335,45 @@ function renderCart() {
 
   if (Object.keys(shoppingCart).length === 0) {
     cartItemsList.innerHTML = `
-        <div style="text-align:center; padding:20px; color:#999;">
+        <div style="text-align:center; padding:30px; color:#999;">
             <i class="fas fa-shopping-cart" style="font-size:40px; margin-bottom:10px;"></i>
-            <p>您的購物車是空的</p>
-            <button onclick="document.getElementById('close-modal').click()" style="margin-top:10px; padding:5px 15px; background:#fff; border:1px solid #ccc; border-radius:15px;">去逛逛</button>
+            <p>購物車是空的</p>
         </div>`;
   } else {
     cartItemsList.innerHTML = "";
-    for (const id in shoppingCart) {
-      const item = shoppingCart[id];
+    // 遍歷購物車 (key 可能包含規格後綴)
+    for (const key in shoppingCart) {
+      const item = shoppingCart[key];
       const itemTotal = item.price * item.quantity;
       totalAmount += itemTotal;
 
       cartItemsList.innerHTML += `
-                <div class="cart-item">
-                    <div class="cart-item-info">
-                        <p style="margin:0 0 5px 0; font-size:0.95rem;">${item.name}</p>
-                        <span style="color:var(--taobao-orange); font-weight:bold;">TWD ${item.price}</span>
-                    </div>
-                    <div class="cart-item-actions">
-                        <div class="quantity-control" data-id="${id}">
-                            <button class="qty-btn qty-minus" data-action="minus" data-id="${id}">-</button>
-                            <input type="number" class="cart-item-quantity" data-id="${id}" value="${item.quantity}" min="1" readonly>
-                            <button class="qty-btn qty-plus" data-action="plus" data-id="${id}">+</button>
-                        </div>
-                        <button class="remove-item" data-id="${id}" style="background:none; color:#999; font-size:1.2rem; padding:0 10px;">&times;</button>
-                    </div>
+        <div class="cart-item">
+            <div class="cart-item-info">
+                <p>${item.name} ${
+        item.spec
+          ? `<span style="font-weight:normal; color:#666; font-size:0.85rem;">(${item.spec})</span>`
+          : ""
+      }</p>
+                <span>TWD ${item.price}</span>
+            </div>
+            <div class="cart-item-actions">
+                <div class="quantity-control" data-id="${key}">
+                    <button class="qty-btn" data-action="minus" data-id="${key}">-</button>
+                    <input type="number" class="cart-item-quantity" value="${
+                      item.quantity
+                    }" readonly>
+                    <button class="qty-btn" data-action="plus" data-id="${key}">+</button>
                 </div>
-            `;
+                <button class="remove-item" data-id="${key}" style="border:none; background:none; font-size:1.2rem; color:#999; cursor:pointer;">&times;</button>
+            </div>
+        </div>`;
     }
   }
-  document.getElementById("cart-total-amount").textContent =
-    totalAmount.toLocaleString();
+
+  const totalEl = document.getElementById("cart-total-amount");
+  if (totalEl) totalEl.textContent = totalAmount.toLocaleString();
+
   updateCartCount();
   try {
     localStorage.setItem("shoppingCart", JSON.stringify(shoppingCart));
@@ -373,12 +384,13 @@ function renderCart() {
 
 function updateCartCount() {
   let count = 0;
-  for (const id in shoppingCart) {
-    count += shoppingCart[id].quantity;
+  for (const key in shoppingCart) {
+    count += shoppingCart[key].quantity;
   }
-  document.getElementById("cart-count").textContent = count;
 
-  // 更新底部導航的 Badge
+  const deskCount = document.getElementById("cart-count");
+  if (deskCount) deskCount.textContent = count;
+
   const mobileBadge = document.getElementById("mobile-cart-count");
   if (mobileBadge) {
     mobileBadge.textContent = count;
@@ -399,6 +411,8 @@ function autofillCheckoutForm() {
 
 function setupCheckoutForm() {
   const checkoutForm = document.getElementById("checkout-form");
+  if (!checkoutForm) return;
+
   const checkoutButton = document.getElementById("checkout-button");
   const warehouseSelect = document.getElementById("warehouse-select");
 
@@ -413,25 +427,25 @@ function setupCheckoutForm() {
       return;
     }
 
-    const items = Object.keys(shoppingCart).map((id) => ({
-      id: id,
-      quantity: shoppingCart[id].quantity,
-    }));
-
-    if (items.length === 0) {
-      alert("您的購物車是空的！");
+    if (Object.keys(shoppingCart).length === 0) {
+      alert("購物車是空的！");
       return;
     }
 
     checkoutButton.disabled = true;
     checkoutButton.textContent = "處理中...";
 
+    // [重要] 轉換購物車資料為後端格式，包含規格
+    const items = Object.values(shoppingCart).map((item) => ({
+      id: item.id, // 商品原始 ID
+      quantity: item.quantity,
+      spec: item.spec, // 商品規格
+    }));
+
     const orderData = {
       paopaoId: document.getElementById("checkout-paopao-id").value,
       customerEmail: document.getElementById("checkout-customer-email").value,
-      payment_method: document.querySelector(
-        'input[name="payment-method"]:checked'
-      ).value,
+      payment_method: "OFFLINE_TRANSFER",
       warehouse_id: parseInt(warehouseId, 10),
       items: items,
     };
@@ -454,8 +468,10 @@ function setupCheckoutForm() {
       shoppingCart = {};
       localStorage.removeItem("shoppingCart");
       renderCart();
-      document.getElementById("cart-modal").style.display = "none";
-      window.location.href = "./my-account.html"; // 跳轉至訂單頁
+
+      modal.style.display = "none";
+      modal.classList.remove("active");
+      window.location.href = "./my-account.html";
     } catch (error) {
       alert(`錯誤: ${error.message}`);
     } finally {

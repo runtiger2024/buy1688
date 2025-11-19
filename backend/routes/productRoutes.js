@@ -1,3 +1,4 @@
+// backend/routes/productRoutes.js
 import express from "express";
 import Joi from "joi";
 import prisma from "../db.js";
@@ -20,14 +21,15 @@ router.get("/", async (req, res, next) => {
 
     const products = await prisma.products.findMany({
       where: whereClause,
-      // [修改] 選擇 images 欄位
       select: {
         id: true,
         name: true,
         description: true,
         images: true,
+        specs: true, // [新增] 回傳規格
         price_twd: true,
       },
+      orderBy: { created_at: "desc" }, // 讓新商品排前面
     });
     res.json(products);
   } catch (err) {
@@ -56,8 +58,8 @@ router.post("/", authenticateToken, isAdmin, async (req, res, next) => {
     description: Joi.string().allow(null, ""),
     price_twd: Joi.number().integer().min(0).required(),
     cost_cny: Joi.number().min(0).required(),
-    // [修改] 驗證 images 為字串陣列
     images: Joi.array().items(Joi.string().uri()).default([]),
+    specs: Joi.array().items(Joi.string()).default([]), // [新增] 規格陣列
     category_id: Joi.number().integer().allow(null),
   });
 
@@ -80,16 +82,24 @@ router.post("/", authenticateToken, isAdmin, async (req, res, next) => {
 // Admin：更新商品
 router.put("/:id", authenticateToken, isAdmin, async (req, res, next) => {
   try {
-    // [修改] 接收 images 陣列
-    const { name, description, price_twd, cost_cny, images, category_id } =
-      req.body;
+    // [修改] 接收 specs
+    const {
+      name,
+      description,
+      price_twd,
+      cost_cny,
+      images,
+      specs,
+      category_id,
+    } = req.body;
 
     const updated = await prisma.products.update({
       where: { id: parseInt(req.params.id) },
       data: {
         name,
         description,
-        images: images || [], // 確保更新圖片陣列
+        images: images || [],
+        specs: specs || [], // [新增] 更新規格
         price_twd: parseInt(price_twd),
         cost_cny: parseFloat(cost_cny),
         category_id: category_id ? parseInt(category_id) : null,

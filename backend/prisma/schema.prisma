@@ -78,6 +78,7 @@ model Products {
   name        String
   description String?
   images      String[]
+  specs       String[] // [新增] 規格選項 (如: ["紅色", "藍色", "S", "M"])
   cost_cny    Decimal
   price_twd   Int
   is_archived Boolean  @default(false)
@@ -125,7 +126,7 @@ model OrderItems {
   order_id           Int
   product_id         Int?
   item_url           String?
-  item_spec          String?
+  item_spec          String? // 這裡原本就有，現在會真正被使用到
   quantity           Int
   snapshot_name      String?
   snapshot_price_twd Int
