@@ -9,14 +9,14 @@ import {
   addToCart,
   loadAvailableWarehouses,
   populateWarehouseSelect,
-  checkAuth, // [新增]
-  getAuthToken, // [新增]
-} from "./sharedUtils.js"; // <-- 導入共用函式
+  checkAuth, // [重要] 引用身分檢查函式
+  getAuthToken,
+} from "./sharedUtils.js";
 
 let shoppingCart = {};
 let currentCategoryId = null;
 let currentSearchTerm = "";
-let availableWarehouses = []; // [新增] 存放倉庫資料
+let availableWarehouses = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
   await loadComponent("../html/_navbar.html", "navbar-placeholder");
@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 載入購物車
   loadCart(shoppingCart);
 
-  // [修改] 載入倉庫
+  // 載入倉庫
   availableWarehouses = await loadAvailableWarehouses();
   populateWarehouseSelect("warehouse-select", availableWarehouses);
 
@@ -64,12 +64,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupCheckoutForm();
   updateCartCount();
 
-  // [新增] 處理導覽列上的 "我的購物車" 連結
+  // 處理導覽列上的 "我的購物車" 連結
   const navCartLink = document.getElementById("nav-cart-link");
   if (navCartLink) {
     navCartLink.addEventListener("click", (e) => {
       e.preventDefault();
-      // 觸發懸浮按鈕的點擊事件，打開 Modal
+      // 觸發懸浮按鈕的點擊事件，打開 Modal (會經過權限檢查)
       document.getElementById("cart-button").click();
     });
   }
@@ -175,7 +175,6 @@ async function fetchProducts() {
       const card = document.createElement("div");
       card.className = "product-card";
 
-      // [修改] 讀取第一張圖片
       const imageUrl =
         product.images && product.images.length > 0 ? product.images[0] : "";
 
@@ -205,7 +204,6 @@ async function fetchProducts() {
         const name = button.dataset.name;
         const price = parseInt(button.dataset.price, 10);
 
-        // [修改] 使用共用函式
         addToCart(shoppingCart, id, name, price);
         alert(`${name} 已加入購物車！`);
         updateCartCount();
@@ -232,7 +230,20 @@ const paymentDetailsContent = document.getElementById(
 );
 
 function setupCartModal() {
+  // [修改] 點擊購物車時，檢查登入狀態
   openBtn.addEventListener("click", () => {
+    // checkAuth(false) 表示只回傳 true/false，不自動跳轉
+    if (!checkAuth(false)) {
+      if (
+        confirm(
+          "請先登入或註冊會員才能查看購物車與結帳。\n\n是否前往登入頁面？"
+        )
+      ) {
+        window.location.href = "../html/login.html";
+      }
+      return; // 阻止打開 Modal
+    }
+
     autofillCheckoutForm();
     renderCart();
     checkoutFormContainer.style.display = "block";
@@ -251,17 +262,14 @@ function setupCartModal() {
     }
   });
 
-  // 【新增的邏輯：處理 + / - 按鈕點擊 (取代舊的 click 偵聽器)】
   document
     .getElementById("cart-items-list")
     .addEventListener("click", (event) => {
       const target = event.target;
       const id = target.dataset.id;
-      const action = target.dataset.action; // 捕獲按鈕的 data-action
+      const action = target.dataset.action;
 
-      // 處理 +/- 按鈕點擊
       if (target.classList.contains("qty-btn") && id) {
-        // 確保 shoppingCart[id] 存在
         if (!shoppingCart[id]) return;
 
         let newQuantity = shoppingCart[id].quantity;
@@ -272,19 +280,16 @@ function setupCartModal() {
           newQuantity--;
         }
 
-        // 更新購物車邏輯
         if (newQuantity <= 0) {
           delete shoppingCart[id];
         } else {
           shoppingCart[id].quantity = newQuantity;
         }
 
-        // 重新渲染購物車
         renderCart();
         return;
       }
 
-      // 處理移除按鈕點擊 (包含舊的移除邏輯)
       if (target.classList.contains("remove-item")) {
         delete shoppingCart[id];
         renderCart();
@@ -321,7 +326,6 @@ function renderCart() {
       const itemTotal = item.price * item.quantity;
       totalAmount += itemTotal;
 
-      // 【修正後的 HTML 結構：加入 + / - 按鈕】
       cartItemsList.innerHTML += `
                 <div class="cart-item">
                     <div class="cart-item-info">
@@ -373,9 +377,8 @@ function autofillCheckoutForm() {
 function setupCheckoutForm() {
   const checkoutForm = document.getElementById("checkout-form");
   const checkoutButton = document.getElementById("checkout-button");
-  const warehouseSelect = document.getElementById("warehouse-select"); // [新增] 獲取倉庫下拉選單
+  const warehouseSelect = document.getElementById("warehouse-select");
 
-  // [修改] 更新按鈕文字
   checkoutButton.textContent = "確認送出訂單採購到集運倉";
 
   autofillCheckoutForm();
@@ -383,7 +386,7 @@ function setupCheckoutForm() {
   checkoutForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    // [新增] 強制檢查登入
+    // 二次防護：提交前再次檢查登入
     if (!checkAuth()) return;
     const token = getAuthToken();
 
@@ -394,10 +397,9 @@ function setupCheckoutForm() {
     const paymentMethod = document.querySelector(
       'input[name="payment-method"]:checked'
     ).value;
-    const warehouseId = warehouseSelect.value; // [新增] 獲取選定的倉庫 ID
+    const warehouseId = warehouseSelect.value;
 
     if (!warehouseId) {
-      // [新增] 檢查倉庫是否選定
       alert("請選擇一個集運倉！");
       return;
     }
@@ -418,7 +420,6 @@ function setupCheckoutForm() {
       paopaoId: paopaoId,
       customerEmail: customerEmail,
       payment_method: paymentMethod,
-      // [新增] 加入 warehouse_id
       warehouse_id: parseInt(warehouseId, 10),
       items: items,
     };
@@ -431,7 +432,7 @@ function setupCheckoutForm() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // [重要] 加上 Token
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(orderData),
       });
@@ -448,7 +449,6 @@ function setupCheckoutForm() {
       }
 
       if (result.payment_details) {
-        // [優化] 顯示訂單編號
         paymentDetailsContent.textContent =
           `訂單編號: #${result.order.id}\n\n` + result.payment_details.note;
 
@@ -464,13 +464,12 @@ function setupCheckoutForm() {
       renderCart();
       checkoutForm.reset();
       autofillCheckoutForm();
-      warehouseSelect.value = ""; // 重設倉庫選單
+      warehouseSelect.value = "";
     } catch (error) {
       console.error("提交訂單時出錯:", error);
       alert(`錯誤: ${error.message}`);
     } finally {
       checkoutButton.disabled = false;
-      // [修改] 恢復按鈕文字
       checkoutButton.textContent = "確認送出訂單採購到集運倉";
     }
   });

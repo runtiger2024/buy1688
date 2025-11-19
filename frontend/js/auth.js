@@ -74,18 +74,33 @@ document.addEventListener("DOMContentLoaded", () => {
       const paopaoId = document.getElementById("paopao-id").value.trim();
       const phoneNumber = document.getElementById("phone-number").value.trim();
       const email = document.getElementById("email").value.trim();
-      // 註冊頁面必須要有 id="password" 的輸入框
+
       const passwordInput = document.getElementById("password");
       const password = passwordInput ? passwordInput.value : "";
+
+      // [新增] 獲取確認密碼
+      const confirmPasswordInput = document.getElementById("confirm-password");
+      const confirmPassword = confirmPasswordInput
+        ? confirmPasswordInput.value
+        : "";
+
+      registerError.textContent = ""; // 清空錯誤
 
       if (!password) {
         registerError.textContent = "請填寫密碼";
         return;
       }
 
+      // [新增] 密碼雙重驗證邏輯
+      if (password !== confirmPassword) {
+        registerError.textContent = "兩次輸入的密碼不一致，請重新確認。";
+        // 可以選擇將焦點移回確認密碼框
+        if (confirmPasswordInput) confirmPasswordInput.focus();
+        return;
+      }
+
       registerButton.disabled = true;
       registerButton.textContent = "註冊中...";
-      registerError.textContent = "";
 
       try {
         const response = await fetch(`${API_URL}/auth/customer-register`, {
