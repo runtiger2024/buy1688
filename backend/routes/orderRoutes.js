@@ -1,3 +1,4 @@
+// backend/routes/orderRoutes.js
 import express from "express";
 import Joi from "joi";
 import prisma from "../db.js";
@@ -15,13 +16,14 @@ import {
 
 const router = express.Router();
 
-// ... (保留 POST /api/orders 一般訂單路由，若需要也可更新 share_token 邏輯，暫時略過以節省篇幅) ...
 // --- 建立一般訂單 ---
 router.post("/", async (req, res, next) => {
   const schema = Joi.object({
     paopaoId: Joi.string().required(),
     customerEmail: Joi.string().email().required(),
     payment_method: Joi.string().required(),
+    // [新增] 驗證 warehouse_id
+    warehouse_id: Joi.number().integer().min(1).required(),
     items: Joi.array()
       .items(
         Joi.object({
@@ -70,6 +72,12 @@ router.post("/", async (req, res, next) => {
       });
     }
 
+    // [新增] 檢查倉庫 ID 是否有效
+    const warehouse = await prisma.warehouses.findUnique({
+      where: { id: value.warehouse_id, is_active: true },
+    });
+    if (!warehouse) throw new Error("無效的集運倉 ID");
+
     // share_token 會由 DB 自動生成 (@default(uuid))
     const newOrder = await prisma.orders.create({
       data: {
@@ -80,6 +88,8 @@ router.post("/", async (req, res, next) => {
         status: "Pending",
         type: "Standard",
         payment_method: value.payment_method,
+        // [新增] 儲存 warehouse_id
+        warehouse_id: value.warehouse_id,
         items: { create: orderItemsData },
       },
       include: { items: true },
@@ -97,13 +107,11 @@ router.post("/", async (req, res, next) => {
     }
 
     sendOrderConfirmationEmail(newOrder, paymentDetails).catch(console.error);
-    res
-      .status(201)
-      .json({
-        message: "訂單建立成功",
-        order: newOrder,
-        payment_details: paymentDetails,
-      });
+    res.status(201).json({
+      message: "訂單建立成功",
+      order: newOrder,
+      payment_details: paymentDetails,
+    });
   } catch (err) {
     next(err);
   }
@@ -115,6 +123,8 @@ router.post("/assist", async (req, res, next) => {
     paopaoId: Joi.string().required(),
     customerEmail: Joi.string().email().required(),
     payment_method: Joi.string().required(),
+    // [新增] 驗證 warehouse_id
+    warehouse_id: Joi.number().integer().min(1).required(),
     items: Joi.array()
       .items(
         Joi.object({
@@ -145,6 +155,12 @@ router.post("/assist", async (req, res, next) => {
       bank_account: config.bank_account || "未設定帳號",
       bank_account_name: config.bank_account_name || "未設定戶名",
     };
+
+    // [新增] 檢查倉庫 ID 是否有效
+    const warehouse = await prisma.warehouses.findUnique({
+      where: { id: value.warehouse_id, is_active: true },
+    });
+    if (!warehouse) throw new Error("無效的集運倉 ID");
 
     let totalTwd = 0;
     let totalCny = 0;
@@ -177,6 +193,8 @@ router.post("/assist", async (req, res, next) => {
         status: "Pending",
         type: "Assist",
         payment_method: value.payment_method,
+        // [新增] 儲存 warehouse_id
+        warehouse_id: value.warehouse_id,
         items: { create: orderItemsData },
       },
       include: { items: true },
@@ -252,7 +270,6 @@ router.get("/share/:token", async (req, res, next) => {
   }
 });
 
-// ... (其餘路由保持不變: /my, /operator, /admin, /:id) ...
 // --- 客戶查詢訂單 ---
 router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
   try {
@@ -283,7 +300,10 @@ router.get(
   async (req, res, next) => {
     try {
       const orders = await prisma.orders.findMany({
-        include: { operator: { select: { username: true } } },
+        include: {
+          operator: { select: { username: true } },
+          warehouse: true, // [修改] Include warehouse info
+        },
         orderBy: { created_at: "asc" },
       });
       res.json(
@@ -299,6 +319,9 @@ router.get(
 router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
   try {
     const orders = await prisma.orders.findMany({
+      include: {
+        warehouse: true, // [修改] Include warehouse info
+      },
       orderBy: { created_at: "desc" },
     });
     res.json(orders);

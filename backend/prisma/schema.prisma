@@ -76,7 +76,7 @@ model Products {
   id          Int      @id @default(autoincrement())
   name        String
   description String?
-  images   String[]
+  images      String[]
   cost_cny    Decimal
   price_twd   Int
   is_archived Boolean  @default(false)
@@ -100,6 +100,7 @@ model Orders {
   status             OrderStatus @default(Pending)
   type               OrderType   @default(Standard)
   operator_id        Int?
+  warehouse_id       Int?        // [新增] 儲存選定的集運倉 ID
   notes              String?
   created_at         DateTime    @default(now())
 
@@ -109,6 +110,7 @@ model Orders {
   share_token        String      @unique @default(uuid())
 
   operator Users? @relation(fields: [operator_id], references: [id])
+  warehouse Warehouses? @relation(fields: [warehouse_id], references: [id]) // [新增] 關聯
   items OrderItems[]
 
   @@map("orders")
@@ -141,6 +143,8 @@ model Warehouses {
   address    String
   is_active  Boolean  @default(true)
   created_at DateTime @default(now())
+  
+  orders Orders[] // [新增] 反向關聯
 
   @@map("warehouses")
 }
@@ -151,7 +155,7 @@ model Customers {
   paopao_id     String   @unique
   password_hash String
   email         String   @unique
-  phone         String?  // [新增] 手機號碼欄位
+  phone         String?
   created_at    DateTime @default(now())
 
   @@map("customers")
