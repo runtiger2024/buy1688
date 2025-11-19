@@ -5,7 +5,7 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "npm run prisma:migrate && node server.js",
+    "start": "npx prisma generate && npm run prisma:migrate && node server.js",
     "dev": "npx prisma generate && nodemon server.js",
     "prisma:dev": "prisma migrate dev",
     "prisma:migrate": "prisma migrate deploy",
