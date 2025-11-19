@@ -33,7 +33,7 @@ async function getSettingsAndBankInfo() {
   return { rate, fee, bankInfo };
 }
 
-// --- 建立一般訂單 (強制登入) ---
+// --- 建立一般訂單 ---
 router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
   const schema = Joi.object({
     paopaoId: Joi.string().allow("").optional(),
@@ -45,7 +45,6 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
         Joi.object({
           id: Joi.string().required(),
           quantity: Joi.number().integer().min(1).required(),
-          // [關鍵] 必須允許 spec 欄位，否則會報 400 錯誤
           spec: Joi.string().allow("").allow(null).optional(),
         })
       )
@@ -88,7 +87,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
         snapshot_name: product.name,
         snapshot_price_twd: product.price_twd,
         snapshot_cost_cny: product.cost_cny,
-        item_spec: item.spec || null, // 寫入規格
+        item_spec: item.spec || null,
       });
     }
 
@@ -134,7 +133,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
   }
 });
 
-// --- 憑證上傳路由 ---
+// --- 憑證上傳路由 (關鍵修復位置) ---
 router.post(
   "/:id/voucher",
   authenticateToken,
@@ -162,11 +161,13 @@ router.post(
       if (order.payment_status !== "UNPAID")
         return res.status(400).json({ message: "該訂單狀態無法上傳憑證" });
 
+      // 【↓↓↓ 這是您之前缺少的關鍵防護代碼 ↓↓↓】
       if (order.payment_voucher_url) {
         return res.status(400).json({
           message: "您已上傳過憑證，請勿重複上傳。如需修改請聯繫客服。",
         });
       }
+      // 【↑↑↑ 必須加上這段，後端才會擋住重複上傳 ↑↑↑】
 
       const updatedOrder = await prisma.orders.update({
         where: { id: orderId },
