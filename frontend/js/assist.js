@@ -1,4 +1,13 @@
+// frontend/js/assist.js
 import { API_URL } from "./config.js";
+import {
+  loadComponent,
+  getCustomer,
+  setupCustomerAuth,
+  setupHamburgerMenu,
+  loadAvailableWarehouses,
+  populateWarehouseSelect,
+} from "./sharedUtils.js"; // <-- 導入共用函式
 
 // --- 全域變數 ---
 let currentSettings = {
@@ -6,87 +15,7 @@ let currentSettings = {
   service_fee: 0,
 };
 let assistList = []; // 暫存代購商品
-let availableWarehouses = []; // [新增] 存放倉庫資料
-
-// --- 幫助函式 ---
-
-async function loadComponent(componentPath, placeholderId) {
-  const placeholder = document.getElementById(placeholderId);
-  if (!placeholder) return;
-  try {
-    const response = await fetch(componentPath);
-    if (!response.ok) throw new Error("Component load failed");
-    placeholder.innerHTML = await response.text();
-  } catch (error) {
-    console.error(`載入組件失敗: ${error.message}`);
-  }
-}
-
-function getCustomer() {
-  try {
-    return JSON.parse(localStorage.getItem("customerUser"));
-  } catch (e) {
-    return null;
-  }
-}
-
-function customerLogout() {
-  localStorage.removeItem("customerToken");
-  localStorage.removeItem("customerUser");
-  alert("您已成功登出。");
-  window.location.href = "./index.html";
-}
-
-function setupCustomerAuth() {
-  const customer = getCustomer();
-  const desktopLinks = document.getElementById("nav-auth-links-desktop");
-  const mobileLinks = document.getElementById("nav-auth-links-mobile");
-  const footerLinks = document.getElementById("footer-auth-links");
-
-  // 自動填入表單
-  if (customer) {
-    const paopaoInput = document.getElementById("paopao-id");
-    const emailInput = document.getElementById("customer-email");
-    if (paopaoInput) {
-      paopaoInput.value = customer.paopao_id;
-      paopaoInput.readOnly = true;
-    }
-    if (emailInput) {
-      emailInput.value = customer.email;
-      emailInput.readOnly = true;
-    }
-  }
-
-  if (!desktopLinks || !mobileLinks || !footerLinks) return;
-
-  if (customer) {
-    const commonLinks = `
-      <a href="../html/my-account.html" class="nav-link">我的訂單</a>
-      <button id="logout-btn" class="btn-small-delete">登出</button>
-    `;
-    desktopLinks.innerHTML = commonLinks;
-    mobileLinks.innerHTML = commonLinks;
-
-    document.querySelectorAll("#logout-btn").forEach((btn) => {
-      btn.addEventListener("click", customerLogout);
-    });
-    footerLinks.style.display = "none";
-  } else {
-    desktopLinks.innerHTML = `<a href="../html/login.html" class="nav-link-button">會員登入</a>`;
-    mobileLinks.innerHTML = `<a href="../html/login.html" class="nav-link-button">會員登入</a>`;
-    footerLinks.style.display = "block";
-  }
-}
-
-function setupHamburgerMenu() {
-  const toggleButton = document.getElementById("mobile-menu-toggle");
-  const menu = document.getElementById("nav-menu");
-  if (toggleButton && menu) {
-    toggleButton.addEventListener("click", () =>
-      menu.classList.toggle("active")
-    );
-  }
-}
+let availableWarehouses = []; // 存放倉庫資料
 
 // --- 核心邏輯 ---
 
@@ -119,15 +48,29 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (submitBtn) {
     submitBtn.textContent = "確認送出訂單採購到集運倉";
   }
+
+  // [新增] 自動填入登入資訊
+  const customer = getCustomer();
+  if (customer) {
+    const paopaoInput = document.getElementById("paopao-id");
+    const emailInput = document.getElementById("customer-email");
+    if (paopaoInput) {
+      paopaoInput.value = customer.paopao_id;
+      paopaoInput.readOnly = true;
+    }
+    if (emailInput) {
+      emailInput.value = customer.email;
+      emailInput.readOnly = true;
+    }
+  }
 });
 
 /**
- * [修改] 載入後台設定與倉庫
+ * [修改] 載入後台設定與倉庫 (使用 sharedUtils)
  */
 async function loadSettingsAndWarehouses() {
   const rateEl = document.getElementById("display-rate");
   const feeEl = document.getElementById("display-fee");
-  const selectEl = document.getElementById("assist-warehouse-select");
 
   // 1. 載入設定
   try {
@@ -149,33 +92,9 @@ async function loadSettingsAndWarehouses() {
     console.error("載入設定失敗:", error);
   }
 
-  // 2. 載入倉庫
-  if (!selectEl) return;
-  try {
-    const response = await fetch(`${API_URL}/warehouses`);
-    if (!response.ok) throw new Error("載入集運倉失敗");
-    // 只保留已啟用的倉庫
-    availableWarehouses = (await response.json()).filter((wh) => wh.is_active);
-
-    selectEl.innerHTML = '<option value="">-- 請選擇集運倉 --</option>';
-    if (availableWarehouses.length === 0) {
-      selectEl.innerHTML = '<option value="">無可用集運倉</option>';
-      selectEl.disabled = true;
-      return;
-    }
-
-    availableWarehouses.forEach((wh) => {
-      const option = document.createElement("option");
-      option.value = wh.id;
-      // 顯示倉庫名稱和地址前段
-      option.textContent = `${wh.name} - ${wh.address.substring(0, 15)}...`;
-      selectEl.appendChild(option);
-    });
-  } catch (error) {
-    console.error("獲取集運倉失敗:", error);
-    selectEl.innerHTML = '<option value="">載入失敗</option>';
-    selectEl.disabled = true;
-  }
+  // 2. 載入倉庫 (使用 sharedUtils)
+  availableWarehouses = await loadAvailableWarehouses();
+  populateWarehouseSelect("assist-warehouse-select", availableWarehouses);
 }
 
 /**
@@ -190,16 +109,15 @@ function handleAddItem(e) {
   const priceCny = parseFloat(document.getElementById("item-price-cny").value);
   const quantity = parseInt(document.getElementById("item-quantity").value);
 
-  if (priceCny < 0 || quantity < 1) {
-    alert("價格與數量必須大於 0");
+  if (priceCny < 0 || quantity < 1 || isNaN(priceCny) || isNaN(quantity)) {
+    alert("價格與數量必須是有效數字，且數量大於 0");
     return;
   }
 
   // 試算台幣
-  const rawTwd =
-    priceCny *
-    currentSettings.exchange_rate *
-    (1 + currentSettings.service_fee);
+  const rate = currentSettings.exchange_rate;
+  const fee = currentSettings.service_fee;
+  const rawTwd = priceCny * rate * (1 + fee);
   const estimatedTwd = Math.ceil(rawTwd);
 
   const newItem = {
@@ -215,10 +133,7 @@ function handleAddItem(e) {
   assistList.push(newItem);
   renderAssistList();
 
-  document.getElementById("item-url").value = "";
-  document.getElementById("item-name").value = "";
-  document.getElementById("item-spec").value = "";
-  document.getElementById("item-price-cny").value = "";
+  document.getElementById("assist-add-form").reset();
   document.getElementById("item-quantity").value = "1";
 }
 
@@ -255,7 +170,7 @@ function renderAssistList() {
                 <a href="${
                   item.item_url
                 }" target="_blank" style="font-size:0.8rem; word-break: break-all;">
-                    ${item.item_url}
+                    ${item.item_url.substring(0, 30)}...
                 </a>
             </td>
             <td>¥${item.price_cny}</td>
@@ -296,11 +211,10 @@ async function handleSubmitOrder(e) {
   const paymentMethod = document.querySelector(
     'input[name="payment-method"]:checked'
   ).value;
-  const warehouseSelect = document.getElementById("assist-warehouse-select"); // [新增] 獲取倉庫下拉選單
-  const warehouseId = warehouseSelect.value; // [新增] 獲取選定的倉庫 ID
+  const warehouseSelect = document.getElementById("assist-warehouse-select");
+  const warehouseId = warehouseSelect.value;
 
   if (!warehouseId) {
-    // [新增] 檢查倉庫是否選定
     alert("請選擇一個集運倉！");
     return;
   }
@@ -323,12 +237,12 @@ async function handleSubmitOrder(e) {
       paopaoId: paopaoId,
       customerEmail: email,
       payment_method: paymentMethod,
-      // [新增] 加入 warehouse_id
       warehouse_id: parseInt(warehouseId, 10),
       items: itemsToSend,
     };
 
-    const response = await fetch(`${API_URL}/assist-orders`, {
+    // [優化] 使用 /orders/assist 路徑
+    const response = await fetch(`${API_URL}/orders/assist`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(orderData),

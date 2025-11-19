@@ -1,5 +1,11 @@
 // frontend/js/my-account.js
 import { API_URL } from "./config.js";
+import {
+  loadComponent,
+  setupCustomerAuth,
+  setupHamburgerMenu,
+  getCustomer,
+} from "./sharedUtils.js"; // <-- 導入共用函式
 
 // --- 全域變數 ---
 let allOrdersData = []; // 儲存所有訂單資料
@@ -58,87 +64,6 @@ function getAuthHeaders() {
     Authorization: `Bearer ${token}`,
   };
 }
-
-/**
- * 載入共用組件 (頁首)
- */
-async function loadComponent(componentPath, placeholderId) {
-  const placeholder = document.getElementById(placeholderId);
-  if (!placeholder) return;
-  try {
-    const response = await fetch(componentPath);
-    if (!response.ok) throw new Error("Component load failed");
-    placeholder.innerHTML = await response.text();
-  } catch (error) {
-    console.error(`載入組件失敗: ${error.message}`);
-  }
-}
-
-// --- 【第十批優化：重構 setupCustomerAuth】 ---
-function getCustomer() {
-  try {
-    return JSON.parse(localStorage.getItem("customerUser"));
-  } catch (e) {
-    return null;
-  }
-}
-function customerLogout() {
-  localStorage.removeItem("customerToken");
-  localStorage.removeItem("customerUser");
-  alert("您已成功登出。");
-  window.location.href = "./index.html";
-}
-
-function setupCustomerAuth() {
-  const customer = getCustomer();
-  const desktopLinks = document.getElementById("nav-auth-links-desktop");
-  const mobileLinks = document.getElementById("nav-auth-links-mobile");
-  const footerLinks = document.getElementById("footer-auth-links");
-
-  if (!desktopLinks || !mobileLinks || !footerLinks) {
-    console.error("Auth UI 佔位符 (nav-auth-links) 載入失敗。");
-    return;
-  }
-
-  if (customer) {
-    const commonLinks = `
-      <a href="../html/my-account.html" class="nav-link">我的訂單</a>
-      <button id="logout-btn" class="btn-small-delete">登出</button>
-    `;
-    desktopLinks.innerHTML = commonLinks;
-    mobileLinks.innerHTML = commonLinks;
-
-    document.querySelectorAll("#logout-btn").forEach((btn) => {
-      btn.addEventListener("click", customerLogout);
-    });
-
-    footerLinks.style.display = "none";
-  } else {
-    // (理論上 checkAuth 已經擋住，但還是做個防呆)
-    desktopLinks.innerHTML = `
-      <a href="../html/login.html" class="nav-link-button">會員登入</a>
-    `;
-    mobileLinks.innerHTML = `
-      <a href="../html/login.html" class="nav-link-button">會員登入</a>
-      <a href="../html/register.html" class="nav-link">免費註冊</a>
-    `;
-    footerLinks.style.display = "block";
-  }
-}
-// --- 【優化結束】 ---
-
-// --- 【第十批優化：新增漢堡選單邏輯】 ---
-function setupHamburgerMenu() {
-  const toggleButton = document.getElementById("mobile-menu-toggle");
-  const menu = document.getElementById("nav-menu");
-
-  if (toggleButton && menu) {
-    toggleButton.addEventListener("click", () => {
-      menu.classList.toggle("active");
-    });
-  }
-}
-// --- 【優化結束】 ---
 
 /**
  * [新增] 獲取系統設定中的銀行資訊
@@ -217,9 +142,9 @@ window.handleVoucherUpload = async function (e, orderId) {
   }
 
   // [核心修正] 確保模擬 URL 是有效的 URI，使用 example.com 繞過 Joi 的嚴格限制
-  const encodedFileName = encodeURIComponent(file.name);
   // VITAL NOTE: 這是模擬上傳，請在正式部署時，替換此處為您的雲端儲存上傳 API
-  const mockVoucherUrl = `https://example.com/voucher_storage/order_${orderId}/${Date.now()}_${encodedFileName}`;
+  const encodedFileName = encodeURIComponent(file.name);
+  const mockVoucherUrl = `https://runtiger-storage.com/vouchers/order_${orderId}/${Date.now()}_${encodedFileName}`; // [優化] 改為更真實的模擬網域
 
   uploadButton.disabled = true;
   uploadButton.textContent = "上傳中...";
@@ -276,6 +201,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (navCartLink) {
     navCartLink.addEventListener("click", (e) => {
       e.preventDefault();
+      // 由於此頁面沒有購物車 Modal，這裡導回首頁
       window.location.href = "./index.html";
     });
   }
@@ -299,7 +225,8 @@ async function loadOrders() {
   if (!headers) return;
 
   try {
-    const response = await fetch(`${API_URL}/customer/orders`, { headers });
+    // [優化] 使用 /orders/my 路徑
+    const response = await fetch(`${API_URL}/orders/my`, { headers });
 
     if (response.status === 401 || response.status === 403) {
       // Token 失效或權限不足

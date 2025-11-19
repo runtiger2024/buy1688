@@ -306,7 +306,8 @@ async function loadStats(headers) {
 // 載入訂單
 async function loadOrders(headers) {
   try {
-    const response = await fetch(`${API_URL}/operator/orders`, { headers });
+    // 【重要修正】將路徑從 /operator/orders 改為 /orders/operator (配合 server.js 路由優化)
+    const response = await fetch(`${API_URL}/orders/operator`, { headers });
     if (response.status === 403) throw new Error("權限不足");
     if (!response.ok) throw new Error(`HTTP 錯誤: ${response.status}`);
 
@@ -412,8 +413,6 @@ function renderOrders(orders) {
     .join("");
 
   orders.forEach((order) => {
-    const tr = document.createElement("tr");
-
     const costCny = Number(order.total_cost_cny);
     const profitTwd = order.total_amount_twd - costCny * exchangeRate;
     const profitClass = profitTwd >= 0 ? "profit-positive" : "profit-negative";
@@ -454,12 +453,14 @@ function renderOrders(orders) {
       voucherContent = "無";
     }
 
+    const totalAmount = Number(order.total_amount_twd).toLocaleString("en-US");
+
     tr.innerHTML = `
             <td>${order.id}</td>
             <td><span style="color: ${typeColor}; font-weight: bold;">${typeText}</span></td>
             <td>${new Date(order.created_at).toLocaleString()}</td>
             <td>${order.paopao_id}</td>
-            <td>${order.total_amount_twd}</td>
+            <td>${totalAmount}</td>
             <td class="${profitClass}">${profitTwd.toFixed(0)}</td>
             <td>
                 <strong>${warehouseName}</strong><br>
@@ -861,7 +862,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (target.classList.contains("btn-mark-paid")) {
       if (!confirm(`確定要將訂單 ${id} 標記為 "PAID" (已付款) 嗎？`)) return;
       try {
-        const response = await fetch(`${API_URL}/operator/orders/${id}`, {
+        const response = await fetch(`${API_URL}/orders/${id}`, {
           method: "PUT",
           headers: headers,
           body: JSON.stringify({ payment_status: "PAID" }),
@@ -894,7 +895,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       try {
-        const response = await fetch(`${API_URL}/operator/orders/${id}`, {
+        const response = await fetch(`${API_URL}/orders/${id}`, {
           method: "PUT",
           headers: headers,
           body: JSON.stringify({ status: status }),
@@ -918,7 +919,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       try {
-        const response = await fetch(`${API_URL}/admin/orders/${id}`, {
+        // 【修正】Admin 指派訂單的路徑是 /orders/:id，但需要 operator_id
+        const response = await fetch(`${API_URL}/orders/${id}`, {
           method: "PUT",
           headers: headers,
           body: JSON.stringify({ operator_id: operatorId || null }),

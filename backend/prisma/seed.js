@@ -22,10 +22,10 @@ async function main() {
   });
 
   await prisma.warehouses.upsert({
-    where: { name: "东莞仓" },
+    where: { name: "东莞倉" },
     update: {},
     create: {
-      name: "东莞仓",
+      name: "东莞倉",
       receiver: "跑跑虎轉(會員編號)",
       phone: "13682536948",
       address: "中国广东省东莞市洪梅镇振華路688號2號樓跑跑虎(會員編號)",
@@ -33,10 +33,10 @@ async function main() {
   });
 
   await prisma.warehouses.upsert({
-    where: { name: "义乌仓" },
+    where: { name: "义乌倉" },
     update: {},
     create: {
-      name: "义乌仓",
+      name: "义乌倉",
       receiver: "跑跑虎轉(會員編號)",
       phone: "13682536948",
       address: "中国浙江省金华市义乌市江东街道东新路19号1号楼跑跑虎(會員編號)",
@@ -66,6 +66,36 @@ async function main() {
       description: "代購服務費率 (小數點，如 0.1 為 10%)",
     },
   });
+
+  // [新增] 銀行資訊設定
+  await prisma.systemSettings.upsert({
+    where: { key: "bank_name" },
+    update: {},
+    create: {
+      key: "bank_name",
+      value: "玉山銀行 (808)",
+      description: "收款銀行名稱/代碼",
+    },
+  });
+  await prisma.systemSettings.upsert({
+    where: { key: "bank_account" },
+    update: {},
+    create: {
+      key: "bank_account",
+      value: "12345678901234",
+      description: "收款銀行帳號",
+    },
+  });
+  await prisma.systemSettings.upsert({
+    where: { key: "bank_account_name" },
+    update: {},
+    create: {
+      key: "bank_account_name",
+      value: "跑得快國際貿易有限公司",
+      description: "收款銀行戶名",
+    },
+  });
+
   console.log("✅ 系統設定填充完畢。");
   // --- 【優化結束】 ---
 

@@ -44,23 +44,24 @@ app.use("/api/products", productRoutes);
 app.use("/api/admin/products", productRoutes);
 
 // 3. 訂單相關
+// 主要路徑: /api/orders, /api/orders/:id/voucher, /api/orders/share/:token
 app.use("/api/orders", orderRoutes);
 
-// [路由相容層] 處理舊的訂單相關路徑
-app.use("/api/assist-orders", (req, res, next) => {
-  req.url = "/assist";
+// [優化] 新增對應 orderRoutes 內部的路由相容層
+app.use("/api/orders/assist", (req, res, next) => {
+  req.url = "/assist"; // 導向 orderRoutes 內的 /assist
   orderRoutes(req, res, next);
 });
-app.use("/api/customer/orders", (req, res, next) => {
-  req.url = "/my";
+app.use("/api/orders/my", (req, res, next) => {
+  req.url = "/my"; // 導向 orderRoutes 內的 /my
   orderRoutes(req, res, next);
 });
-app.use("/api/operator/orders", (req, res, next) => {
-  if (req.method === "GET") req.url = "/operator";
+app.use("/api/orders/operator", (req, res, next) => {
+  req.url = "/operator"; // 導向 orderRoutes 內的 /operator
   orderRoutes(req, res, next);
 });
-app.use("/api/admin/orders", (req, res, next) => {
-  if (req.method === "GET") req.url = "/admin";
+app.use("/api/orders/admin", (req, res, next) => {
+  req.url = "/admin"; // 導向 orderRoutes 內的 /admin
   orderRoutes(req, res, next);
 });
 

@@ -1,87 +1,15 @@
+// frontend/js/app.js
 import { API_URL } from "./config.js";
-
-/**
- * 異步載入共用組件 (例如頁首、頁尾)
- */
-async function loadComponent(componentPath, placeholderId) {
-  const placeholder = document.getElementById(placeholderId);
-  if (!placeholder) {
-    console.warn(`警告: 找不到 ID 為 "${placeholderId}" 的佔位符。`);
-    return;
-  }
-  try {
-    const response = await fetch(componentPath);
-    if (!response.ok) {
-      throw new Error(`無法載入 ${componentPath} - 狀態: ${response.status}`);
-    }
-    const html = await response.text();
-    placeholder.innerHTML = html;
-  } catch (error) {
-    console.error(`載入組件失敗: ${error.message}`);
-    placeholder.innerHTML = `<p style="color:red; text-align:center;">${componentPath} 載入失敗。</p>`;
-  }
-}
-
-function getCustomer() {
-  try {
-    return JSON.parse(localStorage.getItem("customerUser"));
-  } catch (e) {
-    return null;
-  }
-}
-function customerLogout() {
-  localStorage.removeItem("customerToken");
-  localStorage.removeItem("customerUser");
-  alert("您已成功登出。");
-  window.location.href = "./index.html";
-}
-
-function setupCustomerAuth() {
-  const customer = getCustomer();
-  const desktopLinks = document.getElementById("nav-auth-links-desktop");
-  const mobileLinks = document.getElementById("nav-auth-links-mobile");
-  const footerLinks = document.getElementById("footer-auth-links");
-
-  if (!desktopLinks || !mobileLinks || !footerLinks) {
-    console.error("Auth UI 佔位符 (nav-auth-links) 載入失敗。");
-    return;
-  }
-
-  if (customer) {
-    const commonLinks = `
-      <a href="../html/my-account.html" class="nav-link">我的訂單</a>
-      <button id="logout-btn" class="btn-small-delete">登出</button>
-    `;
-    desktopLinks.innerHTML = commonLinks;
-    mobileLinks.innerHTML = commonLinks;
-
-    document.querySelectorAll("#logout-btn").forEach((btn) => {
-      btn.addEventListener("click", customerLogout);
-    });
-
-    footerLinks.style.display = "none";
-  } else {
-    desktopLinks.innerHTML = `
-      <a href="../html/login.html" class="nav-link-button">會員登入</a>
-    `;
-    mobileLinks.innerHTML = `
-      <a href="../html/login.html" class="nav-link-button">會員登入</a>
-      <a href="../html/register.html" class="nav-link">免費註冊</a>
-    `;
-    footerLinks.style.display = "block";
-  }
-}
-
-function setupHamburgerMenu() {
-  const toggleButton = document.getElementById("mobile-menu-toggle");
-  const menu = document.getElementById("nav-menu");
-
-  if (toggleButton && menu) {
-    toggleButton.addEventListener("click", () => {
-      menu.classList.toggle("active");
-    });
-  }
-}
+import {
+  loadComponent,
+  getCustomer,
+  setupCustomerAuth,
+  setupHamburgerMenu,
+  loadCart,
+  addToCart,
+  loadAvailableWarehouses,
+  populateWarehouseSelect,
+} from "./sharedUtils.js"; // <-- 導入共用函式
 
 let shoppingCart = {};
 let currentCategoryId = null;
@@ -94,18 +22,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupCustomerAuth();
   loadComponent("../html/_header.html", "notice-placeholder");
 
-  const savedCart = localStorage.getItem("shoppingCart");
-  if (savedCart) {
-    try {
-      shoppingCart = JSON.parse(savedCart);
-    } catch (e) {
-      console.error("解析購物車失敗:", e);
-      shoppingCart = {};
-    }
-  }
+  // 載入購物車
+  loadCart(shoppingCart);
+
+  // [修改] 載入倉庫
+  availableWarehouses = await loadAvailableWarehouses();
+  populateWarehouseSelect("warehouse-select", availableWarehouses);
 
   loadCategories();
-  loadWarehouses(); // [新增] 載入倉庫
 
   const params = new URLSearchParams(window.location.search);
   const categoryFromUrl = params.get("category");
@@ -144,37 +68,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 });
-
-// [新增] 載入倉庫資料
-async function loadWarehouses() {
-  const selectEl = document.getElementById("warehouse-select");
-  if (!selectEl) return;
-  try {
-    const response = await fetch(`${API_URL}/warehouses`);
-    if (!response.ok) throw new Error("載入集運倉失敗");
-    // 只保留已啟用的倉庫
-    availableWarehouses = (await response.json()).filter((wh) => wh.is_active);
-
-    selectEl.innerHTML = '<option value="">-- 請選擇集運倉 --</option>';
-    if (availableWarehouses.length === 0) {
-      selectEl.innerHTML = '<option value="">無可用集運倉</option>';
-      selectEl.disabled = true;
-      return;
-    }
-
-    availableWarehouses.forEach((wh) => {
-      const option = document.createElement("option");
-      option.value = wh.id;
-      // 顯示倉庫名稱和地址前段
-      option.textContent = `${wh.name} - ${wh.address.substring(0, 15)}...`;
-      selectEl.appendChild(option);
-    });
-  } catch (error) {
-    console.error("獲取集運倉失敗:", error);
-    selectEl.innerHTML = '<option value="">載入失敗</option>';
-    selectEl.disabled = true;
-  }
-}
 
 async function loadCategories() {
   const filterBar = document.getElementById("category-filter-bar");
@@ -305,7 +198,11 @@ async function fetchProducts() {
         const id = button.dataset.id;
         const name = button.dataset.name;
         const price = parseInt(button.dataset.price, 10);
-        addToCart(id, name, price);
+
+        // [修改] 使用共用函式
+        addToCart(shoppingCart, id, name, price);
+        alert(`${name} 已加入購物車！`);
+        updateCartCount();
       });
     });
   } catch (error) {
@@ -374,25 +271,6 @@ function setupCartModal() {
         renderCart();
       }
     });
-}
-
-function addToCart(id, name, price) {
-  if (shoppingCart[id]) {
-    shoppingCart[id].quantity++;
-  } else {
-    shoppingCart[id] = {
-      name: name,
-      price: price,
-      quantity: 1,
-    };
-  }
-  alert(`${name} 已加入購物車！`);
-  updateCartCount();
-  try {
-    localStorage.setItem("shoppingCart", JSON.stringify(shoppingCart));
-  } catch (e) {
-    console.error("保存購物車失敗:", e);
-  }
 }
 
 function renderCart() {
@@ -520,7 +398,10 @@ function setupCheckoutForm() {
       }
 
       if (result.payment_details) {
-        paymentDetailsContent.textContent = result.payment_details.note;
+        // [優化] 顯示訂單編號
+        paymentDetailsContent.textContent =
+          `訂單編號: #${result.order.id}\n\n` + result.payment_details.note;
+
         checkoutFormContainer.style.display = "none";
         checkoutSuccessMessage.style.display = "block";
       } else {

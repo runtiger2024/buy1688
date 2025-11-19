@@ -1,121 +1,26 @@
+// frontend/js/product.js
 import { API_URL } from "./config.js";
+import {
+  loadComponent,
+  setupCustomerAuth,
+  setupHamburgerMenu,
+  loadCart,
+  addToCart,
+} from "./sharedUtils.js"; // <-- 導入共用函式
 
 // --- 全域變數 ---
 let shoppingCart = {};
 
 // --- 幫助函式 ---
 
-/**
- * 載入共用組件 (頁首)
- */
-async function loadComponent(componentPath, placeholderId) {
-  const placeholder = document.getElementById(placeholderId);
-  if (!placeholder) return;
-  try {
-    const response = await fetch(componentPath);
-    if (!response.ok) throw new Error("Component load failed");
-    placeholder.innerHTML = await response.text();
-  } catch (error) {
-    console.error(`載入組件失敗: ${error.message}`);
-  }
+// [修改] loadCart, addToCart 使用共用函式
+function initCart() {
+  loadCart(shoppingCart);
 }
 
-/**
- * 從 localStorage 載入購物車
- */
-function loadCart() {
-  const savedCart = localStorage.getItem("shoppingCart");
-  if (savedCart) {
-    try {
-      shoppingCart = JSON.parse(savedCart);
-    } catch (e) {
-      console.error("解析購物車失敗:", e);
-      shoppingCart = {};
-    }
-  }
-}
-
-/**
- * 加入商品到購物車
- */
-function addToCart(id, name, price) {
-  if (shoppingCart[id]) {
-    shoppingCart[id].quantity++;
-  } else {
-    shoppingCart[id] = {
-      name: name,
-      price: price,
-      quantity: 1,
-    };
-  }
-
-  try {
-    localStorage.setItem("shoppingCart", JSON.stringify(shoppingCart));
-    alert(`${name} 已加入購物車！`);
-  } catch (e) {
-    console.error("保存購物車失敗:", e);
-  }
-}
-
-function getCustomer() {
-  try {
-    return JSON.parse(localStorage.getItem("customerUser"));
-  } catch (e) {
-    return null;
-  }
-}
-function customerLogout() {
-  localStorage.removeItem("customerToken");
-  localStorage.removeItem("customerUser");
-  alert("您已成功登出。");
-  window.location.href = "./index.html";
-}
-
-function setupCustomerAuth() {
-  const customer = getCustomer();
-  const desktopLinks = document.getElementById("nav-auth-links-desktop");
-  const mobileLinks = document.getElementById("nav-auth-links-mobile");
-  const footerLinks = document.getElementById("footer-auth-links");
-
-  if (!desktopLinks || !mobileLinks || !footerLinks) {
-    console.error("Auth UI 佔位符 (nav-auth-links) 載入失敗。");
-    return;
-  }
-
-  if (customer) {
-    const commonLinks = `
-      <a href="../html/my-account.html" class="nav-link">我的訂單</a>
-      <button id="logout-btn" class="btn-small-delete">登出</button>
-    `;
-    desktopLinks.innerHTML = commonLinks;
-    mobileLinks.innerHTML = commonLinks;
-
-    document.querySelectorAll("#logout-btn").forEach((btn) => {
-      btn.addEventListener("click", customerLogout);
-    });
-
-    footerLinks.style.display = "none";
-  } else {
-    desktopLinks.innerHTML = `
-      <a href="../html/login.html" class="nav-link-button">會員登入</a>
-    `;
-    mobileLinks.innerHTML = `
-      <a href="../html/login.html" class="nav-link-button">會員登入</a>
-      <a href="../html/register.html" class="nav-link">免費註冊</a>
-    `;
-    footerLinks.style.display = "block";
-  }
-}
-
-function setupHamburgerMenu() {
-  const toggleButton = document.getElementById("mobile-menu-toggle");
-  const menu = document.getElementById("nav-menu");
-
-  if (toggleButton && menu) {
-    toggleButton.addEventListener("click", () => {
-      menu.classList.toggle("active");
-    });
-  }
+function handleAddToCart(id, name, price) {
+  addToCart(shoppingCart, id, name, price);
+  alert(`${name} 已加入購物車！`);
 }
 
 // [新增] 全域切換圖片函式 (掛載到 window 以便 HTML onclick 呼叫)
@@ -148,7 +53,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  loadCart();
+  initCart(); // [修改] 使用新的 initCart
 
   const params = new URLSearchParams(window.location.search);
   const productId = params.get("id");
@@ -230,7 +135,7 @@ function renderProduct(product) {
   document
     .getElementById("detail-add-to-cart")
     .addEventListener("click", () => {
-      addToCart(product.id, product.name, product.price_twd);
+      handleAddToCart(product.id, product.name, product.price_twd);
     });
 }
 

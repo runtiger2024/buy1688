@@ -354,7 +354,9 @@ a:hover {
   font-weight: bold;
 }
 #checkout-form input[type="text"],
-#checkout-form input[type="email"] {
+#checkout-form input[type="email"],
+#checkout-form select {
+  /* [修正] 讓 select 也套用樣式 */
   width: 95%;
   padding: 10px;
   border: 1px solid #ccc;
@@ -436,23 +438,7 @@ a:hover {
   background-color: #dc3545;
 }
 
-/* --- 【第三批優化：新增 "我的帳戶" 頁面樣式】 --- */
-
-/* 客戶導覽列連結 (我的訂單) */
-.customer-nav-link {
-  color: var(--taobao-orange);
-  text-decoration: none;
-  font-size: 0.9rem;
-  font-weight: bold;
-  margin: 0 5px;
-}
-.customer-nav-link:hover {
-  text-decoration: underline;
-}
-.customer-nav-separator {
-  color: #ccc;
-  margin: 0 5px;
-}
+/* --- 【從 my-account.html 移入的訂單詳情樣式】 --- */
 
 /* 訂單歷史卡片 */
 #order-history-container {
@@ -555,6 +541,99 @@ a:hover {
   color: var(--text-light);
   font-size: 0.9rem;
 }
+
+/* 詳情區塊 */
+.order-card-header .btn-action {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-left: 10px;
+  transition: opacity 0.2s;
+}
+.order-card-header .btn-action:hover {
+  opacity: 0.8;
+}
+.order-detail-expanded {
+  border-top: 1px solid var(--border-gray);
+  padding: 20px;
+  background-color: #fcfcfc;
+}
+.detail-item-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
+.detail-item-table th,
+.detail-item-table td {
+  border: 1px solid #eee;
+  padding: 8px;
+  text-align: left;
+}
+.bank-info-box {
+  background-color: #fffbe6;
+  border: 1px solid #ffc107;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+}
+.bank-info-box h4 {
+  margin-top: 0;
+  color: var(--taobao-orange);
+}
+.bank-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  border-bottom: 1px dashed #e0e0e0;
+  padding-bottom: 3px;
+}
+.bank-row:last-child {
+  border-bottom: none; /* 移除最後一行的虛線 */
+  margin-bottom: 0;
+}
+.bank-value button {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8em;
+  margin-left: 5px;
+}
+/* 新增的憑證上傳樣式 */
+#voucher-upload-form input[type="file"] {
+  width: 100%;
+  padding: 8px 0;
+  margin-bottom: 10px;
+  border: none;
+}
+#voucher-upload-form button {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+#voucher-upload-form button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+.voucher-status {
+  font-weight: bold;
+  padding: 5px 0;
+}
+.voucher-status.uploaded {
+  color: #007bff;
+}
+
 /* --- 【優化結束】 --- */
 
 /* --- 【第五批優化：新增分類篩選列樣式】 --- */
@@ -724,15 +803,16 @@ a:hover {
 
 /* --- 【第十批優化：響應式導覽列 (Navbar)】 --- */
 .navbar {
-  background-color: #ffffff;
-  height: var(--navbar-height);
-  border-bottom: 1px solid var(--border-gray);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   position: fixed; /* 固定在頂部 */
   top: 0;
   left: 0;
   width: 100%;
   z-index: 100; /* 確保在最上層 */
+  /* (原來的 navbar 樣式) */
+  background-color: #ffffff;
+  height: var(--navbar-height);
+  border-bottom: 1px solid var(--border-gray);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .navbar-container {

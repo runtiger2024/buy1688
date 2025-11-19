@@ -6,6 +6,7 @@ dotenv.config();
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
 const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL;
 const SITE_NAME = process.env.SITE_NAME || "代採購平台";
+const SITE_URL = process.env.SITE_URL || "http://localhost:5500/frontend/html"; // [新增] 網站 URL
 
 let isSendGridActive = false;
 
@@ -59,8 +60,7 @@ export async function sendRegistrationSuccessEmail(customer) {
     <h1>歡迎, ${customer.paopao_id}！</h1>
     <p>感謝您註冊 ${SITE_NAME}。</p>
     <p>您的帳號：${customer.paopao_id}</p>
-    <p>您的密碼：(您的手機號碼)</p>
-    <p>您可以隨時前往 <a href="https://您的網站.com/login.html">登入</a> 並開始購物。</p>
+    <p>您的密碼：(請用您註冊時設定的密碼登入)</p> <p>您可以隨時前往 <a href="${SITE_URL}/login.html">登入</a> 並開始購物。</p>
   `;
 
   await sendEmail(customer.email, subject, html);
@@ -102,7 +102,7 @@ ${payment_details.note}
         ${paymentHtml}
         
         <p style="margin-top: 20px;">
-            您可以隨時前往「<a href="https://您的網站.com/my-account.html">我的訂單</a>」頁面查看訂單狀態。
+            您可以隨時前往「<a href="${SITE_URL}/my-account.html">我的訂單</a>」頁面查看訂單狀態。
         </p>
     `;
 
@@ -117,7 +117,7 @@ export async function sendPaymentReceivedEmail(order) {
         <p>嗨, ${order.paopao_id}！</p>
         <p>我們已確認收到您 TWD ${order.total_amount_twd} 的款項。</p>
         <p>訂單狀態已更新為「${order.status}」，我們將盡快為您安排採購。</p>
-        <p>您可以隨時前往「<a href="https://您的網站.com/my-account.html">我的訂單</a>」頁面查看最新狀態。</p>
+        <p>您可以隨時前往「<a href="${SITE_URL}/my-account.html">我的訂單</a>」頁面查看最新狀態。</p>
     `;
 
   await sendEmail(order.customer_email, subject, html);
@@ -137,7 +137,7 @@ export async function sendOrderStatusUpdateEmail(order) {
             : ""
         }
 
-        <p>您可以隨時前往「<a href="https://您的網站.com/my-account.html">我的訂單</a>」頁面查看最新狀態。</p>
+        <p>您可以隨時前往「<a href="${SITE_URL}/my-account.html">我的訂單</a>」頁面查看最新狀態。</p>
     `;
 
   await sendEmail(order.customer_email, subject, html);

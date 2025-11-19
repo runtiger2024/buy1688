@@ -17,6 +17,7 @@ router.get("/settings", async (req, res, next) => {
       const numVal = parseFloat(s.value);
       obj[s.key] = isNaN(numVal) ? s.value : numVal;
       // 特例：銀行帳號可能是純數字字串，不應轉成 float (會丟失前導0)，這裡做個簡單判斷
+      // [優化] 集中判斷不需要轉換為數字的 key
       if (["bank_account", "bank_name", "bank_account_name"].includes(s.key)) {
         obj[s.key] = s.value;
       }
@@ -41,10 +42,11 @@ router.put("/settings", authenticateToken, isAdmin, async (req, res, next) => {
 
     const updates = [];
 
+    // [優化] 確保傳入的數值是數字或可以轉為字串
     if (exchange_rate !== undefined)
-      updates.push({ key: "exchange_rate", value: exchange_rate.toString() });
+      updates.push({ key: "exchange_rate", value: String(exchange_rate) });
     if (service_fee !== undefined)
-      updates.push({ key: "service_fee", value: service_fee.toString() });
+      updates.push({ key: "service_fee", value: String(service_fee) });
 
     // [新增] 銀行資訊設定
     if (bank_name !== undefined)
@@ -71,8 +73,7 @@ router.put("/settings", authenticateToken, isAdmin, async (req, res, next) => {
   }
 });
 
-// ... (下方的 warehouses, categories, users 等程式碼保持不變) ...
-// (請保留原本檔案中其他的路由)
+// ... (下方的 warehouses, categories, users, dashboard/stats 等程式碼保持不變) ...
 // --- 倉庫管理 ---
 router.get("/warehouses", async (req, res, next) => {
   try {
@@ -244,6 +245,7 @@ router.get(
 
       res.json({
         totalRevenueTWD: stats._sum.total_amount_twd || 0,
+        // [優化] 確保是數字類型
         totalCostCNY: Number(stats._sum.total_cost_cny) || 0.0,
         statusCounts: {
           Pending: statusCounts.Pending || 0,
