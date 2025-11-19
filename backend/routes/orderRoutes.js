@@ -95,7 +95,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
     });
     if (!warehouse) throw new Error("無效的集運倉 ID");
 
-    // 手動生成 share_token 避免資料庫預設值未生效導致 500 錯誤
+    // 手動生成 share_token
     const newOrder = await prisma.orders.create({
       data: {
         paopao_id: userPaopaoId,
@@ -133,7 +133,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
   }
 });
 
-// --- 憑證上傳路由 (已修復重複上傳問題) ---
+// --- 憑證上傳路由 ---
 router.post(
   "/:id/voucher",
   authenticateToken,
@@ -161,7 +161,7 @@ router.post(
       if (order.payment_status !== "UNPAID")
         return res.status(400).json({ message: "該訂單狀態無法上傳憑證" });
 
-      // [新增修復] 檢查是否已上傳過憑證
+      // [新增修復] 檢查是否已經有憑證
       if (order.payment_voucher_url) {
         return res.status(400).json({
           message: "您已上傳過憑證，請勿重複上傳。如需修改請聯繫客服。",
@@ -250,7 +250,7 @@ router.post(
         });
       }
 
-      // 同樣手動生成 share_token
+      // 手動生成 share_token
       const newOrder = await prisma.orders.create({
         data: {
           paopao_id: userPaopaoId,
@@ -386,7 +386,7 @@ router.get(
         whereClause.payment_voucher_url = { not: null };
       }
 
-      // 搜尋邏輯：同時搜尋 ID (如果是數字)、跑跑虎 ID、Email
+      // 搜尋邏輯
       if (search) {
         const searchInt = parseInt(search, 10);
         const OR = [
