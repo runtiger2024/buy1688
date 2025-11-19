@@ -2,7 +2,7 @@
 import express from "express";
 import Joi from "joi";
 import prisma from "../db.js";
-import { randomUUID } from "crypto"; // 引入 UUID 產生器
+import { randomUUID } from "crypto";
 import {
   authenticateToken,
   isCustomer,
@@ -17,7 +17,7 @@ import {
 
 const router = express.Router();
 
-// --- 共通函式：載入系統設定與銀行資訊 ---
+// --- 共通函式 ---
 async function getSettingsAndBankInfo() {
   const settings = await prisma.systemSettings.findMany();
   const config = {};
@@ -45,7 +45,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
         Joi.object({
           id: Joi.string().required(),
           quantity: Joi.number().integer().min(1).required(),
-          // [修正 1] 加入 spec 驗證，允許字串或 null
+          // [關鍵] 必須允許 spec 欄位，否則會報 400 錯誤
           spec: Joi.string().allow("").allow(null).optional(),
         })
       )
@@ -88,8 +88,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
         snapshot_name: product.name,
         snapshot_price_twd: product.price_twd,
         snapshot_cost_cny: product.cost_cny,
-        // [修正 2] 將前端傳來的 spec 寫入資料庫
-        item_spec: item.spec || null,
+        item_spec: item.spec || null, // 寫入規格
       });
     }
 
@@ -98,7 +97,6 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
     });
     if (!warehouse) throw new Error("無效的集運倉 ID");
 
-    // 手動生成 share_token 避免資料庫預設值未生效導致 500 錯誤
     const newOrder = await prisma.orders.create({
       data: {
         paopao_id: userPaopaoId,
@@ -164,7 +162,6 @@ router.post(
       if (order.payment_status !== "UNPAID")
         return res.status(400).json({ message: "該訂單狀態無法上傳憑證" });
 
-      // 檢查是否已經有憑證
       if (order.payment_voucher_url) {
         return res.status(400).json({
           message: "您已上傳過憑證，請勿重複上傳。如需修改請聯繫客服。",
@@ -253,7 +250,6 @@ router.post(
         });
       }
 
-      // 手動生成 share_token
       const newOrder = await prisma.orders.create({
         data: {
           paopao_id: userPaopaoId,
@@ -291,7 +287,7 @@ router.post(
   }
 );
 
-// --- 公開查詢訂單 ---
+// --- 公開/客戶/管理員查詢路由 (保持不變) ---
 router.get("/share/:token", async (req, res, next) => {
   try {
     const { token } = req.params;
@@ -309,11 +305,8 @@ router.get("/share/:token", async (req, res, next) => {
         },
       },
     });
-
     if (!order) return res.status(404).json({ message: "找不到訂單" });
-
     const { bankInfo } = await getSettingsAndBankInfo();
-
     const safeOrder = {
       id: order.id,
       paopao_id: order.paopao_id,
@@ -324,14 +317,12 @@ router.get("/share/:token", async (req, res, next) => {
       items: order.items,
       bank_info: bankInfo,
     };
-
     res.json(safeOrder);
   } catch (err) {
     next(err);
   }
 });
 
-// --- 客戶查詢訂單 ---
 router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
   try {
     const orders = await prisma.orders.findMany({
@@ -351,27 +342,23 @@ router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
       },
       orderBy: { created_at: "desc" },
     });
-
     const sanitizedOrders = orders.map((order) => {
       const items = order.items.map((item) => ({
         ...item,
         snapshot_cost_cny: Number(item.snapshot_cost_cny),
       }));
-
       return {
         ...order,
         total_cost_cny: Number(order.total_cost_cny),
         items: items,
       };
     });
-
     res.json(sanitizedOrders);
   } catch (err) {
     next(err);
   }
 });
 
-// --- 操作員查詢 ---
 router.get(
   "/operator",
   authenticateToken,
@@ -380,33 +367,26 @@ router.get(
     try {
       const { status, paymentStatus, search, hasVoucher } = req.query;
       const whereClause = {};
-
       if (status) whereClause.status = status;
       if (paymentStatus) whereClause.payment_status = paymentStatus;
-
       if (hasVoucher === "true") {
         whereClause.payment_status = "UNPAID";
         whereClause.payment_voucher_url = { not: null };
       }
-
       if (search) {
         const searchInt = parseInt(search, 10);
         const OR = [
           { paopao_id: { contains: search, mode: "insensitive" } },
           { customer_email: { contains: search, mode: "insensitive" } },
         ];
-        if (!isNaN(searchInt)) {
-          OR.push({ id: searchInt });
-        }
+        if (!isNaN(searchInt)) OR.push({ id: searchInt });
         whereClause.OR = OR;
       }
-
       const orders = await prisma.orders.findMany({
         where: whereClause,
         include: {
           operator: { select: { username: true } },
           warehouse: { select: { name: true } },
-          // 包含商品詳細欄位
           items: {
             select: {
               quantity: true,
@@ -425,7 +405,6 @@ router.get(
           (sum, item) => sum + Number(item.snapshot_cost_cny) * item.quantity,
           0
         );
-
         return {
           ...o,
           total_cost_cny: Number(o.total_cost_cny),
@@ -433,7 +412,6 @@ router.get(
           warehouse_name: o.warehouse?.name,
         };
       });
-
       res.json(ordersWithCost);
     } catch (err) {
       next(err);
@@ -441,37 +419,29 @@ router.get(
   }
 );
 
-// --- 管理員查詢 ---
 router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
   try {
     const { status, paymentStatus, search, hasVoucher } = req.query;
     const whereClause = {};
-
     if (status) whereClause.status = status;
     if (paymentStatus) whereClause.payment_status = paymentStatus;
-
     if (hasVoucher === "true") {
       whereClause.payment_status = "UNPAID";
       whereClause.payment_voucher_url = { not: null };
     }
-
     if (search) {
       const searchInt = parseInt(search, 10);
       const OR = [
         { paopao_id: { contains: search, mode: "insensitive" } },
         { customer_email: { contains: search, mode: "insensitive" } },
       ];
-      if (!isNaN(searchInt)) {
-        OR.push({ id: searchInt });
-      }
+      if (!isNaN(searchInt)) OR.push({ id: searchInt });
       whereClause.OR = OR;
     }
-
     const orders = await prisma.orders.findMany({
       where: whereClause,
       include: {
         warehouse: { select: { name: true } },
-        // 包含商品詳細欄位
         items: {
           select: {
             quantity: true,
@@ -490,21 +460,18 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
         (sum, item) => sum + Number(item.snapshot_cost_cny) * item.quantity,
         0
       );
-
       return {
         ...o,
         total_cost_cny: Number(o.total_cost_cny),
         warehouse_name: o.warehouse?.name,
       };
     });
-
     res.json(ordersWithCost);
   } catch (err) {
     next(err);
   }
 });
 
-// --- 更新訂單 ---
 router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
   try {
     const {
@@ -520,21 +487,17 @@ router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
     if (payment_status) data.payment_status = payment_status;
     if (domestic_tracking_number !== undefined)
       data.domestic_tracking_number = domestic_tracking_number;
-
     if (operator_id !== undefined && req.user.role === "admin") {
       data.operator_id = operator_id ? parseInt(operator_id) : null;
     }
-
     const updated = await prisma.orders.update({
       where: { id: parseInt(req.params.id) },
       data,
     });
-
     if (payment_status === "PAID")
       sendPaymentReceivedEmail(updated).catch(console.error);
     else if (status && status !== updated.status)
       sendOrderStatusUpdateEmail(updated).catch(console.error);
-
     res.json(updated);
   } catch (err) {
     next(err);
