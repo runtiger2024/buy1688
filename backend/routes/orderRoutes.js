@@ -2,6 +2,7 @@
 import express from "express";
 import Joi from "joi";
 import prisma from "../db.js";
+import { randomUUID } from "crypto"; // [新增] 引入 UUID 產生器
 import {
   authenticateToken,
   isCustomer,
@@ -16,6 +17,7 @@ import {
 
 const router = express.Router();
 
+// --- [優化] 共通函式：載入系統設定與銀行資訊 ---
 async function getSettingsAndBankInfo() {
   const settings = await prisma.systemSettings.findMany();
   const config = {};
@@ -28,13 +30,13 @@ async function getSettingsAndBankInfo() {
     bank_account: config.bank_account || "未設定帳號",
     bank_account_name: config.bank_account_name || "未設定戶名",
   };
+
   return { rate, fee, bankInfo };
 }
+// --- 共通函式結束 ---
 
-// ... (建立訂單路由保持不變) ...
+// --- 建立一般訂單 (強制登入) ---
 router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
-  // (保持不變，略過以節省篇幅，請保留原檔內容)
-  // ...原本的 create order logic...
   const schema = Joi.object({
     paopaoId: Joi.string().allow("").optional(),
     customerEmail: Joi.string().email().required(),
@@ -50,7 +52,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
       .min(1)
       .required(),
   });
-  // ... (這段與原檔相同，不變動)
+
   const { error, value } = schema.validate(req.body);
   if (error) return res.status(400).json({ message: error.details[0].message });
 
@@ -104,6 +106,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
         type: "Standard",
         payment_method: value.payment_method,
         warehouse_id: value.warehouse_id,
+        share_token: randomUUID(), // [修正] 明確產生 share_token
         items: { create: orderItemsData },
       },
       include: { items: true },
@@ -130,7 +133,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
   }
 });
 
-// ... (憑證上傳路由保持不變) ...
+// --- 憑證上傳路由 ---
 router.post(
   "/:id/voucher",
   authenticateToken,
@@ -180,13 +183,12 @@ router.post(
   }
 );
 
-// ... (代購訂單路由保持不變) ...
+// --- 建立代購訂單 ---
 router.post(
   "/assist",
   authenticateToken,
   isCustomer,
   async (req, res, next) => {
-    // ... (保留原檔內容)
     const schema = Joi.object({
       paopaoId: Joi.string().allow("").optional(),
       customerEmail: Joi.string().email().required(),
@@ -251,6 +253,7 @@ router.post(
           type: "Assist",
           payment_method: value.payment_method,
           warehouse_id: value.warehouse_id,
+          share_token: randomUUID(), // [修正] 明確產生 share_token
           items: { create: orderItemsData },
         },
         include: { items: true },
@@ -277,9 +280,8 @@ router.post(
   }
 );
 
-// ... (公開/客戶查詢保持不變) ...
+// --- 公開查詢訂單 ---
 router.get("/share/:token", async (req, res, next) => {
-  // ... (保留原檔內容)
   try {
     const { token } = req.params;
     const order = await prisma.orders.findUnique({
@@ -318,8 +320,8 @@ router.get("/share/:token", async (req, res, next) => {
   }
 });
 
+// --- 客戶查詢訂單 ---
 router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
-  // ... (保留原檔內容)
   try {
     const orders = await prisma.orders.findMany({
       where: { paopao_id: req.user.paopao_id },
@@ -365,26 +367,25 @@ router.get(
   isOperator,
   async (req, res, next) => {
     try {
-      // [修改] 增加 hasVoucher 參數
       const { status, paymentStatus, search, hasVoucher } = req.query;
       const whereClause = {};
 
       if (status) whereClause.status = status;
       if (paymentStatus) whereClause.payment_status = paymentStatus;
 
-      // [修改] 憑證篩選邏輯: 只找「未付款」且「有憑證」的訂單
       if (hasVoucher === "true") {
         whereClause.payment_status = "UNPAID";
         whereClause.payment_voucher_url = { not: null };
       }
 
-      // 搜尋邏輯
+      // 搜尋邏輯：同時搜尋 ID (如果是數字)、跑跑虎 ID、Email
       if (search) {
         const searchInt = parseInt(search, 10);
         const OR = [
           { paopao_id: { contains: search, mode: "insensitive" } },
           { customer_email: { contains: search, mode: "insensitive" } },
         ];
+        // 只有當 search 是有效整數時，才加入 ID 搜尋
         if (!isNaN(searchInt)) {
           OR.push({ id: searchInt });
         }
@@ -484,9 +485,8 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
   }
 });
 
-// ... (更新訂單路由保持不變) ...
+// --- 更新訂單 ---
 router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
-  // ... (保留原檔內容)
   try {
     const {
       status,
