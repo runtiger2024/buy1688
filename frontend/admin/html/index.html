@@ -223,6 +223,17 @@
               <i class="fas fa-plus"></i> 建立新用戶
             </button>
           </div>
+
+          <div class="toolbar">
+            <div class="search-box">
+              <input
+                type="text"
+                id="user-search-input"
+                placeholder="搜尋帳號..."
+              />
+            </div>
+          </div>
+
           <div class="table-responsive">
             <table class="data-table">
               <thead>
@@ -417,15 +428,17 @@
     <div id="user-modal" class="modal">
       <div class="modal-content">
         <span class="close-modal">&times;</span>
-        <h3>建立新用戶</h3>
+        <h3 id="user-modal-title">建立新用戶</h3>
         <form id="create-user-form">
+          <input type="hidden" id="user-id" />
           <div class="form-group">
             <label>帳號</label>
             <input type="text" id="user-username" required />
           </div>
           <div class="form-group">
-            <label>密碼</label>
-            <input type="text" id="user-password" required />
+            <label id="user-password-label">密碼</label>
+            <input type="text" id="user-password" />
+            <small id="user-password-hint" style="color: #666"></small>
           </div>
           <div class="form-group">
             <label>角色</label>
@@ -435,7 +448,7 @@
             </select>
           </div>
           <div class="modal-footer">
-            <button type="submit" class="btn btn-primary">建立</button>
+            <button type="submit" class="btn btn-primary">儲存</button>
           </div>
         </form>
       </div>

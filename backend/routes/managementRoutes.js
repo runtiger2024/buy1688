@@ -197,6 +197,7 @@ router.get("/users", authenticateToken, isAdmin, async (req, res, next) => {
     next(err);
   }
 });
+
 router.post("/users", authenticateToken, isAdmin, async (req, res, next) => {
   try {
     const { username, password, role } = req.body;
@@ -211,6 +212,7 @@ router.post("/users", authenticateToken, isAdmin, async (req, res, next) => {
     next(err);
   }
 });
+
 router.put(
   "/users/:id/status",
   authenticateToken,
@@ -229,6 +231,7 @@ router.put(
     }
   }
 );
+
 router.put(
   "/users/:id/role",
   authenticateToken,
@@ -254,6 +257,30 @@ router.put(
   }
 );
 
+// [新增] 重置密碼 API
+router.put(
+  "/users/:id/password",
+  authenticateToken,
+  isAdmin,
+  async (req, res, next) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { password } = req.body;
+      if (!password || password.length < 6) {
+        return res.status(400).json({ message: "密碼長度至少需 6 碼" });
+      }
+      const hashedPassword = await hashPassword(password);
+      await prisma.users.update({
+        where: { id },
+        data: { password_hash: hashedPassword },
+      });
+      res.json({ message: "密碼已重置" });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // --- 績效統計 (Dashboard) ---
 router.get(
   "/dashboard/stats",
@@ -261,13 +288,11 @@ router.get(
   isAdmin,
   async (req, res, next) => {
     try {
-      // 1. 財務統計
       const stats = await prisma.orders.aggregate({
         _sum: { total_amount_twd: true, total_cost_cny: true },
         where: { status: { not: "Cancelled" }, payment_status: "PAID" },
       });
 
-      // 2. 狀態計數
       const statusCountsRaw = await prisma.orders.groupBy({
         by: ["status"],
         _count: { status: true },
@@ -277,7 +302,6 @@ router.get(
         {}
       );
 
-      // 3. 付款狀態計數
       const payRaw = await prisma.orders.groupBy({
         by: ["payment_status"],
         _count: { _all: true },
@@ -287,7 +311,6 @@ router.get(
         {}
       );
 
-      // 4. [新增] 待核銷憑證計數 (有上傳憑證 但 尚未付款)
       const pendingVoucherCount = await prisma.orders.count({
         where: {
           payment_status: "UNPAID",
@@ -310,7 +333,7 @@ router.get(
           UNPAID: paymentStatusCounts.UNPAID || 0,
           PAID: paymentStatusCounts.PAID || 0,
         },
-        pendingVoucherCount, // 回傳新統計
+        pendingVoucherCount,
       });
     } catch (err) {
       next(err);

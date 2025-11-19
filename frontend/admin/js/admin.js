@@ -25,12 +25,14 @@ let availableOperators = [];
 let allWarehouses = new Map();
 let allCategories = [];
 let allOrders = [];
-let currentOrder = null; // 當前 Modal 編輯的訂單
+let allUsers = []; // [新增] 全局用戶列表
+let currentOrder = null;
 
 let currentStatusFilter = "";
 let currentPaymentStatusFilter = "";
 let currentSearchTerm = "";
-let currentHasVoucherFilter = false; // [新增] 憑證篩選狀態
+let currentHasVoucherFilter = false;
+let userSearchTerm = ""; // [新增] 用戶搜尋詞
 
 // --- 暴露給全局使用的複製函式 ---
 window.copyShippingInfo = (paopaoId, warehouseId) => {
@@ -77,10 +79,8 @@ ${itemsText}
 document.addEventListener("DOMContentLoaded", async () => {
   if (!checkAuth()) return;
 
-  // 1. 綁定 Sidebar 導航
   setupNavigation();
 
-  // 2. 顯示用戶資訊
   const user = getUser();
   if (user) {
     document.getElementById("user-info").innerHTML = `
@@ -95,16 +95,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // 3. 綁定登出
   document.getElementById("logout-button").addEventListener("click", logout);
 
-  // 4. 載入基礎資料
   await Promise.all([loadSettings(), loadWarehouses(), loadUsers()]);
 
-  // 5. 預設載入 Dashboard
   loadStats();
 
-  // 6. 綁定各區塊事件
   setupDashboardEvents();
   setupOrderEvents();
   setupProductEvents();
@@ -134,7 +130,6 @@ function setupNavigation() {
       if (targetSection) targetSection.classList.add("active");
 
       if (targetId === "orders-section") {
-        // 重置特殊篩選
         currentHasVoucherFilter = false;
         loadOrders();
       }
@@ -163,7 +158,6 @@ async function loadStats() {
     const totalCostTWD = stats.totalCostCNY * exchangeRate;
     const totalProfitTWD = stats.totalRevenueTWD - totalCostTWD;
 
-    // [修改] 新增「待核銷憑證」卡片
     container.innerHTML = `
             <div class="stat-card danger" style="cursor: pointer;" onclick="filterPendingVouchers()">
                 <h4>🔔 待核銷憑證 (點擊篩選)</h4>
@@ -201,9 +195,7 @@ async function loadStats() {
   }
 }
 
-// [新增] 全局函式：點擊儀表板卡片後，跳轉到訂單頁並篩選
 window.filterPendingVouchers = function () {
-  // 切換 UI 到訂單頁
   document
     .querySelectorAll(".sidebar-nav .nav-link")
     .forEach((l) => l.classList.remove("active"));
@@ -217,11 +209,9 @@ window.filterPendingVouchers = function () {
   if (orderLink) orderLink.classList.add("active");
   document.getElementById("orders-section").classList.add("active");
 
-  // 設定篩選條件
   currentHasVoucherFilter = true;
   document.getElementById("order-status-filter").value = "";
-  document.getElementById("order-payment-status-filter").value = "UNPAID"; // 自動選取待付款
-
+  document.getElementById("order-payment-status-filter").value = "UNPAID";
   loadOrders();
 };
 
@@ -243,7 +233,6 @@ async function loadOrders() {
     if (currentPaymentStatusFilter)
       params.paymentStatus = currentPaymentStatusFilter;
     if (currentSearchTerm) params.search = currentSearchTerm;
-    // [新增] 傳送憑證篩選參數
     if (currentHasVoucherFilter) params.hasVoucher = "true";
 
     allOrders = await api.getOrders(params);
@@ -282,7 +271,6 @@ function renderOrdersTable(orders) {
     let paymentBadge =
       order.payment_status === "PAID" ? "badge-success" : "badge-danger";
 
-    // [新增] 憑證提醒徽章
     let voucherAlert = "";
     if (order.payment_status === "UNPAID" && order.payment_voucher_url) {
       voucherAlert = `<span class="badge badge-warning" style="margin-left:5px; background-color:#ffc107; color:#000;"><i class="fas fa-bell"></i> 新憑證</span>`;
@@ -330,7 +318,6 @@ function setupOrderEvents() {
     currentSearchTerm = document
       .getElementById("order-search-input")
       .value.trim();
-    // 搜尋時重置特殊篩選
     currentHasVoucherFilter = false;
     loadOrders();
   });
@@ -362,7 +349,6 @@ function setupOrderEvents() {
     .addEventListener("click", saveOrderChanges);
 }
 
-// --- 訂單 Modal 邏輯 ---
 function openOrderModal(orderId) {
   const order = allOrders.find((o) => o.id == orderId);
   if (!order) return;
@@ -455,9 +441,7 @@ function openOrderModal(orderId) {
                 </div>
             </div>
         </div>
-        
         <hr>
-        
         <div class="form-row-2">
             <div class="form-group">
                 <label>指派操作員 (${
@@ -477,19 +461,16 @@ function openOrderModal(orderId) {
                 }" placeholder="輸入快遞單號">
             </div>
         </div>
-
         <div class="form-group">
             <label>管理員備註</label>
             <textarea id="modal-order-notes" rows="2">${
               order.notes || ""
             }</textarea>
         </div>
-        
         <div class="form-group bg-light p-10">
             <label style="color: #d35400;">🔔 付款憑證區</label>
             <div>${voucherHtml}</div>
         </div>
-
         <h4 class="mt-5">商品清單</h4>
         <table class="data-table" style="font-size: 0.85rem;">
             <thead>
@@ -541,7 +522,7 @@ async function saveOrderChanges() {
 }
 
 // ==========================================
-// 4. 商品管理 (Products)
+// 4. 商品管理
 // ==========================================
 async function loadProducts() {
   const tbody = document.getElementById("products-tbody");
@@ -706,7 +687,7 @@ async function archiveProduct(id) {
 }
 
 // ==========================================
-// 5. 分類管理 (Categories)
+// 5. 分類管理
 // ==========================================
 async function loadCategories() {
   const tbody = document.getElementById("categories-tbody");
@@ -887,19 +868,44 @@ function openWarehouseModal(id) {
   document.getElementById("warehouse-modal").style.display = "block";
 }
 
+// ==========================================
+// 7. 人員管理 (優化版)
+// ==========================================
 async function loadUsers() {
   if (getUser().role !== "admin") return;
   const tbody = document.getElementById("users-tbody");
   tbody.innerHTML = "<tr><td>載入中...</td></tr>";
   try {
     const users = await api.getUsers();
+    allUsers = users; // 緩存供搜尋用
+    renderUsersTable(allUsers); // 預設顯示全部
     availableOperators = users.filter(
       (u) => u.role === "operator" && u.status === "active"
     );
-    tbody.innerHTML = "";
-    users.forEach((u) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function renderUsersTable(users) {
+  const tbody = document.getElementById("users-tbody");
+
+  // [新增] 前端過濾
+  const filtered = users.filter((u) =>
+    u.username.toLowerCase().includes(userSearchTerm.toLowerCase())
+  );
+
+  if (filtered.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="5" class="text-center">找不到符合條件的用戶</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = "";
+  filtered.forEach((u) => {
+    const tr = document.createElement("tr");
+    const isSelf = getUser().id === u.id;
+    tr.innerHTML = `
                 <td>${u.id}</td>
                 <td>${u.username}</td>
                 <td>${u.role}</td>
@@ -910,8 +916,13 @@ async function loadUsers() {
                 }</td>
                 <td>
                     ${
-                      u.id !== getUser().id
+                      !isSelf
                         ? `
+                    <button class="btn btn-small btn-primary btn-edit-user" data-id="${
+                      u.id
+                    }">
+                        <i class="fas fa-edit"></i> 編輯
+                    </button>
                     <button class="btn btn-small ${
                       u.status === "active" ? "btn-danger" : "btn-success"
                     } btn-toggle-user" data-id="${u.id}" data-status="${
@@ -923,48 +934,119 @@ async function loadUsers() {
                     }
                 </td>
             `;
-      tbody.appendChild(tr);
-    });
-    document.querySelectorAll(".btn-toggle-user").forEach((btn) =>
-      btn.addEventListener("click", async () => {
-        const newStatus =
-          btn.dataset.status === "active" ? "inactive" : "active";
-        if (confirm(`確定要變更狀態為 ${newStatus} 嗎?`)) {
-          await api.updateUserStatus(btn.dataset.id, newStatus);
-          loadUsers();
-        }
-      })
+    tbody.appendChild(tr);
+  });
+
+  // 綁定停權按鈕
+  document.querySelectorAll(".btn-toggle-user").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      const newStatus = btn.dataset.status === "active" ? "inactive" : "active";
+      if (confirm(`確定要變更狀態為 ${newStatus} 嗎?`)) {
+        await api.updateUserStatus(btn.dataset.id, newStatus);
+        loadUsers();
+      }
+    })
+  );
+
+  // [新增] 綁定編輯按鈕
+  document
+    .querySelectorAll(".btn-edit-user")
+    .forEach((btn) =>
+      btn.addEventListener("click", () => openUserModal(btn.dataset.id))
     );
-  } catch (e) {
-    console.error(e);
-  }
 }
 
 function setupUserEvents() {
+  // 建立按鈕
   const btn = document.getElementById("btn-add-user");
-  if (btn)
-    btn.addEventListener(
-      "click",
-      () => (document.getElementById("user-modal").style.display = "block")
-    );
+  if (btn) btn.addEventListener("click", () => openUserModal(null));
 
+  // 搜尋監聽
+  const searchInput = document.getElementById("user-search-input");
+  if (searchInput) {
+    searchInput.addEventListener("keyup", (e) => {
+      userSearchTerm = e.target.value.trim();
+      renderUsersTable(allUsers);
+    });
+  }
+
+  // 表單提交
   const form = document.getElementById("create-user-form");
   if (form)
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      const id = document.getElementById("user-id").value;
+      const username = document.getElementById("user-username").value;
+      const password = document.getElementById("user-password").value;
+      const role = document.getElementById("user-role").value;
+
       try {
-        await api.createUser({
-          username: document.getElementById("user-username").value,
-          password: document.getElementById("user-password").value,
-          role: document.getElementById("user-role").value,
-        });
-        alert("建立成功");
+        if (id) {
+          // 編輯模式: 更新角色 與 (選擇性) 更新密碼
+          const originalUser = allUsers.find((u) => u.id == id);
+
+          // 1. 更新角色 (若有變動)
+          if (originalUser.role !== role) {
+            await api.updateUserRole(id, role);
+          }
+
+          // 2. 更新密碼 (若有填寫)
+          if (password) {
+            await api.updateUserPassword(id, password);
+          }
+
+          alert("用戶資料已更新");
+        } else {
+          // 建立模式
+          if (!password) {
+            alert("建立用戶需填寫密碼");
+            return;
+          }
+          await api.createUser({ username, password, role });
+          alert("用戶建立成功");
+        }
+
         document.getElementById("user-modal").style.display = "none";
         loadUsers();
       } catch (err) {
         alert(err.message);
       }
     });
+}
+
+function openUserModal(id) {
+  const form = document.getElementById("create-user-form");
+  form.reset();
+  document.getElementById("user-id").value = "";
+  const title = document.getElementById("user-modal-title");
+  const passHint = document.getElementById("user-password-hint");
+  const usernameInput = document.getElementById("user-username");
+
+  if (id) {
+    // 編輯模式
+    const user = allUsers.find((u) => u.id == id);
+    if (!user) return;
+
+    title.textContent = "編輯用戶";
+    document.getElementById("user-id").value = user.id;
+    usernameInput.value = user.username;
+    usernameInput.disabled = true; // 帳號不可修改
+    document.getElementById("user-role").value = user.role;
+
+    // 密碼欄位調整
+    document.getElementById("user-password").required = false;
+    document.getElementById("user-password").placeholder = "若不修改請留空";
+    passHint.textContent = "輸入新密碼以重置，否則請留空";
+  } else {
+    // 建立模式
+    title.textContent = "建立新用戶";
+    usernameInput.disabled = false;
+    document.getElementById("user-password").required = true;
+    document.getElementById("user-password").placeholder = "請輸入密碼";
+    passHint.textContent = "";
+  }
+
+  document.getElementById("user-modal").style.display = "block";
 }
 
 async function loadSettings() {

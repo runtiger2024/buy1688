@@ -21,7 +21,7 @@ async function fetchData(endpoint, options = {}) {
 
 export const api = {
   // 設定
-  getSettings: () => fetch(`${API_URL}/settings`).then((res) => res.json()), // 公開
+  getSettings: () => fetch(`${API_URL}/settings`).then((res) => res.json()),
   updateSettings: (data) =>
     fetchData("/admin/settings", { method: "PUT", body: JSON.stringify(data) }),
 
@@ -29,7 +29,7 @@ export const api = {
   getStats: () => fetchData("/admin/dashboard/stats"),
 
   // 倉庫
-  getWarehouses: () => fetch(`${API_URL}/warehouses`).then((res) => res.json()), // 公開/半公開
+  getWarehouses: () => fetch(`${API_URL}/warehouses`).then((res) => res.json()),
   createWarehouse: (data) =>
     fetchData("/admin/warehouses", {
       method: "POST",
@@ -77,6 +77,12 @@ export const api = {
     fetchData(`/admin/users/${id}/role`, {
       method: "PUT",
       body: JSON.stringify({ role }),
+    }),
+  // [新增] 更新密碼
+  updateUserPassword: (id, password) =>
+    fetchData(`/admin/users/${id}/password`, {
+      method: "PUT",
+      body: JSON.stringify({ password }),
     }),
 
   // 分類
