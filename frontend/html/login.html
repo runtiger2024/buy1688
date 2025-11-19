@@ -2,40 +2,65 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>會員登入 - 代採購平台</title>
-    <link rel="stylesheet" href="../css/admin.css" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>會員登入 - Runtiger</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="../css/style.css" />
   </head>
   <body class="login-body">
-    <div class="login-container">
-      <form id="customer-login-form">
-        <h2>會員登入</h2>
-        <p>
-          <a href="./index.html">返回首頁</a> |
-          <a href="./register.html">還沒有帳號？前往註冊</a>
-        </p>
-
-        <div class="form-group">
-          <label for="paopao-id">跑跑虎會員編號 (您的帳號):</label>
-          <input type="text" id="paopao-id" required placeholder="請輸入 ID" />
+    <div class="login-wrapper">
+      <div class="login-card">
+        <div class="login-header">
+          <div class="login-icon-circle">
+            <i class="fas fa-user-circle"></i>
+          </div>
+          <h2>會員登入</h2>
+          <p>歡迎回到 Runtiger 代採購平台</p>
         </div>
 
-        <div class="form-group">
-          <label for="password">密碼 (Password):</label>
-          <input
-            type="password"
-            id="password"
-            placeholder="請輸入您的密碼"
-            required
-          />
-        </div>
+        <form id="customer-login-form">
+          <div class="form-group">
+            <label for="paopao-id"
+              ><i class="fas fa-id-badge"></i> 跑跑虎 ID</label
+            >
+            <input
+              type="text"
+              id="paopao-id"
+              required
+              placeholder="請輸入您的會員編號"
+            />
+          </div>
 
-        <div class="form-buttons">
-          <button type="submit" id="login-button">登入</button>
-        </div>
+          <div class="form-group">
+            <label for="password"><i class="fas fa-lock"></i> 密碼</label>
+            <input
+              type="password"
+              id="password"
+              required
+              placeholder="請輸入密碼"
+            />
+          </div>
 
-        <p id="login-error" class="error-message"></p>
-      </form>
+          <button type="submit" id="login-button">
+            立即登入 <i class="fas fa-arrow-right"></i>
+          </button>
+
+          <p id="login-error" class="error-message"></p>
+        </form>
+
+        <div class="login-footer">
+          還沒有帳號？ <a href="./register.html">免費註冊</a> <br /><br />
+          <a href="./index.html" style="color: #999; font-size: 0.8rem">
+            <i class="fas fa-home"></i> 返回首頁
+          </a>
+        </div>
+      </div>
     </div>
 
     <script type="module" src="../js/auth.js"></script>
