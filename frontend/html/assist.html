@@ -133,6 +133,14 @@
           </div>
 
           <div class="form-group">
+            <label for="assist-warehouse-select"
+              >集運倉選擇 (貨物將寄送至此) *</label
+            >
+            <select id="assist-warehouse-select" required>
+              <option value="">-- 載入中 / 請選擇 --</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label>付款方式:</label>
             <div>
               <input
@@ -152,7 +160,7 @@
             class="btn-submit-order"
             disabled
           >
-            確認提交代購單
+            確認提交代購單採購到集運倉
           </button>
         </form>
       </div>

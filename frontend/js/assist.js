@@ -6,6 +6,7 @@ let currentSettings = {
   service_fee: 0,
 };
 let assistList = []; // 暫存代購商品
+let availableWarehouses = []; // [新增] 存放倉庫資料
 
 // --- 幫助函式 ---
 
@@ -94,7 +95,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupHamburgerMenu();
   setupCustomerAuth();
 
-  loadSettings();
+  // [新增] 處理導覽列上的 "我的購物車" 連結
+  const navCartLink = document.getElementById("nav-cart-link");
+  if (navCartLink) {
+    navCartLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      // 導回首頁並打開購物車 modal
+      window.location.href = "./index.html";
+    });
+  }
+
+  await loadSettingsAndWarehouses(); // [修改] 結合載入設定與倉庫
 
   document
     .getElementById("assist-add-form")
@@ -102,12 +113,23 @@ document.addEventListener("DOMContentLoaded", async () => {
   document
     .getElementById("assist-submit-form")
     .addEventListener("submit", handleSubmitOrder);
+
+  // [新增] 修改按鈕文字
+  const submitBtn = document.getElementById("submit-order-btn");
+  if (submitBtn) {
+    submitBtn.textContent = "確認送出訂單採購到集運倉";
+  }
 });
 
 /**
- * 載入後台設定
+ * [修改] 載入後台設定與倉庫
  */
-async function loadSettings() {
+async function loadSettingsAndWarehouses() {
+  const rateEl = document.getElementById("display-rate");
+  const feeEl = document.getElementById("display-fee");
+  const selectEl = document.getElementById("assist-warehouse-select");
+
+  // 1. 載入設定
   try {
     const response = await fetch(`${API_URL}/settings`);
     if (response.ok) {
@@ -119,13 +141,40 @@ async function loadSettings() {
         currentSettings.service_fee = settings.service_fee;
 
       // 更新 UI
-      document.getElementById("display-rate").textContent =
-        currentSettings.exchange_rate;
+      rateEl.textContent = currentSettings.exchange_rate;
       const feePercent = (currentSettings.service_fee * 100).toFixed(0);
-      document.getElementById("display-fee").textContent = `${feePercent}%`;
+      feeEl.textContent = `${feePercent}%`;
     }
   } catch (error) {
     console.error("載入設定失敗:", error);
+  }
+
+  // 2. 載入倉庫
+  if (!selectEl) return;
+  try {
+    const response = await fetch(`${API_URL}/warehouses`);
+    if (!response.ok) throw new Error("載入集運倉失敗");
+    // 只保留已啟用的倉庫
+    availableWarehouses = (await response.json()).filter((wh) => wh.is_active);
+
+    selectEl.innerHTML = '<option value="">-- 請選擇集運倉 --</option>';
+    if (availableWarehouses.length === 0) {
+      selectEl.innerHTML = '<option value="">無可用集運倉</option>';
+      selectEl.disabled = true;
+      return;
+    }
+
+    availableWarehouses.forEach((wh) => {
+      const option = document.createElement("option");
+      option.value = wh.id;
+      // 顯示倉庫名稱和地址前段
+      option.textContent = `${wh.name} - ${wh.address.substring(0, 15)}...`;
+      selectEl.appendChild(option);
+    });
+  } catch (error) {
+    console.error("獲取集運倉失敗:", error);
+    selectEl.innerHTML = '<option value="">載入失敗</option>';
+    selectEl.disabled = true;
   }
 }
 
@@ -247,10 +296,18 @@ async function handleSubmitOrder(e) {
   const paymentMethod = document.querySelector(
     'input[name="payment-method"]:checked'
   ).value;
+  const warehouseSelect = document.getElementById("assist-warehouse-select"); // [新增] 獲取倉庫下拉選單
+  const warehouseId = warehouseSelect.value; // [新增] 獲取選定的倉庫 ID
+
+  if (!warehouseId) {
+    // [新增] 檢查倉庫是否選定
+    alert("請選擇一個集運倉！");
+    return;
+  }
 
   const submitBtn = document.getElementById("submit-order-btn");
   submitBtn.disabled = true;
-  submitBtn.textContent = "提交中...";
+  submitBtn.textContent = "訂單提交中...";
 
   try {
     // 過濾掉前端專用的 id 和 estimated_twd 欄位
@@ -266,6 +323,8 @@ async function handleSubmitOrder(e) {
       paopaoId: paopaoId,
       customerEmail: email,
       payment_method: paymentMethod,
+      // [新增] 加入 warehouse_id
+      warehouse_id: parseInt(warehouseId, 10),
       items: itemsToSend,
     };
 
@@ -296,6 +355,7 @@ async function handleSubmitOrder(e) {
     console.error("Error:", error);
     alert(`錯誤: ${error.message}`);
     submitBtn.disabled = false;
-    submitBtn.textContent = "確認提交代購單";
+    // [修改] 恢復按鈕文字
+    submitBtn.textContent = "確認送出訂單採購到集運倉";
   }
 }

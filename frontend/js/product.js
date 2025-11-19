@@ -138,6 +138,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupHamburgerMenu();
   setupCustomerAuth();
 
+  // [新增] 處理導覽列上的 "我的購物車" 連結
+  const navCartLink = document.getElementById("nav-cart-link");
+  if (navCartLink) {
+    navCartLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      // 由於商品詳情頁沒有購物車 Modal，這裡導回首頁
+      window.location.href = "./index.html";
+    });
+  }
+
   loadCart();
 
   const params = new URLSearchParams(window.location.search);

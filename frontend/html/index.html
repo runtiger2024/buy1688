@@ -56,6 +56,25 @@
         <span class="close-button" id="close-modal">&times;</span>
         <h2>您的購物車</h2>
 
+        <div class="header-notice" style="margin-bottom: 20px; padding: 15px; border-color: #ffc107; background-color: #fffbe6;">
+            <p style="margin-top: 0;"><strong>⚠️ 重要提醒，請務必詳讀 ⚠️</strong></p>
+            <ol style="margin: 5px 0 10px 0; padding-left: 20px; color: var(--text-light);">
+                <li>
+                    關於價格：
+                    頁面顯示的【台幣價格】即為您需要支付的全部費用，已包含代購服務費。
+                </li>
+                <li>
+                    關於運費：
+                    本站不經手任何運費。貨物送達後，您需自行登入「跑跑虎集運APP」支付國際運費。
+                </li>
+                <li>關於出貨： 請務必填寫正確的「跑跑虎集運」會員編號。</li>
+                <li>
+                    <strong>服務範圍：</strong>
+                    本平台服務**僅止於**協助採購商品至「跑跑虎集運倉」。
+                    <strong>並非**直接寄送至您位於台灣的收件地址。
+                </li>
+            </ol>
+        </div>
         <div id="cart-items-list">
           <p>您的購物車是空的。</p>
         </div>
@@ -91,6 +110,13 @@
             </div>
 
             <div class="form-group">
+              <label for="warehouse-select">集運倉選擇 (貨物將寄送至此) *:</label>
+              <select id="warehouse-select" required>
+                <option value="">-- 載入中 / 請選擇 --</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
               <label>付款方式:</label>
               <div>
                 <input
@@ -117,8 +143,7 @@
                 >
               </div>
             </div>
-            <button type="submit" id="checkout-button">確認送出訂單</button>
-          </form>
+            <button type="submit" id="checkout-button">確認送出訂單採購到集運倉</button> </form>
         </div>
 
         <div id="checkout-success-message" style="display: none">

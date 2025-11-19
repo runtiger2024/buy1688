@@ -86,6 +86,7 @@ function setupHamburgerMenu() {
 let shoppingCart = {};
 let currentCategoryId = null;
 let currentSearchTerm = "";
+let availableWarehouses = []; // [新增] 存放倉庫資料
 
 document.addEventListener("DOMContentLoaded", async () => {
   await loadComponent("../html/_navbar.html", "navbar-placeholder");
@@ -104,6 +105,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   loadCategories();
+  loadWarehouses(); // [新增] 載入倉庫
 
   const params = new URLSearchParams(window.location.search);
   const categoryFromUrl = params.get("category");
@@ -131,7 +133,48 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupCartModal();
   setupCheckoutForm();
   updateCartCount();
+
+  // [新增] 處理導覽列上的 "我的購物車" 連結
+  const navCartLink = document.getElementById("nav-cart-link");
+  if (navCartLink) {
+    navCartLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      // 觸發懸浮按鈕的點擊事件，打開 Modal
+      document.getElementById("cart-button").click();
+    });
+  }
 });
+
+// [新增] 載入倉庫資料
+async function loadWarehouses() {
+  const selectEl = document.getElementById("warehouse-select");
+  if (!selectEl) return;
+  try {
+    const response = await fetch(`${API_URL}/warehouses`);
+    if (!response.ok) throw new Error("載入集運倉失敗");
+    // 只保留已啟用的倉庫
+    availableWarehouses = (await response.json()).filter((wh) => wh.is_active);
+
+    selectEl.innerHTML = '<option value="">-- 請選擇集運倉 --</option>';
+    if (availableWarehouses.length === 0) {
+      selectEl.innerHTML = '<option value="">無可用集運倉</option>';
+      selectEl.disabled = true;
+      return;
+    }
+
+    availableWarehouses.forEach((wh) => {
+      const option = document.createElement("option");
+      option.value = wh.id;
+      // 顯示倉庫名稱和地址前段
+      option.textContent = `${wh.name} - ${wh.address.substring(0, 15)}...`;
+      selectEl.appendChild(option);
+    });
+  } catch (error) {
+    console.error("獲取集運倉失敗:", error);
+    selectEl.innerHTML = '<option value="">載入失敗</option>';
+    selectEl.disabled = true;
+  }
+}
 
 async function loadCategories() {
   const filterBar = document.getElementById("category-filter-bar");
@@ -412,6 +455,10 @@ function autofillCheckoutForm() {
 function setupCheckoutForm() {
   const checkoutForm = document.getElementById("checkout-form");
   const checkoutButton = document.getElementById("checkout-button");
+  const warehouseSelect = document.getElementById("warehouse-select"); // [新增] 獲取倉庫下拉選單
+
+  // [修改] 更新按鈕文字
+  checkoutButton.textContent = "確認送出訂單採購到集運倉";
 
   autofillCheckoutForm();
 
@@ -425,6 +472,13 @@ function setupCheckoutForm() {
     const paymentMethod = document.querySelector(
       'input[name="payment-method"]:checked'
     ).value;
+    const warehouseId = warehouseSelect.value; // [新增] 獲取選定的倉庫 ID
+
+    if (!warehouseId) {
+      // [新增] 檢查倉庫是否選定
+      alert("請選擇一個集運倉！");
+      return;
+    }
 
     const items = Object.keys(shoppingCart).map((id) => {
       return {
@@ -442,6 +496,8 @@ function setupCheckoutForm() {
       paopaoId: paopaoId,
       customerEmail: customerEmail,
       payment_method: paymentMethod,
+      // [新增] 加入 warehouse_id
+      warehouse_id: parseInt(warehouseId, 10),
       items: items,
     };
 
@@ -477,12 +533,14 @@ function setupCheckoutForm() {
       renderCart();
       checkoutForm.reset();
       autofillCheckoutForm();
+      warehouseSelect.value = ""; // 重設倉庫選單
     } catch (error) {
       console.error("提交訂單時出錯:", error);
       alert(`錯誤: ${error.message}`);
     } finally {
       checkoutButton.disabled = false;
-      checkoutButton.textContent = "確認送出訂單";
+      // [修改] 恢復按鈕文字
+      checkoutButton.textContent = "確認送出訂單採購到集運倉";
     }
   });
 }

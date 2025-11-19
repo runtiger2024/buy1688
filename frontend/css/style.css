@@ -543,7 +543,7 @@ a:hover {
   display: flex;
   justify-content: space-between;
   padding: 10px 0;
-  border-bottom: 1px solid #f4f4f4;
+  border-bottom: 1px solid var(--border-gray);
 }
 .order-item:last-child {
   border-bottom: none;
@@ -661,6 +661,7 @@ a:hover {
   border-radius: 8px;
 }
 
+/* 移除舊版單圖樣式，被下方的 product-detail-image 覆蓋 */
 .product-detail-image img {
   width: 100%;
   max-width: 500px;
@@ -885,6 +886,7 @@ a:hover {
   }
 }
 /* --- 【優化結束】 --- */
+
 /* --- 【第十五批優化：代購頁面樣式】 --- */
 .assist-notice {
   background-color: #e3f2fd; /* 淺藍色背景 */
@@ -1019,7 +1021,6 @@ a:hover {
   }
 }
 /* --- 【優化結束】 --- */
-/* ... (保留原有的 CSS) ... */
 
 /* [新增] 商品詳情頁相簿樣式 */
 .product-detail-image {
@@ -1049,6 +1050,7 @@ a:hover {
   display: flex;
   gap: 10px;
   overflow-x: auto; /* 允許手機橫向滑動 */
+  padding-bottom: 5px; /* 避免縮圖被隱藏 */
 }
 
 .thumbnail {
@@ -1058,8 +1060,9 @@ a:hover {
   border-radius: 4px;
   cursor: pointer;
   object-fit: cover;
-  opacity: 0.6;
+  opacity: 0.8; /* 縮小透明度 */
   transition: all 0.2s;
+  flex-shrink: 0; /* 阻止縮圖被擠壓 */
 }
 
 .thumbnail:hover {
@@ -1069,4 +1072,12 @@ a:hover {
 .thumbnail.active {
   border-color: var(--taobao-orange);
   opacity: 1;
+}
+
+/* [修正] 高優先級樣式來鎖定縮圖大小 */
+.product-detail-image .thumbnail-list .thumbnail {
+  width: 60px !important;
+  height: 60px !important;
+  max-width: 60px;
+  max-height: 60px;
 }

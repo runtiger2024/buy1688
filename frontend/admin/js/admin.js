@@ -1,6 +1,53 @@
+// frontend/admin/js/admin.js
+// [新增] 輔助函式：複製到剪貼簿 (定義為全局函數以供動態 HTML 內聯調用或 event delegation 使用)
+window.copyToClipboard = (text, message) => {
+  // 使用 trim() 移除組裝字串時產生的多餘換行
+  navigator.clipboard
+    .writeText(text.trim())
+    .then(() => {
+      alert(message || "已複製到剪貼簿！");
+    })
+    .catch((err) => {
+      console.error("複製失敗:", err);
+      alert("複製失敗，請手動複製內容。");
+    });
+};
+
+// [新增] 核心函式：複製集運資訊 (定義為全局函數)
+window.copyShippingInfo = (paopaoId, warehouseId) => {
+  // allWarehouses 必須是一個 Map
+  const warehouse = allWarehouses.get(parseInt(warehouseId, 10));
+
+  if (!warehouse) {
+    alert(
+      "錯誤: 找不到集運倉資料 (ID: " +
+        warehouseId +
+        ")。請先到『管理倉庫』頁面確認資料是否完整。"
+    );
+    return;
+  }
+
+  // 替換佔位符 (會員編號)
+  const receiver = warehouse.receiver.replace("(會員編號)", paopaoId);
+  // 檢查 address 是否也包含佔位符
+  const address = warehouse.address.includes("(會員編號)")
+    ? warehouse.address.replace("(會員編號)", paopaoId)
+    : warehouse.address;
+
+  // 組裝複製內容 (精簡為廠商所需的核心資訊：收件人、電話、地址)
+  const copyText = `
+收件人: ${receiver}
+電話: ${warehouse.phone}
+地址: ${address}
+`.trim();
+
+  // 複製到剪貼簿
+  window.copyToClipboard(copyText, "✅ 集運資訊已複製，可直接貼給廠商。");
+};
+
 import { API_URL } from "../../js/config.js";
 let availableOperators = [];
-let allWarehouses = [];
+let allWarehouses = new Map(); // [修正 1] 必須是 Map 才能使用 .get(id)
 let allCategories = [];
 let allOrders = [];
 
@@ -132,19 +179,21 @@ async function loadAllData() {
 
   await loadSettings(headers);
 
+  // [修改] 先載入倉庫，再載入其他需要倉庫資訊的資料
+  await loadWarehouses(headers);
+
   await Promise.all([
     loadStats(headers),
     loadOrders(headers),
     loadProducts(),
     loadUsers(headers),
-    loadWarehouses(headers),
     loadCategories(headers),
   ]);
 
   populateCategoryDropdown();
 }
 
-// --- 系統設定邏輯 ---
+// --- 系統設定邏輯 (保持不變) ---
 async function loadSettings(headers) {
   try {
     const response = await fetch(`${API_URL}/settings`);
@@ -265,12 +314,13 @@ async function loadOrders(headers) {
     renderOrders(allOrders);
   } catch (error) {
     alert(`載入訂單失敗: ${error.message}`);
+    // [修正] colspan 為 11 (原 10 + 1 新增欄位)
     ordersTbody.innerHTML =
-      '<tr><td colspan="10" style="color: red;">載入訂單失敗。</td></tr>';
+      '<tr><td colspan="11" style="color: red;">載入訂單失敗。</td></tr>';
   }
 }
 
-// 載入商品
+// 載入商品 (保持不變)
 async function loadProducts() {
   try {
     const response = await fetch(`${API_URL}/products`);
@@ -284,7 +334,7 @@ async function loadProducts() {
   }
 }
 
-// 載入用戶
+// 載入用戶 (保持不變)
 async function loadUsers(headers) {
   const user = getUser();
   if (user.role !== "admin") return;
@@ -306,22 +356,29 @@ async function loadUsers(headers) {
 
 // 載入倉庫
 async function loadWarehouses(headers) {
-  const user = getUser();
-  if (user.role !== "admin") return;
-
   try {
-    const response = await fetch(`${API_URL}/admin/warehouses`, { headers });
+    const response = await fetch(`${API_URL}/warehouses`);
     if (!response.ok) throw new Error("無法載入倉庫");
-    allWarehouses = await response.json();
-    renderWarehouses(allWarehouses);
+    const warehousesArray = await response.json();
+
+    // [修正] 儲存為 Map 以便快速查找
+    allWarehouses.clear();
+    warehousesArray.forEach((wh) => allWarehouses.set(wh.id, wh));
+
+    // 只有 Admin 角色才渲染倉庫管理區塊 (使用原始的 allWarehouses array)
+    if (getUser().role === "admin") {
+      renderWarehouses(warehousesArray);
+    }
   } catch (error) {
     console.error("載入倉庫失敗:", error);
-    warehousesTbody.innerHTML =
-      '<tr><td colspan="5" style="color:red;">載入倉庫失敗</td></tr>';
+    if (warehousesTbody && getUser().role === "admin") {
+      warehousesTbody.innerHTML =
+        '<tr><td colspan="5" style="color:red;">載入倉庫失敗</td></tr>';
+    }
   }
 }
 
-// 載入分類
+// 載入分類 (保持不變)
 async function loadCategories(headers) {
   const user = getUser();
   if (user.role !== "admin") return;
@@ -343,7 +400,8 @@ async function loadCategories(headers) {
 function renderOrders(orders) {
   ordersTbody.innerHTML = "";
   if (orders.length === 0) {
-    ordersTbody.innerHTML = '<tr><td colspan="10">沒有待處理的訂單。</td></tr>';
+    // [修正] colspan 為 11
+    ordersTbody.innerHTML = '<tr><td colspan="11">沒有待處理的訂單。</td></tr>';
     return;
   }
 
@@ -375,15 +433,39 @@ function renderOrders(orders) {
     const typeText = ORDER_TYPE_MAP[order.type] || "一般商城";
     const typeColor = order.type === "Assist" ? "blue" : "gray";
 
+    // [新增/修改] 處理集運倉資訊
+    const warehouseName =
+      order.warehouse?.name ||
+      '<span style="color:#dc3545">未選擇集運倉</span>';
+    const warehouseCopyBtn = order.warehouse_id
+      ? `<button class="btn btn-primary btn-copy-shipping" 
+                   data-paopao-id="${order.paopao_id}" 
+                   data-warehouse-id="${order.warehouse_id}"
+                   style="margin-top: 5px;">
+             📋 複製寄送資訊
+           </button>`
+      : "";
+
+    // [新增] 憑證顯示邏輯
+    let voucherContent = "";
+    if (order.payment_voucher_url) {
+      voucherContent = `<a href="${order.payment_voucher_url}" target="_blank" style="color: #28a745; font-weight: bold;">查看憑證</a>`;
+    } else {
+      voucherContent = "無";
+    }
+
     tr.innerHTML = `
             <td>${order.id}</td>
             <td><span style="color: ${typeColor}; font-weight: bold;">${typeText}</span></td>
             <td>${new Date(order.created_at).toLocaleString()}</td>
             <td>${order.paopao_id}</td>
             <td>${order.total_amount_twd}</td>
-            <td>${costCny.toFixed(2)}</td>
             <td class="${profitClass}">${profitTwd.toFixed(0)}</td>
             <td>
+                <strong>${warehouseName}</strong><br>
+                ${warehouseCopyBtn}
+            </td>
+            <td>${voucherContent}</td> <td>
                 <span class="status-${order.status}">${orderStatusText}</span>
                 <br><small>${assignedTo}</small>
             </td>
@@ -753,9 +835,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // ... (其餘事件監聽保持不變：訂單、用戶、倉庫、分類) ...
+  // --- 訂單列表按鈕/下拉選單事件 ---
   ordersTbody.addEventListener("click", async (e) => {
     const target = e.target;
+    // 確保點擊的是按鈕或按鈕內的元素，並找到最近的按鈕
+    const button = target.closest(".btn-copy-shipping");
+
+    if (button) {
+      const paopaoId = button.dataset.paopaoId;
+      const warehouseId = button.dataset.warehouseId;
+
+      if (paopaoId && warehouseId) {
+        window.copyShippingInfo(paopaoId, warehouseId);
+      } else {
+        alert("錯誤: 缺少跑跑虎ID或集運倉ID。");
+      }
+      return; // 處理完畢，退出
+    }
+
+    // 繼續處理其他按鈕事件 (mark-paid)
     const id = target.dataset.id;
     const headers = getAuthHeaders();
     if (!id || !headers) return;
@@ -853,7 +951,12 @@ document.addEventListener("DOMContentLoaded", () => {
       createUserForm.reset();
       await loadUsers(headers);
     } catch (error) {
-      alert(`錯誤: ${error.message}`);
+      if (error.message.includes("409")) {
+        // P2002 error
+        alert("錯誤: 帳號已存在");
+      } else {
+        alert(`錯誤: ${error.message}`);
+      }
     }
   });
 
@@ -882,7 +985,9 @@ document.addEventListener("DOMContentLoaded", () => {
   warehousesTbody.addEventListener("click", (e) => {
     if (e.target.classList.contains("btn-edit-warehouse")) {
       const id = e.target.dataset.id;
-      const warehouse = allWarehouses.find((w) => w.id == id);
+      // [修改] 從 Map 獲取資料
+      // 注意: allWarehouses 在這裡使用 Map 的 .get()
+      const warehouse = allWarehouses.get(parseInt(id, 10));
       if (warehouse) {
         warehouseFormTitle.textContent = `編輯倉庫 (ID: ${id})`;
         warehouseIdInput.value = warehouse.id;
