@@ -1161,3 +1161,67 @@ a:hover {
   max-width: 60px;
   max-height: 60px;
 }
+/* --- [新增] 購物車數量加減控制項樣式 --- */
+.cart-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px; /* 移除按鈕與數量控制組件的間距 */
+}
+
+.quantity-control {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border-gray);
+  border-radius: 4px;
+}
+
+.quantity-control .qty-btn {
+  /* 統一按鈕樣式 */
+  background-color: #f4f7f6;
+  color: var(--text-dark);
+  border: none;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: bold;
+  height: 35px; /* 確保高度一致 */
+  line-height: 1; /* 調整行高以居中 */
+  transition: background-color 0.2s;
+  width: 35px; /* 固定寬度 */
+}
+
+.quantity-control .qty-btn:hover {
+  background-color: #e0e0e0;
+}
+
+.quantity-control .qty-minus {
+  border-right: 1px solid var(--border-gray);
+  border-radius: 4px 0 0 4px;
+}
+
+.quantity-control .qty-plus {
+  border-left: 1px solid var(--border-gray);
+  border-radius: 0 4px 4px 0;
+}
+
+.quantity-control .cart-item-quantity {
+  /* 移除邊框和箭頭，使其與按鈕對齊 */
+  width: 40px !important; /* 增加 !important 確保覆蓋原有的 50px */
+  padding: 5px 0 !important;
+  text-align: center !important;
+  border: none !important;
+  margin: 0 !important;
+  font-size: 1rem;
+  background-color: white;
+}
+
+/* 隱藏 Chrome/Safari 數字輸入框的上下箭頭 */
+.quantity-control .cart-item-quantity::-webkit-outer-spin-button,
+.quantity-control .cart-item-quantity::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.quantity-control .cart-item-quantity {
+  -moz-appearance: textfield; /* Firefox */
+}
+/* --- [新增樣式結束] --- */

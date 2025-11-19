@@ -245,11 +245,40 @@ function setupCartModal() {
     }
   });
 
+  // 【新增的邏輯：處理 + / - 按鈕點擊 (取代舊的 click 偵聽器)】
   document
     .getElementById("cart-items-list")
     .addEventListener("click", (event) => {
       const target = event.target;
       const id = target.dataset.id;
+      const action = target.dataset.action; // 捕獲按鈕的 data-action
+
+      // 處理 +/- 按鈕點擊
+      if (target.classList.contains("qty-btn") && id) {
+        // 確保 shoppingCart[id] 存在
+        if (!shoppingCart[id]) return;
+
+        let newQuantity = shoppingCart[id].quantity;
+
+        if (action === "plus") {
+          newQuantity++;
+        } else if (action === "minus") {
+          newQuantity--;
+        }
+
+        // 更新購物車邏輯
+        if (newQuantity <= 0) {
+          delete shoppingCart[id];
+        } else {
+          shoppingCart[id].quantity = newQuantity;
+        }
+
+        // 重新渲染購物車
+        renderCart();
+        return;
+      }
+
+      // 處理移除按鈕點擊 (包含舊的移除邏輯)
       if (target.classList.contains("remove-item")) {
         delete shoppingCart[id];
         renderCart();
@@ -286,6 +315,7 @@ function renderCart() {
       const itemTotal = item.price * item.quantity;
       totalAmount += itemTotal;
 
+      // 【修正後的 HTML 結構：加入 + / - 按鈕】
       cartItemsList.innerHTML += `
                 <div class="cart-item">
                     <div class="cart-item-info">
@@ -293,7 +323,11 @@ function renderCart() {
                         <span>TWD ${item.price}</span>
                     </div>
                     <div class="cart-item-actions">
-                        <input type="number" class="cart-item-quantity" data-id="${id}" value="${item.quantity}" min="1">
+                        <div class="quantity-control" data-id="${id}">
+                            <button class="qty-btn qty-minus" data-action="minus" data-id="${id}">-</button>
+                            <input type="number" class="cart-item-quantity" data-id="${id}" value="${item.quantity}" min="1" readonly>
+                            <button class="qty-btn qty-plus" data-action="plus" data-id="${id}">+</button>
+                        </div>
                         <button class="remove-item" data-id="${id}">&times;</button>
                     </div>
                 </div>
