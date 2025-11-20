@@ -6,7 +6,7 @@ import { authenticateToken, isAdmin } from "../middleware.js";
 
 const router = express.Router();
 
-// 公開：獲取商品列表
+// 公開：獲取商品列表 (給前台用，不含成本)
 router.get("/", async (req, res, next) => {
   try {
     const { category, search } = req.query;
@@ -28,9 +28,26 @@ router.get("/", async (req, res, next) => {
         images: true,
         specs: true,
         price_twd: true,
-        is_direct_buy: true, // [新增] 回傳直購狀態
+        is_direct_buy: true,
+        // [注意] 這裡故意不回傳 cost_cny
       },
-      orderBy: { created_at: "desc" }, // 讓新商品排前面
+      orderBy: { created_at: "desc" },
+    });
+    res.json(products);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// [新增] Admin 專用：獲取完整商品列表 (含成本、分類資訊)
+router.get("/manage", authenticateToken, isAdmin, async (req, res, next) => {
+  try {
+    const products = await prisma.products.findMany({
+      where: { is_archived: false },
+      include: {
+        category: true, // 包含分類關聯，且預設會回傳所有欄位 (包含 cost_cny)
+      },
+      orderBy: { created_at: "desc" },
     });
     res.json(products);
   } catch (err) {
@@ -62,7 +79,7 @@ router.post("/", authenticateToken, isAdmin, async (req, res, next) => {
     images: Joi.array().items(Joi.string().uri()).default([]),
     specs: Joi.array().items(Joi.string()).default([]),
     category_id: Joi.number().integer().allow(null),
-    is_direct_buy: Joi.boolean().default(false), // [新增]
+    is_direct_buy: Joi.boolean().default(false),
   });
 
   const { error, value } = schema.validate(req.body);
@@ -92,7 +109,7 @@ router.put("/:id", authenticateToken, isAdmin, async (req, res, next) => {
       images,
       specs,
       category_id,
-      is_direct_buy, // [新增]
+      is_direct_buy,
     } = req.body;
 
     const updated = await prisma.products.update({
@@ -105,7 +122,7 @@ router.put("/:id", authenticateToken, isAdmin, async (req, res, next) => {
         price_twd: parseInt(price_twd),
         cost_cny: parseFloat(cost_cny),
         category_id: category_id ? parseInt(category_id) : null,
-        is_direct_buy: is_direct_buy === true || is_direct_buy === "true", // [新增] 轉換 Boolean
+        is_direct_buy: is_direct_buy === true || is_direct_buy === "true",
       },
     });
     res.json(updated);

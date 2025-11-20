@@ -50,7 +50,9 @@ export const api = {
     fetchData(`/orders/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
   // 商品
-  getProducts: () => fetch(`${API_URL}/products`).then((res) => res.json()),
+  // [修改] 改用 fetchData 呼叫管理員專用的 /products/manage 接口
+  getProducts: () => fetchData("/products/manage"),
+
   createProduct: (data) =>
     fetchData("/admin/products", {
       method: "POST",
