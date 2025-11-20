@@ -2,7 +2,6 @@
 import { API_URL } from "../../js/config.js";
 import { getAuthHeaders } from "./utils.js";
 
-// 統一的 Fetch 處理
 async function fetchData(endpoint, options = {}) {
   const headers = getAuthHeaders();
   if (!headers) throw new Error("No Auth");
@@ -20,15 +19,12 @@ async function fetchData(endpoint, options = {}) {
 }
 
 export const api = {
-  // 設定
   getSettings: () => fetch(`${API_URL}/settings`).then((res) => res.json()),
   updateSettings: (data) =>
     fetchData("/admin/settings", { method: "PUT", body: JSON.stringify(data) }),
 
-  // 儀表板
   getStats: () => fetchData("/admin/dashboard/stats"),
 
-  // 倉庫
   getWarehouses: () => fetch(`${API_URL}/warehouses`).then((res) => res.json()),
   createWarehouse: (data) =>
     fetchData("/admin/warehouses", {
@@ -41,7 +37,6 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  // 訂單
   getOrders: (params) => {
     const qs = new URLSearchParams(params).toString();
     return fetchData(`/orders/operator?${qs}`);
@@ -49,8 +44,7 @@ export const api = {
   updateOrder: (id, data) =>
     fetchData(`/orders/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
-  // 商品
-  // [修改] 改用 fetchData 呼叫管理員專用的 /products/manage 接口
+  // [修改] 管理員專用商品列表 (含成本)
   getProducts: () => fetchData("/products/manage"),
 
   createProduct: (data) =>
@@ -66,18 +60,14 @@ export const api = {
   archiveProduct: (id) =>
     fetchData(`/admin/products/${id}`, { method: "DELETE" }),
 
-  // 用戶 (Staff)
   getUsers: () => fetchData("/admin/users"),
   createUser: (data) =>
     fetchData("/admin/users", { method: "POST", body: JSON.stringify(data) }),
-
-  // [新增] 更新用戶基本資料 (Email, 通知)
   updateUserInfo: (id, data) =>
     fetchData(`/admin/users/${id}/info`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-
   updateUserStatus: (id, status) =>
     fetchData(`/admin/users/${id}/status`, {
       method: "PUT",
@@ -94,7 +84,6 @@ export const api = {
       body: JSON.stringify({ password }),
     }),
 
-  // 會員 (Customers)
   getCustomers: () => fetchData("/admin/customers"),
   updateCustomer: (id, data) =>
     fetchData(`/admin/customers/${id}`, {
@@ -107,7 +96,13 @@ export const api = {
       body: JSON.stringify({ password }),
     }),
 
-  // 分類
+  // [新增] 模擬登入 API
+  impersonateCustomer: (customerId) =>
+    fetchData("/auth/impersonate", {
+      method: "POST",
+      body: JSON.stringify({ customerId }),
+    }),
+
   getCategories: () => fetchData("/admin/categories"),
   createCategory: (data) =>
     fetchData("/admin/categories", {
