@@ -1,6 +1,7 @@
 // frontend/admin/js/admin.js
 import { checkAuth, getUser, logout, copyToClipboard } from "./utils.js";
 import { api } from "./api.js";
+// [修正] 確保 render.js 有匯出 renderCustomersTable
 import {
   renderOrders,
   renderProducts,
@@ -20,13 +21,9 @@ const ORDER_STATUS_MAP = {
   Cancelled: "已取消",
 };
 const PAYMENT_STATUS_MAP = {
-  PENDING_REVIEW: "審核中", // [新增] 代購審核狀態
+  PENDING_REVIEW: "審核中",
   UNPAID: "待付款",
   PAID: "已付款",
-};
-const ORDER_TYPE_MAP = {
-  Standard: "一般商城",
-  Assist: "代客採購",
 };
 
 let availableOperators = [];
@@ -93,28 +90,13 @@ ${itemsText}
   copyToClipboard(text, "📋 訂單摘要已複製！");
 };
 
-// 標記訂單為已付款 (原地更新，不關閉視窗)
+// 標記訂單為已付款
 window.markOrderPaid = async function (id) {
   if (!confirm("確定標記為已付款？系統將發信通知客戶。")) return;
   try {
     await api.updateOrder(id, { payment_status: "PAID" });
-    // 不跳 alert，直接刷新體驗更好
-    await loadOrders(); // 重新拉取資料
-    if (currentOrder && currentOrder.id == id) openOrderModal(id); // 重新渲染 Modal 內容
-    loadStats(); // 更新背景統計
-  } catch (e) {
-    alert(e.message);
-  }
-};
-
-// [新功能] 代購訂單審核通過
-window.approveOrder = async function (id) {
-  if (!confirm("確定通過審核？系統將發送「付款通知信」給客戶。")) return;
-  try {
-    // 將狀態從 PENDING_REVIEW 改為 UNPAID，觸發後端寄信
-    await api.updateOrder(id, { payment_status: "UNPAID" });
-    alert("✅ 訂單已審核通過，等待客戶付款。");
-    await loadOrders();
+    loadOrders();
+    // 如果 Modal 開著，刷新它
     if (currentOrder && currentOrder.id == id) openOrderModal(id);
     loadStats();
   } catch (e) {
@@ -122,12 +104,27 @@ window.approveOrder = async function (id) {
   }
 };
 
-// [新功能] 模擬客戶登入
+// 代購訂單審核通過
+window.approveOrder = async function (id) {
+  if (!confirm("確定通過審核？系統將發送「付款通知信」給客戶。")) return;
+  try {
+    // 將狀態從 PENDING_REVIEW 改為 UNPAID，觸發後端寄信
+    await api.updateOrder(id, { payment_status: "UNPAID" });
+    alert("✅ 訂單已審核通過，等待客戶付款。");
+    loadOrders();
+    if (currentOrder && currentOrder.id == id) openOrderModal(id);
+    loadStats();
+  } catch (e) {
+    alert(e.message);
+  }
+};
+
+// 模擬客戶登入
 window.impersonate = async function (customerId) {
   if (!confirm("確定要模擬此客戶登入嗎？這將會開啟新視窗進入前台。")) return;
   try {
     const res = await api.impersonateCustomer(customerId);
-    // 設置 localStorage (注意：這裡假設前台與後台同源)
+    // 設置 localStorage
     localStorage.setItem("customerToken", res.token);
     localStorage.setItem("customerUser", JSON.stringify(res.customer));
 
@@ -138,7 +135,7 @@ window.impersonate = async function (customerId) {
   }
 };
 
-// [新功能] 動態新增代購商品欄位 (Modal 內)
+// 動態新增代購商品欄位 (Modal 內)
 window.addAssistItemRow = function () {
   const tbody = document.getElementById("modal-items-tbody");
   const tr = document.createElement("tr");
@@ -161,30 +158,8 @@ window.addAssistItemRow = function () {
   tbody.appendChild(tr);
 };
 
-// [新功能] 開啟客戶編輯視窗 (掛載到 window 供 render.js 呼叫)
-window.openCustomerModal = function (id) {
-  const customer = allCustomers.find((c) => c.id == id);
-  if (!customer) return;
-
-  document.getElementById("customer-form").reset();
-  document.getElementById("customer-id").value = customer.id;
-  document.getElementById("customer-paopao-id").value = customer.paopao_id;
-  document.getElementById("customer-email").value = customer.email;
-  document.getElementById("customer-phone").value = customer.phone || "";
-
-  // 回填 VIP 選單
-  const vipSelect = document.getElementById("customer-is-vip");
-  if (vipSelect) {
-    vipSelect.value = customer.is_vip ? "true" : "false";
-  }
-
-  document.getElementById("customer-password").value = "";
-  document.getElementById("customer-modal").style.display = "block";
-};
-
-// 篩選待核銷憑證 (從儀表板跳轉)
+// 篩選待核銷憑證
 window.filterPendingVouchers = function () {
-  // 切換 UI 到訂單頁
   document
     .querySelectorAll(".sidebar-nav .nav-link")
     .forEach((l) => l.classList.remove("active"));
@@ -198,7 +173,6 @@ window.filterPendingVouchers = function () {
   if (orderLink) orderLink.classList.add("active");
   document.getElementById("orders-section").classList.add("active");
 
-  // 設定篩選條件
   currentHasVoucherFilter = true;
   document.getElementById("order-status-filter").value = "";
   document.getElementById("order-payment-status-filter").value = "UNPAID";
@@ -227,12 +201,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("logout-button").addEventListener("click", logout);
 
-  // 預載資料
   await Promise.all([loadSettings(), loadWarehouses(), loadUsers()]);
-
   loadStats();
 
-  // 綁定事件
   setupDashboardEvents();
   setupOrderEvents();
   setupProductEvents();
@@ -519,7 +490,7 @@ window.openOrderModal = function (orderId) {
   } else {
     const warehouseName = order.warehouse_name || "未指定";
     shippingHtml = `
-        <p><strong>集運倉:</strong> ${warehouseName} 
+        <p><strong>集運倉:</strong> ${warehouseName} 
            ${
              order.warehouse_id
                ? `<button class="btn btn-small btn-light" onclick="copyShippingInfo('${order.paopao_id}', ${order.warehouse_id})">複製地址</button>`
@@ -1003,6 +974,8 @@ function setupUserEvents() {
       const username = document.getElementById("user-username").value;
       const password = document.getElementById("user-password").value;
       const role = document.getElementById("user-role").value;
+
+      // [新增] 獲取新欄位
       const email = document.getElementById("user-email").value;
       const receiveNotifications =
         document.getElementById("user-notify").checked;
@@ -1013,6 +986,7 @@ function setupUserEvents() {
             email,
             receive_notifications: receiveNotifications,
           });
+
           const originalUser = allUsers.find((u) => u.id == id);
           if (originalUser.role !== role) {
             await api.updateUserRole(id, role);
@@ -1050,19 +1024,25 @@ function openUserModal(id) {
   const title = document.getElementById("user-modal-title");
   const passHint = document.getElementById("user-password-hint");
   const usernameInput = document.getElementById("user-username");
+
+  // [新增] 清空新欄位
   document.getElementById("user-email").value = "";
   document.getElementById("user-notify").checked = false;
 
   if (id) {
     const user = allUsers.find((u) => u.id == id);
     if (!user) return;
+
     title.textContent = "編輯用戶";
     document.getElementById("user-id").value = user.id;
     usernameInput.value = user.username;
     usernameInput.disabled = true;
     document.getElementById("user-role").value = user.role;
+
+    // [新增] 回填新欄位
     document.getElementById("user-email").value = user.email || "";
     document.getElementById("user-notify").checked = user.receive_notifications;
+
     document.getElementById("user-password").required = false;
     document.getElementById("user-password").placeholder = "若不修改請留空";
     passHint.textContent = "輸入新密碼以重置，否則請留空";
@@ -1101,7 +1081,8 @@ function handleRenderCustomers() {
 
   renderCustomersTable(filtered, tbody);
 
-  // 綁定事件
+  // 綁定事件 (這些按鈕由 render.js 生成)
+  // [重要] 使用 window 上的全域函式，因為模組隔離
   tbody
     .querySelectorAll(".btn-edit-customer")
     .forEach((btn) =>
@@ -1113,6 +1094,27 @@ function handleRenderCustomers() {
       btn.addEventListener("click", () => impersonate(btn.dataset.id))
     );
 }
+
+// [重要] 為了讓 render.js 裡的按鈕能呼叫 admin.js 的函式，必須確保 openCustomerModal 和 impersonate 都在 window 上
+// 雖然上面已經有 window.impersonate，這裡補充 openCustomerModal
+window.openCustomerModal = function (id) {
+  const customer = allCustomers.find((c) => c.id == id);
+  if (!customer) return;
+
+  document.getElementById("customer-form").reset();
+  document.getElementById("customer-id").value = customer.id;
+  document.getElementById("customer-paopao-id").value = customer.paopao_id;
+  document.getElementById("customer-email").value = customer.email;
+  document.getElementById("customer-phone").value = customer.phone || "";
+
+  const vipSelect = document.getElementById("customer-is-vip");
+  if (vipSelect) {
+    vipSelect.value = customer.is_vip ? "true" : "false";
+  }
+
+  document.getElementById("customer-password").value = "";
+  document.getElementById("customer-modal").style.display = "block";
+};
 
 function setupCustomerEvents() {
   document
@@ -1130,6 +1132,7 @@ function setupCustomerEvents() {
       const email = document.getElementById("customer-email").value;
       const phone = document.getElementById("customer-phone").value;
       const password = document.getElementById("customer-password").value;
+
       const isVipStr = document.getElementById("customer-is-vip").value;
       const is_vip = isVipStr === "true";
 
@@ -1147,29 +1150,11 @@ function setupCustomerEvents() {
     });
 }
 
-function openCustomerModal(id) {
-  const customer = allCustomers.find((c) => c.id == id);
-  if (!customer) return;
-
-  document.getElementById("customer-form").reset();
-  document.getElementById("customer-id").value = customer.id;
-  document.getElementById("customer-paopao-id").value = customer.paopao_id;
-  document.getElementById("customer-email").value = customer.email;
-  document.getElementById("customer-phone").value = customer.phone || "";
-
-  const vipSelect = document.getElementById("customer-is-vip");
-  if (vipSelect) {
-    vipSelect.value = customer.is_vip ? "true" : "false";
-  }
-
-  document.getElementById("customer-password").value = "";
-  document.getElementById("customer-modal").style.display = "block";
-}
-
 // --- 12. 系統設置 ---
 async function loadSettings() {
   try {
     const settings = await api.getSettings();
+    // 基礎設定
     document.getElementById("exchange-rate-input").value =
       settings.exchange_rate || 4.5;
     document.getElementById("service-fee-input").value =
@@ -1179,6 +1164,8 @@ async function loadSettings() {
       settings.bank_account || "";
     document.getElementById("bank-account-name-input").value =
       settings.bank_account_name || "";
+
+    // 新設定欄位回填
     document.getElementById("email-api-key-input").value =
       settings.email_api_key || "";
     document.getElementById("email-from-input").value =
@@ -1192,6 +1179,7 @@ async function loadSettings() {
     document.getElementById("payment-api-key-input").value =
       settings.payment_api_key || "";
 
+    // [新增] 回填通知開關
     document.getElementById("enable-email-register").checked =
       settings.enable_email_register === "true";
     document.getElementById("enable-email-order").checked =
@@ -1229,6 +1217,7 @@ function setupSettingsEvents() {
           ).value,
           payment_api_key: document.getElementById("payment-api-key-input")
             .value,
+          // [新增] 儲存通知開關
           enable_email_register: document.getElementById(
             "enable-email-register"
           ).checked,
