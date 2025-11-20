@@ -50,7 +50,6 @@ export const api = {
     fetchData(`/orders/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
   // 商品
-  // [修改] 改用 fetchData 呼叫管理員專用的 /products/manage 接口
   getProducts: () => fetchData("/products/manage"),
 
   createProduct: (data) =>
@@ -71,7 +70,6 @@ export const api = {
   createUser: (data) =>
     fetchData("/admin/users", { method: "POST", body: JSON.stringify(data) }),
 
-  // [新增] 更新用戶基本資料 (Email, 通知)
   updateUserInfo: (id, data) =>
     fetchData(`/admin/users/${id}/info`, {
       method: "PUT",
@@ -107,11 +105,18 @@ export const api = {
       body: JSON.stringify({ password }),
     }),
 
-  // [新增] 模擬客戶登入 (Admin Impersonation)
+  // [新增] 模擬客戶登入 (By DB ID)
   impersonateCustomer: (customerId) =>
     fetchData("/auth/admin/impersonate", {
       method: "POST",
       body: JSON.stringify({ customerId }),
+    }),
+
+  // [新增] 模擬客戶登入 (By Paopao ID)
+  impersonateCustomerByPaopaoId: (paopaoId) =>
+    fetchData("/auth/admin/impersonate", {
+      method: "POST",
+      body: JSON.stringify({ paopaoId }),
     }),
 
   // 分類

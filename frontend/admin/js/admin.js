@@ -29,17 +29,26 @@ let customerSearchTerm = "";
 
 // --- 2. 暴露給全局的工具函式 (供 HTML onclick 使用) ---
 
-// [新增] 模擬客戶登入
+// [新增] 模擬客戶登入 (By DB ID)
 window.impersonateUser = async function (customerId) {
   try {
     const data = await api.impersonateCustomer(customerId);
-
-    // 將 Token 寫入 localStorage (注意：這是寫入前台用的 key)
     localStorage.setItem("customerToken", data.token);
     localStorage.setItem("customerUser", JSON.stringify(data.customer));
+    // 開啟前台首頁 (假設相對路徑)
+    window.open("../../html/index.html", "_blank");
+  } catch (e) {
+    alert("模擬登入失敗: " + e.message);
+  }
+};
 
-    // 開啟前台首頁
-    // 注意：路徑需根據實際部署結構調整，這裡是假設 admin/html 相對於前台 html 的位置
+// [新增] 模擬客戶登入 (By Paopao ID - 供訂單頁面使用)
+window.impersonateUserByPaopaoId = async function (paopaoId) {
+  if (!confirm(`確定要登入會員 [${paopaoId}] 的前台帳號嗎？`)) return;
+  try {
+    const data = await api.impersonateCustomerByPaopaoId(paopaoId);
+    localStorage.setItem("customerToken", data.token);
+    localStorage.setItem("customerUser", JSON.stringify(data.customer));
     window.open("../../html/index.html", "_blank");
   } catch (e) {
     alert("模擬登入失敗: " + e.message);
@@ -117,6 +126,10 @@ window.approveOrder = async function (id) {
     alert("✅ 訂單已審核通過，等待客戶付款。");
     loadOrders();
     loadStats();
+    // 如果 Modal 是開著的，重新整理它
+    if (currentOrder && currentOrder.id == id) {
+      openOrderModal(id);
+    }
   } catch (e) {
     alert(e.message);
   }
@@ -325,30 +338,16 @@ async function loadOrders() {
     // 使用 render.js 的函式渲染
     renderOrders(allOrders, tbody, availableOperators, exchangeRate, userRole);
 
-    // 綁定「查看訂單」按鈕事件 (因為這是 admin.js 特有的 Modal 邏輯，需在此綁定)
-    // 注意：render.js 可能只產生了 DOM，這裡我們要確保能觸發 Modal
-    // 我們可以在 render.js 產生按鈕時加上 class 或 onclick，這裡選擇用事件委派
-    // 由於 render.js 中的按鈕沒有加 onclick="openOrderModal"，我們手動綁定
-
-    // 修正：render.js 裡面沒有 View 按鈕?
-    // 檢視 render.js: renderOrders 生成的 HTML 沒有 "查看/編輯" 按鈕，而是依賴點擊整行或特定欄位？
-    // 不，render.js 裡面通常沒有 "View" button，它依賴 admin.js 來做更多事。
-    // 讓我們在 renderOrders 完成後，手動加入 "編輯/查看" 按鈕到最後一欄 "操作"
-    // 或者更簡單的方法：修改 render.js 讓它包含按鈕 (已在之前的步驟完成)
-    // 假設 render.js 已經包含了相關按鈕。如果沒有，我們在這裡補強。
-
-    // 為了確保 openOrderModal 能被呼叫，我們在表格上使用事件委派
+    // 綁定「查看訂單」按鈕 (補強)
     tbody.querySelectorAll("tr").forEach((tr) => {
-      // 可以在這裡加雙擊事件，或者在 render.js 裡加按鈕
-      // 這裡假設 render.js 生成了 <button class="btn-view-order">
       const viewBtn = document.createElement("button");
       viewBtn.className = "btn btn-small btn-info";
       viewBtn.innerHTML = '<i class="fas fa-edit"></i>';
       viewBtn.title = "查看/編輯詳情";
       viewBtn.style.marginLeft = "5px";
 
-      // 找到 orderId (假設在第一個 td)
-      const orderId = tr.querySelector("td").textContent;
+      // 找到 orderId (假設在第一個 td，去除 #)
+      const orderId = tr.querySelector("td").textContent.replace("#", "");
       viewBtn.onclick = () => openOrderModal(orderId);
 
       // 插入到操作欄 (最後一個 td)
@@ -396,10 +395,8 @@ function setupOrderEvents() {
     .addEventListener("click", saveOrderChanges);
 }
 
-// [修改] 開啟訂單詳情 Modal (支援商品編輯)
+// [核心修改] 開啟訂單詳情 Modal (支援商品編輯 與 模擬登入)
 async function openOrderModal(orderId) {
-  // 重新抓取最新訂單資料 (避免操作過時數據)
-  // 這裡簡單起見，我們從 allOrders 找，但最好是 fetch single order
   const order = allOrders.find((o) => o.id == orderId);
   if (!order) return;
   currentOrder = order;
@@ -500,6 +497,7 @@ async function openOrderModal(orderId) {
 
   const addItemBtn = `<button type="button" class="btn btn-small btn-secondary" onclick="addNewItemRow()">+ 新增商品行</button>`;
 
+  // [核心修改] 插入「模擬登入」按鈕到會員資訊旁
   content.innerHTML = `
         <div class="form-row-2">
             <div>
@@ -507,7 +505,16 @@ async function openOrderModal(orderId) {
                     <strong>訂單編號:</strong> #${order.id}
                     <button class="btn btn-small btn-light" onclick="copyOrderSummary()" style="margin-left:10px;">📋 複製摘要</button>
                 </p>
-                <p><strong>會員:</strong> ${order.paopao_id}</p>
+                <p>
+                    <strong>會員:</strong> ${order.paopao_id}
+                    <button class="btn btn-small btn-warning" style="margin-left:5px; padding:2px 8px; font-size:0.7rem;" 
+                            onclick="impersonateUserByPaopaoId('${
+                              order.paopao_id
+                            }')" 
+                            title="登入此會員的前台">
+                            <i class="fas fa-user-secret"></i> 登入
+                    </button>
+                </p>
                 <p><strong>Email:</strong> ${order.customer_email || "-"}</p>
                 ${shippingHtml}
             </div>
@@ -666,6 +673,14 @@ async function loadProducts() {
   try {
     const products = await api.getProducts();
     renderProducts(products, tbody);
+
+    // 綁定編輯與封存按鈕
+    tbody.querySelectorAll(".btn-edit").forEach((btn) => {
+      btn.addEventListener("click", () => openProductModal(btn.dataset.id));
+    });
+    tbody.querySelectorAll(".btn-delete").forEach((btn) => {
+      btn.addEventListener("click", () => archiveProduct(btn.dataset.id));
+    });
   } catch (e) {
     console.error(e);
   }
@@ -790,33 +805,6 @@ async function archiveProduct(id) {
     } catch (e) {
       alert(e.message);
     }
-  }
-}
-// 將 archiveProduct 綁定到 window，因為 render.js 沒有處理刪除，需在這裡處理
-// 或者修改 render.js 裡面的 button click
-// 這裡我們依賴 render.js 產生的 .btn-delete-product，並在 loadProducts 後綁定事件
-// 為簡化，我們修改 loadProducts 內的邏輯 (已在上面 render.js 處理? 不，renderProducts 是純渲染)
-// 讓我們在 loadProducts 內綁定按鈕事件
-// 修改 loadProducts 函式：
-// (已在 api.js 中有 archiveProduct，需在此綁定)
-// 修正 loadProducts:
-async function loadProducts() {
-  const tbody = document.getElementById("products-tbody");
-  tbody.innerHTML =
-    '<tr><td colspan="7" class="text-center">載入中...</td></tr>';
-  try {
-    const products = await api.getProducts();
-    renderProducts(products, tbody);
-
-    // 綁定編輯與封存按鈕
-    tbody.querySelectorAll(".btn-edit").forEach((btn) => {
-      btn.addEventListener("click", () => openProductModal(btn.dataset.id));
-    });
-    tbody.querySelectorAll(".btn-delete").forEach((btn) => {
-      btn.addEventListener("click", () => archiveProduct(btn.dataset.id));
-    });
-  } catch (e) {
-    console.error(e);
   }
 }
 
@@ -967,19 +955,18 @@ async function loadUsers() {
       (u) => u.role === "operator" && u.status === "active"
     );
 
-    // 綁定按鈕事件
-    tbody.querySelectorAll(".btn-edit-user").forEach((btn) => {
-      // 如果有的話，目前 renderUsers 沒生編輯按鈕
-      // 根據 render.js，只有狀態切換按鈕
-    });
-    tbody.querySelectorAll(".btn-toggle-status").forEach((btn) => {
+    tbody.querySelectorAll(".btn-toggle-user").forEach((btn) => {
       btn.addEventListener("click", async () => {
-        const newStatus = btn.dataset.newStatus;
+        const newStatus =
+          btn.dataset.status === "active" ? "inactive" : "active";
         if (confirm(`確定要變更狀態為 ${newStatus} 嗎?`)) {
           await api.updateUserStatus(btn.dataset.id, newStatus);
           loadUsers();
         }
       });
+    });
+    tbody.querySelectorAll(".btn-edit-user").forEach((btn) => {
+      btn.addEventListener("click", () => openUserModal(btn.dataset.id));
     });
     tbody.querySelectorAll(".user-role-select").forEach((sel) => {
       sel.addEventListener("change", async (e) => {
@@ -987,7 +974,7 @@ async function loadUsers() {
           await api.updateUserRole(sel.dataset.id, e.target.value);
           loadUsers();
         } else {
-          loadUsers(); // reset
+          loadUsers();
         }
       });
     });
@@ -1004,7 +991,6 @@ function setupUserEvents() {
   if (searchInput) {
     searchInput.addEventListener("keyup", (e) => {
       userSearchTerm = e.target.value.trim();
-      // 簡單前端過濾
       const filtered = allUsers.filter((u) =>
         u.username.toLowerCase().includes(userSearchTerm.toLowerCase())
       );
@@ -1017,7 +1003,7 @@ function setupUserEvents() {
   if (form)
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      // 這裡只處理建立新用戶
+      const id = document.getElementById("user-id").value;
       const username = document.getElementById("user-username").value;
       const password = document.getElementById("user-password").value;
       const role = document.getElementById("user-role").value;
@@ -1025,20 +1011,30 @@ function setupUserEvents() {
       const receiveNotifications =
         document.getElementById("user-notify").checked;
 
-      if (!password) {
-        alert("建立用戶需填寫密碼");
-        return;
-      }
-
       try {
-        await api.createUser({
-          username,
-          password,
-          role,
-          email,
-          receive_notifications: receiveNotifications,
-        });
-        alert("用戶建立成功");
+        if (id) {
+          await api.updateUserInfo(id, {
+            email,
+            receive_notifications: receiveNotifications,
+          });
+          const originalUser = allUsers.find((u) => u.id == id);
+          if (originalUser.role !== role) await api.updateUserRole(id, role);
+          if (password) await api.updateUserPassword(id, password);
+          alert("更新成功");
+        } else {
+          if (!password) {
+            alert("建立用戶需填寫密碼");
+            return;
+          }
+          await api.createUser({
+            username,
+            password,
+            role,
+            email,
+            receive_notifications: receiveNotifications,
+          });
+          alert("建立成功");
+        }
         document.getElementById("user-modal").style.display = "none";
         loadUsers();
       } catch (err) {
@@ -1048,11 +1044,37 @@ function setupUserEvents() {
 }
 
 function openUserModal(id) {
-  // 僅支援建立，不支援編輯 (簡化)
   const form = document.getElementById("create-user-form");
   form.reset();
   document.getElementById("user-id").value = "";
-  document.getElementById("user-modal-title").textContent = "建立新用戶";
+  const title = document.getElementById("user-modal-title");
+  const passHint = document.getElementById("user-password-hint");
+  const usernameInput = document.getElementById("user-username");
+
+  document.getElementById("user-email").value = "";
+  document.getElementById("user-notify").checked = false;
+
+  if (id) {
+    const user = allUsers.find((u) => u.id == id);
+    if (!user) return;
+    title.textContent = "編輯用戶";
+    document.getElementById("user-id").value = user.id;
+    usernameInput.value = user.username;
+    usernameInput.disabled = true;
+    document.getElementById("user-role").value = user.role;
+    document.getElementById("user-email").value = user.email || "";
+    document.getElementById("user-notify").checked = user.receive_notifications;
+    document.getElementById("user-password").required = false;
+    document.getElementById("user-password").placeholder = "不修改請留空";
+    passHint.textContent = "重置密碼";
+  } else {
+    title.textContent = "建立新用戶";
+    usernameInput.disabled = false;
+    document.getElementById("user-password").required = true;
+    document.getElementById("user-password").placeholder = "密碼";
+    passHint.textContent = "";
+  }
+
   document.getElementById("user-modal").style.display = "block";
 }
 
@@ -1066,7 +1088,6 @@ async function loadCustomers() {
     allCustomers = customers;
     renderCustomers(customers, tbody);
 
-    // 綁定編輯按鈕
     tbody.querySelectorAll(".btn-edit-customer").forEach((btn) => {
       btn.addEventListener("click", () => openCustomerModal(btn.dataset.id));
     });
@@ -1088,7 +1109,6 @@ function setupCustomerEvents() {
       );
       const tbody = document.getElementById("customers-tbody");
       renderCustomers(filtered, tbody);
-      // 重新綁定事件
       tbody.querySelectorAll(".btn-edit-customer").forEach((btn) => {
         btn.addEventListener("click", () => openCustomerModal(btn.dataset.id));
       });
@@ -1111,7 +1131,7 @@ function setupCustomerEvents() {
         if (password) {
           await api.updateCustomerPassword(id, password);
         }
-        alert("會員資料已更新");
+        alert("更新成功");
         document.getElementById("customer-modal").style.display = "none";
         loadCustomers();
       } catch (err) {

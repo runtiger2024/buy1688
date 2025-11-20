@@ -43,18 +43,32 @@ router.get("/me", authenticateToken, (req, res) => {
 });
 
 // --- [新增] 管理員模擬客戶登入 (Impersonate) ---
+// 支援透過 customerId (資料庫ID) 或 paopaoId (會員編號) 查找
 router.post(
   "/admin/impersonate",
   authenticateToken,
   isAdmin,
   async (req, res, next) => {
     try {
-      const { customerId } = req.body;
-      if (!customerId) return res.status(400).json({ message: "缺少客戶 ID" });
+      const { customerId, paopaoId } = req.body;
 
-      const customer = await prisma.customers.findUnique({
-        where: { id: parseInt(customerId) },
-      });
+      if (!customerId && !paopaoId) {
+        return res
+          .status(400)
+          .json({ message: "缺少客戶識別資訊 (ID 或 PaopaoId)" });
+      }
+
+      let customer = null;
+
+      if (customerId) {
+        customer = await prisma.customers.findUnique({
+          where: { id: parseInt(customerId) },
+        });
+      } else if (paopaoId) {
+        customer = await prisma.customers.findUnique({
+          where: { paopao_id: paopaoId },
+        });
+      }
 
       if (!customer) return res.status(404).json({ message: "找不到該會員" });
 
@@ -140,7 +154,7 @@ router.post("/customer-login", async (req, res, next) => {
 
     const token = generateToken({ ...customer, role: "customer" });
 
-    // [修改] 回傳資料加入 phone 和 is_vip
+    // 回傳資料加入 phone 和 is_vip
     res.json({
       token,
       customer: {
@@ -148,7 +162,7 @@ router.post("/customer-login", async (req, res, next) => {
         paopao_id: customer.paopao_id,
         email: customer.email,
         phone: customer.phone,
-        is_vip: customer.is_vip, // [新增] 確保前端能拿到 VIP 狀態
+        is_vip: customer.is_vip,
       },
     });
   } catch (err) {
