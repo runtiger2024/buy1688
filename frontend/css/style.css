@@ -1375,3 +1375,96 @@ body.login-body {
   margin-bottom: 8px;
   font-weight: bold;
 }
+/* frontend/css/style.css - 新增部分 */
+
+/* =========================================
+   11. 電腦版頁尾 (Desktop Footer)
+   ========================================= */
+.site-footer {
+  background-color: #232f3e; /* 深藍灰色背景 */
+  color: #ddd;
+  padding: 60px 0 20px;
+  margin-top: 60px;
+  font-size: 0.9rem;
+  border-top: 4px solid var(--taobao-orange);
+}
+
+.footer-container {
+  max-width: var(--container-width);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr; /* 左側寬一點 */
+  gap: 40px;
+  padding: 0 20px;
+}
+
+.footer-section h3.footer-logo {
+  color: #fff;
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.footer-section h4 {
+  color: var(--taobao-orange);
+  font-size: 1.1rem;
+  margin-bottom: 20px;
+  border-left: 3px solid var(--taobao-orange);
+  padding-left: 10px;
+}
+
+.footer-section p {
+  line-height: 1.6;
+  color: #bbb;
+}
+
+.footer-list,
+.footer-links {
+  list-style: none;
+  padding: 0;
+}
+
+.footer-list li {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.footer-list li i {
+  width: 20px;
+  text-align: center;
+  color: var(--taobao-yellow);
+}
+
+.footer-links li {
+  margin-bottom: 10px;
+}
+
+.footer-links a {
+  color: #bbb;
+  text-decoration: none;
+  transition: all 0.3s;
+}
+
+.footer-links a:hover {
+  color: white;
+  padding-left: 5px; /* 滑動效果 */
+  color: var(--taobao-orange);
+}
+
+.footer-bottom {
+  text-align: center;
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid #3a4b5c;
+  color: #777;
+  font-size: 0.8rem;
+}
+
+/* RWD: 手機版隱藏頁尾 (避免與底部導航重疊且節省空間) */
+@media (max-width: 768px) {
+  .site-footer {
+    display: none;
+  }
+}

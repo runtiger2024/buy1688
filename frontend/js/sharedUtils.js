@@ -24,6 +24,13 @@ export async function loadComponent(componentPath, placeholderId) {
 }
 
 /**
+ * [新增] 載入並設定頁尾
+ */
+export async function setupFooter() {
+  await loadComponent("../html/_footer.html", "footer-placeholder");
+}
+
+/**
  * 獲取儲存的 客戶資訊
  */
 export function getCustomer() {
@@ -252,7 +259,6 @@ export function populateWarehouseSelect(selectId, warehouses) {
   warehouses.forEach((wh) => {
     const option = document.createElement("option");
     option.value = wh.id;
-    // [優化] 這裡只顯示倉庫名稱，讓介面更簡潔
     option.textContent = wh.name;
     selectEl.appendChild(option);
   });
