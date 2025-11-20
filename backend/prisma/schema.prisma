@@ -54,7 +54,7 @@ model Users {
   role                  UserRole @default(operator)
   status                String   @default("active")
   
-  // [新增] 用於接收通知的 Email 與開關
+  // 用於接收通知的 Email 與開關
   email                 String?
   receive_notifications Boolean  @default(false)
 
@@ -88,7 +88,7 @@ model Products {
   price_twd     Int
   is_archived   Boolean  @default(false)
   
-  // [新增] 直購商品開關 (True = 直寄台灣，不經集運)
+  // 直購商品開關 (True = 直寄台灣，不經集運)
   is_direct_buy Boolean  @default(false)
   
   created_at    DateTime @default(now())
@@ -114,13 +114,13 @@ model Orders {
   warehouse_id             Int?        // 直購訂單時可能為 null
   notes                    String?
   payment_voucher_url      String?     // 匯款憑證 URL
-  domestic_tracking_number String?     // 大陸境內物流單號
+  domestic_tracking_number String?     // 大陸境內或台灣物流單號
   created_at               DateTime    @default(now())
 
   payment_method String?
-  payment_status String  @default("UNPAID")
+  payment_status String  @default("UNPAID") // 代購可為 "PENDING_REVIEW"
 
-  // [新增] 台灣直寄收件資訊 (直購商品專用)
+  // 台灣直寄收件資訊 (直購商品專用)
   recipient_name    String?
   recipient_phone   String?
   recipient_address String?
@@ -145,6 +145,10 @@ model OrderItems {
   snapshot_name      String?
   snapshot_price_twd Int
   snapshot_cost_cny  Decimal
+
+  // [新增] 代購專用欄位：圖片連結、客戶備註
+  item_image_url     String?
+  client_remarks     String?
 
   order   Orders    @relation(fields: [order_id], references: [id], onDelete: Cascade)
   product Products? @relation(fields: [product_id], references: [id])
