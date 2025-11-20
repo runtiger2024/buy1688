@@ -156,14 +156,22 @@ export function loadCart(shoppingCart) {
 }
 
 /**
- * 將商品加入購物車 (支援規格)
+ * 將商品加入購物車 (支援規格與直購屬性)
  * @param {object} shoppingCart - 購物車物件
  * @param {string} id - 商品 ID
  * @param {string} name - 商品名稱
  * @param {number} price - 價格
  * @param {string|null} spec - 規格 (可選)
+ * @param {boolean} isDirectBuy - [新增] 是否為直購商品
  */
-export function addToCart(shoppingCart, id, name, price, spec = null) {
+export function addToCart(
+  shoppingCart,
+  id,
+  name,
+  price,
+  spec = null,
+  isDirectBuy = false
+) {
   // 使用 複合 Key (ID + 規格) 來區分不同規格的同一商品
   const cartKey = spec ? `${id}_${spec}` : `${id}`;
 
@@ -176,6 +184,7 @@ export function addToCart(shoppingCart, id, name, price, spec = null) {
       price: price,
       spec: spec,
       quantity: 1,
+      is_direct_buy: isDirectBuy, // [新增]
     };
   }
   try {

@@ -26,8 +26,9 @@ router.get("/", async (req, res, next) => {
         name: true,
         description: true,
         images: true,
-        specs: true, // [新增] 回傳規格
+        specs: true,
         price_twd: true,
+        is_direct_buy: true, // [新增] 回傳直購狀態
       },
       orderBy: { created_at: "desc" }, // 讓新商品排前面
     });
@@ -59,8 +60,9 @@ router.post("/", authenticateToken, isAdmin, async (req, res, next) => {
     price_twd: Joi.number().integer().min(0).required(),
     cost_cny: Joi.number().min(0).required(),
     images: Joi.array().items(Joi.string().uri()).default([]),
-    specs: Joi.array().items(Joi.string()).default([]), // [新增] 規格陣列
+    specs: Joi.array().items(Joi.string()).default([]),
     category_id: Joi.number().integer().allow(null),
+    is_direct_buy: Joi.boolean().default(false), // [新增]
   });
 
   const { error, value } = schema.validate(req.body);
@@ -82,7 +84,6 @@ router.post("/", authenticateToken, isAdmin, async (req, res, next) => {
 // Admin：更新商品
 router.put("/:id", authenticateToken, isAdmin, async (req, res, next) => {
   try {
-    // [修改] 接收 specs
     const {
       name,
       description,
@@ -91,6 +92,7 @@ router.put("/:id", authenticateToken, isAdmin, async (req, res, next) => {
       images,
       specs,
       category_id,
+      is_direct_buy, // [新增]
     } = req.body;
 
     const updated = await prisma.products.update({
@@ -99,10 +101,11 @@ router.put("/:id", authenticateToken, isAdmin, async (req, res, next) => {
         name,
         description,
         images: images || [],
-        specs: specs || [], // [新增] 更新規格
+        specs: specs || [],
         price_twd: parseInt(price_twd),
         cost_cny: parseFloat(cost_cny),
         category_id: category_id ? parseInt(category_id) : null,
+        is_direct_buy: is_direct_buy === true || is_direct_buy === "true", // [新增] 轉換 Boolean
       },
     });
     res.json(updated);

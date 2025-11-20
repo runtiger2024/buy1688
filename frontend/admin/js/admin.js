@@ -302,6 +302,51 @@ function renderOrdersTable(orders) {
       voucherAlert = `<span class="badge badge-warning" style="margin-left:5px; background-color:#ffc107; color:#000;"><i class="fas fa-bell"></i></span>`;
     }
 
+    // [直購功能] 顯示收件資訊而非倉庫
+    let locationHtml = "";
+    if (order.recipient_address) {
+      locationHtml = `<span class="badge badge-warning" style="background-color: #ff5000; color: white;">直寄</span><br>
+                        <small><strong>${order.recipient_name}</strong><br>${order.recipient_address}<br>${order.recipient_phone}</small>`;
+    } else {
+      const warehouseName =
+        order.warehouse_name || '<span style="color:#dc3545">未選擇</span>';
+      const warehouseCopyBtn = order.warehouse_name
+        ? `<button class="btn btn-primary btn-copy-shipping" 
+               data-paopao-id="${order.paopao_id}" 
+               data-warehouse-id="${order.warehouse_id}"
+               style="margin-top: 5px; font-size: 0.7rem; padding: 2px 5px;">📋 複製</button>`
+        : "";
+      locationHtml = `<strong>${warehouseName}</strong><br>${warehouseCopyBtn}`;
+    }
+
+    const assignedTo = order.operator_name
+      ? ` (指派: ${order.operator_name})`
+      : "";
+    let voucherContent = order.payment_voucher_url
+      ? `<button class="btn-link btn-view-voucher" data-id="${order.id}" style="color: #28a745; font-weight: bold; border: none; background: none; cursor: pointer; text-decoration: underline;">查看</button>`
+      : order.payment_status === "UNPAID"
+      ? '<span style="color:#dc3545;">待上傳</span>'
+      : "無";
+
+    let trackingInputHtml = order.domestic_tracking_number
+      ? `<a href="https://www.baidu.com/s?wd=${order.domestic_tracking_number}" target="_blank">${order.domestic_tracking_number}</a>`
+      : "無";
+
+    if (
+      order.payment_status === "PAID" &&
+      (order.status === "Processing" || order.status === "Shipped_Internal")
+    ) {
+      trackingInputHtml = `
+            <div style="display:flex; align-items:center; gap:5px;">
+                <input type="text" class="tracking-input" value="${
+                  order.domestic_tracking_number || ""
+                }" placeholder="單號" style="width:80px; padding:4px;">
+                <button class="btn btn-primary btn-save-tracking" data-id="${
+                  order.id
+                }" style="padding:4px 6px; font-size:0.8rem;">存</button>
+            </div>`;
+    }
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
             <td>#${order.id}</td>
@@ -314,16 +359,21 @@ function renderOrdersTable(orders) {
             <td class="${profitClass}" style="font-weight:bold;">${profitTwd.toFixed(
       0
     )}</td>
+            <td>${locationHtml}</td>
+            <td>${voucherContent}</td>
+            <td>${trackingInputHtml}</td>
             <td><span class="badge ${statusBadge}">${
       ORDER_STATUS_MAP[order.status] || order.status
+    }</span><br><small>${assignedTo}</small></td>
+            <td><span class="badge ${paymentBadge}">${
+      PAYMENT_STATUS_MAP[order.payment_status]
     }</span></td>
             <td>
-                <span class="badge ${paymentBadge}">${
-      PAYMENT_STATUS_MAP[order.payment_status]
-    }</span>
-                ${voucherAlert}
-            </td>
-            <td>
+                ${
+                  order.payment_status === "UNPAID"
+                    ? `<button class="btn btn-small btn-success btn-mark-paid" data-id="${order.id}" style="margin-bottom:5px;">已付</button>`
+                    : ""
+                }
                 <button class="btn btn-small btn-primary btn-view-order" data-id="${
                   order.id
                 }">
@@ -334,9 +384,33 @@ function renderOrdersTable(orders) {
     tbody.appendChild(tr);
   });
 
-  document.querySelectorAll(".btn-view-order").forEach((btn) => {
-    btn.addEventListener("click", () => openOrderModal(btn.dataset.id));
-  });
+  // 綁定事件
+  document
+    .querySelectorAll(".btn-view-order")
+    .forEach((btn) =>
+      btn.addEventListener("click", () => openOrderModal(btn.dataset.id))
+    );
+  document
+    .querySelectorAll(".btn-mark-paid")
+    .forEach((btn) =>
+      btn.addEventListener("click", () => markOrderPaid(btn.dataset.id))
+    );
+  document.querySelectorAll(".btn-save-tracking").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      const input = btn.previousElementSibling;
+      if (input) {
+        try {
+          await api.updateOrder(btn.dataset.id, {
+            domestic_tracking_number: input.value,
+          });
+          alert("單號已儲存");
+          loadOrders();
+        } catch (e) {
+          alert(e.message);
+        }
+      }
+    })
+  );
 }
 
 function setupOrderEvents() {
@@ -405,6 +479,29 @@ function openOrderModal(orderId) {
     }
   }
 
+  // [直購] 判斷是否顯示收件資訊
+  let shippingInfoHtml = "";
+  if (order.recipient_address) {
+    shippingInfoHtml = `
+        <div style="background:#fff3cd; padding:10px; border-radius:5px; border:1px solid #ffeeba;">
+            <strong><i class="fas fa-shipping-fast"></i> 直寄台灣資訊</strong><br>
+            姓名: ${order.recipient_name}<br>
+            電話: ${order.recipient_phone}<br>
+            地址: ${order.recipient_address}
+        </div>
+      `;
+  } else {
+    shippingInfoHtml = `
+        <p><strong>集運倉:</strong> ${warehouseName} 
+           ${
+             order.warehouse_id
+               ? `<button class="btn btn-small btn-light" onclick="copyShippingInfo('${order.paopao_id}', ${order.warehouse_id})">複製地址</button>`
+               : ""
+           }
+        </p>
+      `;
+  }
+
   const itemsHtml = order.items
     .map(
       (item) => `
@@ -435,13 +532,7 @@ function openOrderModal(orderId) {
                 </p>
                 <p><strong>會員:</strong> ${order.paopao_id}</p>
                 <p><strong>Email:</strong> ${order.customer_email || "-"}</p>
-                <p><strong>集運倉:</strong> ${warehouseName} 
-                   ${
-                     order.warehouse_id
-                       ? `<button class="btn btn-small btn-light" onclick="copyShippingInfo('${order.paopao_id}', ${order.warehouse_id})">複製地址</button>`
-                       : ""
-                   }
-                </p>
+                ${shippingInfoHtml}
             </div>
             <div>
                 <div class="form-group">
@@ -572,11 +663,17 @@ function renderProductsTable(products) {
         ? p.images[0]
         : "https://via.placeholder.com/50?text=No+Img";
     const categoryName = p.category ? p.category.name : "-";
+
+    // [直購] 標記
+    const directTag = p.is_direct_buy
+      ? '<br><span class="badge badge-warning" style="font-size:0.7rem;">直購</span>'
+      : "";
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
             <td>${p.id}</td>
             <td><img src="${imgUrl}" class="img-thumb" onclick="window.open('${imgUrl}')"></td>
-            <td>${p.name}</td>
+            <td>${p.name} ${directTag}</td>
             <td>${categoryName}</td>
             <td>${p.price_twd}</td>
             <td>${p.cost_cny}</td>
@@ -636,6 +733,7 @@ function setupProductEvents() {
         description: document.getElementById("product-description").value,
         images: images,
         specs: specs, // 傳送規格
+        is_direct_buy: document.getElementById("product-is-direct").checked, // [新增] 直購開關
       };
 
       try {
@@ -666,6 +764,7 @@ async function openProductModal(id) {
     '<input type="text" class="product-img-input" placeholder="主圖 URL" required>';
   document.getElementById("product-id").value = "";
   document.getElementById("product-specs").value = "";
+  document.getElementById("product-is-direct").checked = false; // [新增] 重置直購開關
   document.getElementById("product-modal-title").textContent = "新增商品";
 
   if (id) {
@@ -680,11 +779,11 @@ async function openProductModal(id) {
       document.getElementById("product-cost").value = p.cost_cny;
       document.getElementById("product-description").value =
         p.description || "";
-
-      // [規格回填] 陣列轉字串
       document.getElementById("product-specs").value = p.specs
         ? p.specs.join(", ")
         : "";
+      document.getElementById("product-is-direct").checked =
+        p.is_direct_buy || false; // [新增] 回填直購
 
       const container = document.getElementById("product-images-container");
       container.innerHTML = "";

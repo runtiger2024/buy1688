@@ -96,6 +96,11 @@ function renderProduct(product) {
       `;
   }
 
+  // [新增] 直購提示
+  const directBuyHtml = product.is_direct_buy
+    ? `<div style="color:#ff5000; margin-bottom:10px; font-weight:bold;"><i class="fas fa-plane"></i> 此為台灣直購商品 (不經集運倉)</div>`
+    : "";
+
   container.innerHTML = `
     <div class="product-detail-layout">
         <div class="product-detail-image">
@@ -110,6 +115,7 @@ function renderProduct(product) {
             }</div>
             <div class="product-title-section">
                 <h1>${product.name}</h1>
+                ${directBuyHtml}
                 <span style="color:#999; font-size:0.9rem;">庫存充足</span>
             </div>
             ${specsHtml} <div class="product-detail-description"><strong>商品描述：</strong><br>${
@@ -127,13 +133,13 @@ function renderProduct(product) {
     .getElementById("desktop-add-cart")
     .addEventListener("click", () => handleAddToCart());
   document.getElementById("desktop-buy-now").addEventListener("click", () => {
-    if (handleAddToCart()) window.location.href = "./index.html";
+    if (handleAddToCart()) window.location.href = "./index.html#cart-modal";
   });
   document
     .getElementById("mobile-add-cart")
     .addEventListener("click", () => handleAddToCart());
   document.getElementById("mobile-buy-now").addEventListener("click", () => {
-    if (handleAddToCart()) window.location.href = "./index.html";
+    if (handleAddToCart()) window.location.href = "./index.html#cart-modal";
   });
 }
 
@@ -159,15 +165,20 @@ function handleAddToCart() {
     return false;
   }
 
-  // 傳入 spec
+  // 傳入 spec 和 is_direct_buy
   addToCart(
     shoppingCart,
     currentProduct.id,
     currentProduct.name,
     currentProduct.price_twd,
-    selectedSpec
+    selectedSpec,
+    currentProduct.is_direct_buy // [新增] 傳入直購屬性
   );
-  alert(`已將 ${currentProduct.name} ${selectedSpec || ""} 加入購物車！`);
+
+  const typeMsg = currentProduct.is_direct_buy ? "(直購商品)" : "";
+  alert(
+    `已將 ${currentProduct.name} ${selectedSpec || ""} ${typeMsg} 加入購物車！`
+  );
   return true;
 }
 

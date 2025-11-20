@@ -198,8 +198,14 @@ async function fetchProducts() {
       // 判斷是否有規格
       const hasSpecs = product.specs && product.specs.length > 0;
 
+      // [新增] 顯示直購標籤
+      const directBuyBadge = product.is_direct_buy
+        ? `<span style="position:absolute; top:10px; left:10px; background:#ff5000; color:white; padding:2px 6px; border-radius:4px; font-size:0.8rem; z-index:2;">台灣直購</span>`
+        : "";
+
       card.innerHTML = `
         <a href="../html/product.html?id=${product.id}" class="product-card-link">
+            ${directBuyBadge}
             <img src="${imageUrl}" alt="${product.name}" loading="lazy">
         </a>
         <div class="product-info">
@@ -214,8 +220,8 @@ async function fetchProducts() {
                         data-id="${product.id}" 
                         data-name="${product.name}" 
                         data-price="${product.price_twd}"
-                        data-has-specs="${hasSpecs}">
-                    <i class="fas fa-cart-plus"></i>
+                        data-has-specs="${hasSpecs}"
+                        data-is-direct="${product.is_direct_buy}"> <i class="fas fa-cart-plus"></i>
                 </button>
             </div>
         </div>
@@ -238,8 +244,9 @@ async function fetchProducts() {
         const id = button.dataset.id;
         const name = button.dataset.name;
         const price = parseInt(button.dataset.price, 10);
+        const isDirect = button.dataset.isDirect === "true"; // [新增]
 
-        addToCart(shoppingCart, id, name, price);
+        addToCart(shoppingCart, id, name, price, null, isDirect);
 
         // 按鈕動畫
         const originalContent = button.innerHTML;
@@ -288,11 +295,9 @@ function setupCartModal() {
 
   // [關鍵修正] 檢查網址是否有 #cart-modal，若有則自動開啟
   if (window.location.hash === "#cart-modal") {
-    // 使用 setTimeout 確保 DOM 元素與事件都準備好
     setTimeout(() => {
       if (openBtn) {
         openBtn.click();
-        // 開啟後清除 hash，讓網址變回乾淨的狀態 (可選)
         history.replaceState(null, null, window.location.pathname);
       }
     }, 300);
@@ -344,6 +349,7 @@ function setupCartModal() {
 function renderCart() {
   const cartItemsList = document.getElementById("cart-items-list");
   let totalAmount = 0;
+  let hasDirectBuy = false; // 標記是否有直購商品
 
   if (Object.keys(shoppingCart).length === 0) {
     cartItemsList.innerHTML = `
@@ -353,16 +359,23 @@ function renderCart() {
         </div>`;
   } else {
     cartItemsList.innerHTML = "";
-    // 遍歷購物車 (key 可能包含規格後綴)
+    // 遍歷購物車
     for (const key in shoppingCart) {
       const item = shoppingCart[key];
       const itemTotal = item.price * item.quantity;
       totalAmount += itemTotal;
 
+      if (item.is_direct_buy) hasDirectBuy = true;
+
+      // [新增] 顯示直購標籤
+      const tag = item.is_direct_buy
+        ? `<span style="color:red; font-size:0.8rem; border:1px solid red; border-radius:4px; padding:0 4px; margin-right:5px;">直購</span>`
+        : "";
+
       cartItemsList.innerHTML += `
         <div class="cart-item">
             <div class="cart-item-info">
-                <p>${item.name} ${
+                <p>${tag}${item.name} ${
         item.spec
           ? `<span style="font-weight:normal; color:#666; font-size:0.85rem;">(${item.spec})</span>`
           : ""
@@ -391,6 +404,30 @@ function renderCart() {
     localStorage.setItem("shoppingCart", JSON.stringify(shoppingCart));
   } catch (e) {
     console.error(e);
+  }
+
+  // [新增] 切換表單顯示：如果有直購商品，顯示收件資訊表單，隱藏倉庫選擇
+  const warehouseSection = document.getElementById(
+    "warehouse-selection-section"
+  );
+  const recipientSection = document.getElementById("recipient-info-section");
+  const warehouseSelect = document.getElementById("warehouse-select");
+  const recipientInputs = recipientSection
+    ? recipientSection.querySelectorAll("input, textarea")
+    : [];
+
+  if (hasDirectBuy) {
+    // 直購模式
+    if (warehouseSection) warehouseSection.style.display = "none";
+    if (recipientSection) recipientSection.style.display = "block";
+    if (warehouseSelect) warehouseSelect.required = false;
+    recipientInputs.forEach((input) => (input.required = true));
+  } else {
+    // 集運模式
+    if (warehouseSection) warehouseSection.style.display = "block";
+    if (recipientSection) recipientSection.style.display = "none";
+    if (warehouseSelect) warehouseSelect.required = true;
+    recipientInputs.forEach((input) => (input.required = false));
   }
 }
 
@@ -433,8 +470,14 @@ function setupCheckoutForm() {
     if (!checkAuth()) return;
     const token = getAuthToken();
 
+    // 再次確認購物車是否有直購商品
+    const hasDirectBuy = Object.values(shoppingCart).some(
+      (item) => item.is_direct_buy
+    );
     const warehouseId = warehouseSelect.value;
-    if (!warehouseId) {
+
+    // 如果是純集運訂單，必須選擇倉庫
+    if (!hasDirectBuy && !warehouseId) {
       alert("請選擇一個集運倉！");
       return;
     }
@@ -458,7 +501,17 @@ function setupCheckoutForm() {
       paopaoId: document.getElementById("checkout-paopao-id").value,
       customerEmail: document.getElementById("checkout-customer-email").value,
       payment_method: "OFFLINE_TRANSFER",
-      warehouse_id: parseInt(warehouseId, 10),
+      // [新增] 根據模式決定欄位
+      warehouse_id: hasDirectBuy ? null : parseInt(warehouseId, 10),
+      recipient_name: hasDirectBuy
+        ? document.getElementById("recipient-name").value
+        : "",
+      recipient_phone: hasDirectBuy
+        ? document.getElementById("recipient-phone").value
+        : "",
+      recipient_address: hasDirectBuy
+        ? document.getElementById("recipient-address").value
+        : "",
       items: items,
     };
 

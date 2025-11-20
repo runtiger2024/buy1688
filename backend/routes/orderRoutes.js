@@ -13,12 +13,12 @@ import {
   sendOrderConfirmationEmail,
   sendPaymentReceivedEmail,
   sendOrderStatusUpdateEmail,
-  sendNewOrderNotificationToStaff, // [新增] 引入通知函式
+  sendNewOrderNotificationToStaff,
 } from "../emailService.js";
 
 const router = express.Router();
 
-// --- 共通函式：取得設定與銀行資訊 ---
+// --- 共通函式 ---
 async function getSettingsAndBankInfo() {
   const settings = await prisma.systemSettings.findMany();
   const config = {};
@@ -37,7 +37,6 @@ async function getSettingsAndBankInfo() {
 // --- 輔助函式：通知工作人員 ---
 async function notifyStaff(order) {
   try {
-    // 找出所有狀態為 active 且開啟通知，並且有 email 的使用者
     const staffToNotify = await prisma.users.findMany({
       where: {
         status: "active",
@@ -47,7 +46,6 @@ async function notifyStaff(order) {
       select: { email: true },
     });
 
-    // 過濾掉空字串
     const emails = staffToNotify
       .map((u) => u.email)
       .filter((e) => e && e.trim() !== "");
@@ -66,7 +64,11 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
     paopaoId: Joi.string().allow("").optional(),
     customerEmail: Joi.string().email().required(),
     payment_method: Joi.string().required(),
-    warehouse_id: Joi.number().integer().min(1).required(),
+    warehouse_id: Joi.number().integer().allow(null).optional(),
+    // [新增] 收件人資訊驗證 (先設為 optional，邏輯中再檢查)
+    recipient_name: Joi.string().allow("").optional(),
+    recipient_phone: Joi.string().allow("").optional(),
+    recipient_address: Joi.string().allow("").optional(),
     items: Joi.array()
       .items(
         Joi.object({
@@ -97,11 +99,16 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
 
     let totalTwd = 0;
     let totalCny = 0;
+    let hasDirectBuyItem = false; // [新增] 檢查是否有直購商品
     const orderItemsData = [];
 
     for (const item of value.items) {
       const product = productsMap[item.id];
       if (!product) throw new Error(`商品 ID ${item.id} 不存在或已下架`);
+
+      if (product.is_direct_buy) {
+        hasDirectBuyItem = true;
+      }
 
       const qty = parseInt(item.quantity);
       totalTwd += product.price_twd * qty;
@@ -118,10 +125,29 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
       });
     }
 
-    const warehouse = await prisma.warehouses.findUnique({
-      where: { id: value.warehouse_id, is_active: true },
-    });
-    if (!warehouse) throw new Error("無效的集運倉 ID");
+    // --- [新增] 驗證邏輯 ---
+    if (hasDirectBuyItem) {
+      // 如果有直購商品，必須填寫收件人資訊
+      if (
+        !value.recipient_name ||
+        !value.recipient_phone ||
+        !value.recipient_address
+      ) {
+        throw new Error(
+          "此訂單包含直購商品，請填寫完整的台灣收件資訊 (姓名/電話/地址)"
+        );
+      }
+    } else {
+      // 如果沒有直購商品 (全是集運商品)，必須選擇集運倉
+      if (!value.warehouse_id) {
+        throw new Error("此訂單需選擇集運倉");
+      }
+      // 確認倉庫有效性
+      const warehouse = await prisma.warehouses.findUnique({
+        where: { id: value.warehouse_id, is_active: true },
+      });
+      if (!warehouse) throw new Error("無效的集運倉 ID");
+    }
 
     const newOrder = await prisma.orders.create({
       data: {
@@ -132,7 +158,11 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
         status: "Pending",
         type: "Standard",
         payment_method: value.payment_method,
-        warehouse_id: value.warehouse_id,
+        // [新增] 根據模式存入不同資訊
+        warehouse_id: hasDirectBuyItem ? null : value.warehouse_id,
+        recipient_name: hasDirectBuyItem ? value.recipient_name : null,
+        recipient_phone: hasDirectBuyItem ? value.recipient_phone : null,
+        recipient_address: hasDirectBuyItem ? value.recipient_address : null,
         share_token: randomUUID(),
         items: { create: orderItemsData },
       },
@@ -150,8 +180,6 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
     }
 
     sendOrderConfirmationEmail(newOrder, paymentDetails).catch(console.error);
-
-    // [新增] 通知工作人員
     notifyStaff(newOrder).catch(console.error);
 
     res.status(201).json({
@@ -305,8 +333,6 @@ router.post(
       }
 
       sendOrderConfirmationEmail(newOrder, paymentDetails).catch(console.error);
-
-      // [新增] 通知工作人員
       notifyStaff(newOrder).catch(console.error);
 
       res.status(201).json({
@@ -350,6 +376,9 @@ router.get("/share/:token", async (req, res, next) => {
       created_at: order.created_at,
       items: order.items,
       bank_info: bankInfo,
+      // [新增] 回傳直購資訊
+      recipient_name: order.recipient_name,
+      recipient_address: order.recipient_address,
     };
     res.json(safeOrder);
   } catch (err) {
@@ -444,6 +473,10 @@ router.get(
           total_cost_cny: Number(o.total_cost_cny),
           operator_name: o.operator?.username,
           warehouse_name: o.warehouse?.name,
+          // [新增] 回傳收件資訊
+          recipient_name: o.recipient_name,
+          recipient_phone: o.recipient_phone,
+          recipient_address: o.recipient_address,
         };
       });
       res.json(ordersWithCost);
@@ -498,6 +531,10 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
         ...o,
         total_cost_cny: Number(o.total_cost_cny),
         warehouse_name: o.warehouse?.name,
+        // [新增]
+        recipient_name: o.recipient_name,
+        recipient_phone: o.recipient_phone,
+        recipient_address: o.recipient_address,
       };
     });
     res.json(ordersWithCost);
