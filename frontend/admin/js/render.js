@@ -38,7 +38,7 @@ export function renderOrders(
     if (order.recipient_address) {
       locationHtml = `
          <div style="font-size:0.85rem; line-height:1.4;">
-            <span class="badge badge-warning">直寄</span><br>
+            <span class="badge badge-warning" style="background: #ffc107; color: #000;">直寄</span><br>
             <strong>${order.recipient_name}</strong><br>
             ${order.recipient_phone}<br>
             ${order.recipient_address}
@@ -195,8 +195,8 @@ export function renderProducts(products, tbody) {
             <td>${product.price_twd}</td>
             <td>${product.cost_cny}</td>
             <td>
-                <button class="btn btn-edit" data-id="${product.id}">編輯</button>
-                <button class="btn btn-delete" data-id="${product.id}">封存</button>
+                <button class="btn btn-edit btn-edit-product" data-id="${product.id}">編輯</button>
+                <button class="btn btn-delete btn-delete-product" data-id="${product.id}">封存</button>
             </td>
         `;
     tbody.appendChild(tr);
@@ -286,7 +286,7 @@ export function renderCategories(categories, tbody) {
   });
 }
 
-// [新增] 匯出 renderCustomersTable 供 admin.js 使用
+// [重要] 匯出 renderCustomersTable 供 admin.js 使用
 export function renderCustomersTable(customers, tbody) {
   tbody.innerHTML = "";
   if (customers.length === 0) {
@@ -318,7 +318,7 @@ export function renderCustomersTable(customers, tbody) {
     tbody.appendChild(tr);
   });
 
-  // 綁定按鈕 (使用 window 上的全域函式，因為模組隔離)
+  // 綁定按鈕 (使用 window 上的全域函式)
   tbody.querySelectorAll(".btn-edit-customer").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (window.openCustomerModal) window.openCustomerModal(btn.dataset.id);
