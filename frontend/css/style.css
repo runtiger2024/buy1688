@@ -1468,3 +1468,28 @@ body.login-body {
     display: none;
   }
 }
+/* 找到原本的 .nav-logo 設定，可以保留或修改 */
+.nav-logo {
+  /* 移除文字相關設定，改為彈性佈局以垂直置中 */
+  display: flex;
+  align-items: center;
+  text-decoration: none; /* 移除連結底線 */
+  height: 100%; /* 繼承 navbar 高度 */
+}
+
+/* [新增] Logo 圖片樣式 */
+.nav-logo img {
+  /* 設定最大高度，建議比 navbar 高度 (60px) 小一點，保留邊距 */
+  max-height: 40px;
+  width: auto; /* 保持圖片比例 */
+  display: block;
+
+  /* 如果您的 Logo 是深色的，在深色模式下可能需要調整，目前背景是白色所以沒問題 */
+}
+
+/* 手機版適配 (如果需要調整大小) */
+@media (max-width: 768px) {
+  .nav-logo img {
+    max-height: 35px; /* 手機版稍微縮小一點 */
+  }
+}
