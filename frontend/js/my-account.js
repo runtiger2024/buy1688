@@ -59,14 +59,14 @@ function renderUserProfile() {
   const emailEl = document.getElementById("profile-email");
   const phoneEl = document.getElementById("profile-phone");
 
-  // [新增] 抓取顯示角色的元素 (對應 my-account.html 中的 .profile-role)
+  // 抓取顯示角色的元素 (對應 my-account.html 中的 .profile-role)
   const roleEl = document.querySelector(".profile-role");
 
   if (idEl) idEl.textContent = customer.paopao_id || "未知";
   if (emailEl) emailEl.textContent = customer.email || "-";
   if (phoneEl) phoneEl.textContent = customer.phone || "未設定 (重新登入更新)";
 
-  // [新增] 根據 is_vip 改變顯示文字與樣式
+  // 根據 is_vip 改變顯示文字與樣式
   if (roleEl) {
     if (customer.is_vip) {
       roleEl.textContent = "👑 VIP 會員";
@@ -163,6 +163,20 @@ function renderOrders() {
     const isUnpaid = order.payment_status === "UNPAID";
     const hasVoucher = !!order.payment_voucher_url; // 檢查是否有憑證
 
+    // [新增] 訂單類型標籤判斷邏輯
+    let typeBadge = "";
+    // 判斷順序：先看是不是代購，再看是不是直購，最後歸為一般
+    if (order.type === "Assist") {
+      // 代購商品 (藍色)
+      typeBadge = `<span style="background:#17a2b8; color:white; padding:2px 6px; border-radius:4px; font-size:0.75rem; margin-left:8px; font-weight:normal;">代購商品</span>`;
+    } else if (order.recipient_address) {
+      // 台灣直購 (橘色/淘寶色)
+      typeBadge = `<span style="background:#ff5000; color:white; padding:2px 6px; border-radius:4px; font-size:0.75rem; margin-left:8px; font-weight:normal;">台灣直購</span>`;
+    } else {
+      // 一般商品 (灰色)
+      typeBadge = `<span style="background:#6c757d; color:white; padding:2px 6px; border-radius:4px; font-size:0.75rem; margin-left:8px; font-weight:normal;">一般商品</span>`;
+    }
+
     // 訂單商品摘要
     const itemsHtml = order.items
       .slice(0, 2)
@@ -240,9 +254,10 @@ function renderOrders() {
 
     const card = document.createElement("div");
     card.className = "order-card";
+    // [修改] 在 order-id 後面加入 typeBadge
     card.innerHTML = `
             <div class="order-card-header">
-                <span class="order-id">訂單號 ${order.id}</span>
+                <span class="order-id">訂單號 ${order.id} ${typeBadge}</span>
                 <span class="order-status">${
                   isUnpaid ? "待付款" : statusText
                 }</span>
