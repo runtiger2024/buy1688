@@ -1,15 +1,6 @@
 // frontend/admin/js/admin.js
 import { checkAuth, getUser, logout, copyToClipboard } from "./utils.js";
 import { api } from "./api.js";
-// [修正] 確保 render.js 有匯出 renderCustomersTable
-import {
-  renderOrders,
-  renderProducts,
-  renderUsers,
-  renderWarehouses,
-  renderCategories,
-  renderCustomersTable,
-} from "./render.js";
 
 // --- 1. 常數與全域變數 ---
 const ORDER_STATUS_MAP = {
@@ -21,9 +12,13 @@ const ORDER_STATUS_MAP = {
   Cancelled: "已取消",
 };
 const PAYMENT_STATUS_MAP = {
-  PENDING_REVIEW: "審核中",
+  PENDING_REVIEW: "審核中", // [新增]
   UNPAID: "待付款",
   PAID: "已付款",
+};
+const ORDER_TYPE_MAP = {
+  Standard: "一般商城",
+  Assist: "代客採購",
 };
 
 let availableOperators = [];
@@ -32,7 +27,7 @@ let allCategories = [];
 let allOrders = [];
 let allUsers = [];
 let allCustomers = [];
-let currentOrder = null; // 當前 Modal 編輯的訂單
+let currentOrder = null;
 
 let currentStatusFilter = "";
 let currentPaymentStatusFilter = "";
@@ -90,21 +85,20 @@ ${itemsText}
   copyToClipboard(text, "📋 訂單摘要已複製！");
 };
 
-// 標記訂單為已付款
+// 標記訂單為已付款 (原地更新)
 window.markOrderPaid = async function (id) {
   if (!confirm("確定標記為已付款？系統將發信通知客戶。")) return;
   try {
     await api.updateOrder(id, { payment_status: "PAID" });
     loadOrders();
-    // 如果 Modal 開著，刷新它
-    if (currentOrder && currentOrder.id == id) openOrderModal(id);
+    openOrderModal(id);
     loadStats();
   } catch (e) {
     alert(e.message);
   }
 };
 
-// 代購訂單審核通過
+// [新增] 代購訂單審核通過
 window.approveOrder = async function (id) {
   if (!confirm("確定通過審核？系統將發送「付款通知信」給客戶。")) return;
   try {
@@ -112,53 +106,13 @@ window.approveOrder = async function (id) {
     await api.updateOrder(id, { payment_status: "UNPAID" });
     alert("✅ 訂單已審核通過，等待客戶付款。");
     loadOrders();
-    if (currentOrder && currentOrder.id == id) openOrderModal(id);
     loadStats();
   } catch (e) {
     alert(e.message);
   }
 };
 
-// 模擬客戶登入
-window.impersonate = async function (customerId) {
-  if (!confirm("確定要模擬此客戶登入嗎？這將會開啟新視窗進入前台。")) return;
-  try {
-    const res = await api.impersonateCustomer(customerId);
-    // 設置 localStorage
-    localStorage.setItem("customerToken", res.token);
-    localStorage.setItem("customerUser", JSON.stringify(res.customer));
-
-    // 開啟前台
-    window.open("../../html/index.html", "_blank");
-  } catch (e) {
-    alert("模擬登入失敗: " + e.message);
-  }
-};
-
-// 動態新增代購商品欄位 (Modal 內)
-window.addAssistItemRow = function () {
-  const tbody = document.getElementById("modal-items-tbody");
-  const tr = document.createElement("tr");
-  tr.className = "assist-item-row";
-  tr.innerHTML = `
-        <td>
-            <input type="text" class="item-name" placeholder="商品名稱" style="width:100%; margin-bottom:2px;">
-            <input type="text" class="item-spec" placeholder="規格" style="width:100%; margin-bottom:2px;">
-            <input type="text" class="item-remark" placeholder="備註" style="width:100%; color:blue;">
-        </td>
-        <td>
-            <input type="text" class="item-url" placeholder="連結" style="width:100%; margin-bottom:2px;">
-            <input type="text" class="item-img" placeholder="圖片連結" style="width:100%;">
-        </td>
-        <td><input type="number" class="item-price" placeholder="台幣單價" style="width:70px"></td>
-        <td><input type="number" class="item-cost" placeholder="人民幣成本" style="width:70px"></td>
-        <td><input type="number" class="item-qty" value="1" style="width:50px"></td>
-        <td><button class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">刪除</button></td>
-    `;
-  tbody.appendChild(tr);
-};
-
-// 篩選待核銷憑證
+// 篩選待核銷憑證 (從儀表板跳轉)
 window.filterPendingVouchers = function () {
   document
     .querySelectorAll(".sidebar-nav .nav-link")
@@ -305,7 +259,7 @@ async function loadOrders() {
   const tbody = document.getElementById("orders-tbody");
   if (tbody.innerHTML.trim() === "") {
     tbody.innerHTML =
-      '<tr><td colspan="12" class="text-center">載入中...</td></tr>';
+      '<tr><td colspan="9" class="text-center">載入中...</td></tr>';
   }
 
   try {
@@ -317,15 +271,135 @@ async function loadOrders() {
     if (currentHasVoucherFilter) params.hasVoucher = "true";
 
     allOrders = await api.getOrders(params);
-    const exchangeRate =
-      parseFloat(document.getElementById("exchange-rate-input").value) || 4.5;
-    const userRole = getUser().role;
-
-    // 使用 render.js 匯出的函式
-    renderOrders(allOrders, tbody, availableOperators, exchangeRate, userRole);
+    renderOrdersTable(allOrders);
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="12" class="text-center text-danger">${e.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">${e.message}</td></tr>`;
   }
+}
+
+// [核心修正] 訂單列表渲染邏輯 (整合直購、審核、詳細資訊)
+function renderOrdersTable(orders) {
+  const tbody = document.getElementById("orders-tbody");
+  tbody.innerHTML = "";
+
+  if (orders.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="9" class="text-center">沒有符合條件的訂單</td></tr>';
+    return;
+  }
+
+  const rateInput = document.getElementById("exchange-rate-input");
+  const exchangeRate = parseFloat(rateInput.value) || 4.5;
+
+  orders.forEach((order) => {
+    const costCny = Number(order.total_cost_cny);
+    const profitTwd = order.total_amount_twd - costCny * exchangeRate;
+    const profitClass = profitTwd >= 0 ? "text-success" : "text-danger";
+
+    let statusBadge = "badge-secondary";
+    if (order.status === "Pending") statusBadge = "badge-warning";
+    if (order.status === "Processing" || order.status === "Shipped_Internal")
+      statusBadge = "badge-info";
+    if (order.status === "Completed" || order.status === "Warehouse_Received")
+      statusBadge = "badge-success";
+    if (order.status === "Cancelled") statusBadge = "badge-danger";
+
+    let paymentBadge = "badge-secondary";
+    if (order.payment_status === "PAID") paymentBadge = "badge-success";
+    else if (order.payment_status === "UNPAID") paymentBadge = "badge-danger";
+    else if (order.payment_status === "PENDING_REVIEW")
+      paymentBadge = "badge-warning";
+
+    // 憑證/審核按鈕
+    let voucherAlert = "";
+    if (order.payment_status === "PENDING_REVIEW") {
+      // [新增] 審核按鈕
+      voucherAlert = `<button class="btn btn-small btn-success" onclick="approveOrder(${order.id})" style="margin-top:5px;">✅ 通過審核</button>`;
+    } else if (order.payment_status === "UNPAID" && order.payment_voucher_url) {
+      voucherAlert = `<span class="badge badge-warning" style="margin-left:5px; background-color:#ffc107; color:#000;"><i class="fas fa-bell"></i></span>`;
+    }
+
+    // [新增] 直購資訊與物流單號
+    let locationHtml = "";
+    let trackingLabel = "大陸單號";
+    if (order.recipient_address) {
+      // 直購
+      locationHtml = `<div style="font-size:0.8rem; line-height:1.4;">
+                <span class="badge badge-warning">直寄</span><br>
+                <strong>${order.recipient_name}</strong><br>
+                ${order.recipient_phone}<br>
+                ${order.recipient_address}
+            </div>`;
+      trackingLabel = "台灣單號";
+    } else {
+      // 集運
+      const warehouseName =
+        order.warehouse_name || '<span style="color:#dc3545">未選擇</span>';
+      locationHtml = `<strong>${warehouseName}</strong>`;
+    }
+
+    // [新增] 商品詳細資訊 (圖片/備註)
+    let itemsPreview = "";
+    if (order.items && order.items.length > 0) {
+      itemsPreview =
+        '<div style="font-size:0.8rem; color:#666; margin-top:5px;">';
+      order.items.slice(0, 3).forEach((item) => {
+        const remark = item.client_remarks
+          ? `<span style="color:#d63384;">(註)</span>`
+          : "";
+        const img = item.item_image_url
+          ? `<a href="${item.item_image_url}" target="_blank" title="查看圖片">📷</a>`
+          : "";
+        itemsPreview += `<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">• ${item.snapshot_name} ${remark} ${img}</div>`;
+      });
+      if (order.items.length > 3)
+        itemsPreview += `...共${order.items.length}項`;
+      itemsPreview += "</div>";
+    }
+
+    const assignedTo = order.operator_name
+      ? `<br><small>(${order.operator_name})</small>`
+      : "";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+            <td>#${order.id}</td>
+            <td>
+                <small>${ORDER_TYPE_MAP[order.type] || order.type}</small>
+                ${itemsPreview}
+            </td>
+            <td><small>${new Date(
+              order.created_at
+            ).toLocaleString()}</small></td>
+            <td>${order.paopao_id}</td>
+            <td>NT$ ${order.total_amount_twd.toLocaleString()}</td>
+            <td class="${profitClass}" style="font-weight:bold;">${profitTwd.toFixed(
+      0
+    )}</td>
+            <td>${locationHtml}</td>
+            <td><span class="badge ${statusBadge}">${
+      ORDER_STATUS_MAP[order.status] || order.status
+    }</span>${assignedTo}</td>
+            <td>
+                <span class="badge ${paymentBadge}">${
+      PAYMENT_STATUS_MAP[order.payment_status]
+    }</span>
+                ${voucherAlert}
+            </td>
+            <td>
+                <button class="btn btn-small btn-primary btn-view-order" data-id="${
+                  order.id
+                }">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </td>
+        `;
+    tbody.appendChild(tr);
+  });
+
+  document.querySelectorAll(".btn-view-order").forEach((btn) => {
+    btn.addEventListener("click", () => openOrderModal(btn.dataset.id));
+  });
 }
 
 function setupOrderEvents() {
@@ -364,15 +438,17 @@ function setupOrderEvents() {
     .addEventListener("click", saveOrderChanges);
 }
 
-// 訂單彈窗邏輯：支援代購編輯介面
-window.openOrderModal = function (orderId) {
+function openOrderModal(orderId) {
   const order = allOrders.find((o) => o.id == orderId);
   if (!order) return;
   currentOrder = order;
 
   const modal = document.getElementById("order-modal");
   const content = document.getElementById("order-modal-content");
+
   const userRole = getUser().role;
+  const warehouse = allWarehouses.get(order.warehouse_id);
+  const warehouseName = warehouse ? warehouse.name : "未知倉庫";
 
   const operatorOptions = availableOperators
     .map(
@@ -383,114 +459,29 @@ window.openOrderModal = function (orderId) {
     )
     .join("");
 
-  const isAssist = order.type === "Assist";
-
-  let itemsHtml = "";
-  if (isAssist) {
-    // 可編輯模式
-    itemsHtml = `
-        <div style="margin-bottom:10px; padding:10px; background:#f0f8ff; border-radius:4px;">
-            <h4 style="margin:0 0 5px 0;">✏️ 代購商品編輯區</h4>
-            <button class="btn btn-small btn-primary" onclick="addAssistItemRow()">+ 新增商品</button>
-            <small class="text-muted"> (可修正價格、數量或新增項目，完成後請按下方「儲存變更」)</small>
-        </div>
-        <div class="table-responsive">
-        <table class="data-table" style="font-size: 0.85rem;">
-            <thead>
-                <tr>
-                    <th width="25%">商品/規格/備註</th>
-                    <th width="25%">連結/圖片</th>
-                    <th width="15%">台幣單價</th>
-                    <th width="15%">人民幣成本</th>
-                    <th width="10%">數量</th>
-                    <th width="10%">操作</th>
-                </tr>
-            </thead>
-            <tbody id="modal-items-tbody">
-                ${order.items
-                  .map(
-                    (item) => `
-                    <tr class="assist-item-row">
-                        <td>
-                            <input type="text" class="item-name" value="${
-                              item.snapshot_name
-                            }" placeholder="商品名稱" style="width:100%; margin-bottom:2px;">
-                            <input type="text" class="item-spec" value="${
-                              item.item_spec || ""
-                            }" placeholder="規格" style="width:100%; margin-bottom:2px;">
-                            <input type="text" class="item-remark" value="${
-                              item.client_remarks || ""
-                            }" placeholder="備註" style="width:100%; color:blue;">
-                        </td>
-                        <td>
-                            <input type="text" class="item-url" value="${
-                              item.item_url
-                            }" placeholder="商品連結" style="width:100%; margin-bottom:2px;">
-                            <input type="text" class="item-img" value="${
-                              item.item_image_url || ""
-                            }" placeholder="圖片連結" style="width:100%;">
-                            ${
-                              item.item_image_url
-                                ? `<a href="${item.item_image_url}" target="_blank" style="font-size:0.8rem;">[預覽]</a>`
-                                : ""
-                            }
-                        </td>
-                        <td><input type="number" class="item-price" value="${
-                          item.snapshot_price_twd
-                        }" style="width:70px"></td>
-                        <td><input type="number" class="item-cost" value="${
-                          item.snapshot_cost_cny
-                        }" style="width:70px"></td>
-                        <td><input type="number" class="item-qty" value="${
-                          item.quantity
-                        }" style="width:50px"></td>
-                        <td><button class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">刪除</button></td>
-                    </tr>
-                `
-                  )
-                  .join("")}
-            </tbody>
-        </table>
-        </div>
-      `;
-  } else {
-    // 一般訂單 (唯讀)
-    itemsHtml = `
-        <table class="data-table" style="font-size: 0.85rem;">
-            <thead><tr><th>商品</th><th>規格</th><th>數量</th><th>單價</th></tr></thead>
-            <tbody>
-                ${order.items
-                  .map(
-                    (item) => `
-                    <tr>
-                        <td>${item.snapshot_name}</td>
-                        <td>${item.item_spec || "-"}</td>
-                        <td>${item.quantity}</td>
-                        <td>${item.snapshot_price_twd}</td>
-                    </tr>
-                `
-                  )
-                  .join("")}
-            </tbody>
-        </table>`;
+  // 付款憑證
+  let voucherHtml = '<span class="text-muted">尚未上傳</span>';
+  if (order.payment_voucher_url) {
+    if (order.payment_voucher_url.startsWith("data:image")) {
+      voucherHtml = `<img src="${order.payment_voucher_url}" class="img-thumb" style="width:150px; height:auto;" onclick="window.open().document.write('<img src=\\'${order.payment_voucher_url}\\' style=\\'width:100%\\'>')"> <br><small>(點擊放大)</small>`;
+    } else {
+      voucherHtml = `<a href="${order.payment_voucher_url}" target="_blank">查看連結</a>`;
+    }
   }
 
   // 寄送資訊
   let shippingHtml = "";
   let trackingLabel = "大陸物流單號";
   if (order.recipient_address) {
+    // 直購
     trackingLabel = "台灣物流單號";
-    shippingHtml = `
-        <div style="background:#fff3cd; padding:10px; border-radius:5px; border:1px solid #ffeeba; margin-bottom:10px;">
-            <strong><i class="fas fa-shipping-fast"></i> 直寄台灣資訊</strong><br>
-            姓名: ${order.recipient_name}<br>
-            電話: ${order.recipient_phone}<br>
-            地址: ${order.recipient_address}
+    shippingHtml = `<div style="background:#fff3cd; padding:10px; border-radius:5px;">
+            <strong>直寄資訊:</strong><br>
+            ${order.recipient_name} / ${order.recipient_phone}<br>${order.recipient_address}
         </div>`;
   } else {
-    const warehouseName = order.warehouse_name || "未指定";
-    shippingHtml = `
-        <p><strong>集運倉:</strong> ${warehouseName} 
+    // 集運
+    shippingHtml = `<p><strong>集運倉:</strong> ${warehouseName} 
            ${
              order.warehouse_id
                ? `<button class="btn btn-small btn-light" onclick="copyShippingInfo('${order.paopao_id}', ${order.warehouse_id})">複製地址</button>`
@@ -499,144 +490,142 @@ window.openOrderModal = function (orderId) {
         </p>`;
   }
 
-  let voucherHtml = '<span class="text-muted">尚未上傳</span>';
-  if (order.payment_voucher_url) {
-    voucherHtml = `<a href="${order.payment_voucher_url}" target="_blank">查看憑證連結</a>`;
-    if (order.payment_voucher_url.startsWith("data:image")) {
-      voucherHtml = `<img src="${order.payment_voucher_url}" class="img-thumb" style="width:150px; height:auto;" onclick="window.open().document.write('<img src=\\'${order.payment_voucher_url}\\' style=\\'width:100%\\'>')">`;
-    }
-  }
+  const itemsHtml = order.items
+    .map(
+      (item) => `
+        <tr>
+            <td>
+                ${item.snapshot_name || item.product?.name || "商品"} 
+                ${
+                  item.client_remarks
+                    ? `<br><small style="color:#d63384;">備註: ${item.client_remarks}</small>`
+                    : ""
+                }
+            </td>
+            <td>${
+              item.item_url
+                ? `<a href="${item.item_url}" target="_blank"><i class="fas fa-link"></i></a>`
+                : "-"
+            }
+            ${
+              item.item_image_url
+                ? ` <a href="${item.item_image_url}" target="_blank"><i class="fas fa-image"></i></a>`
+                : ""
+            }
+            </td>
+            <td>¥ ${item.snapshot_cost_cny}</td>
+            <td>${item.quantity}</td>
+        </tr>
+    `
+    )
+    .join("");
 
   content.innerHTML = `
-      <div class="form-row-2">
-          <div>
-             <p><strong>訂單編號: #${order.id}</strong> (${order.type})</p>
-             <p>會員: ${order.paopao_id} (${order.customer_email || "-"})</p>
-             ${shippingHtml}
-          </div>
-          <div>
-             <div class="form-group">
-                 <label>訂單狀態</label>
-                 <select id="modal-order-status">
-                    ${Object.keys(ORDER_STATUS_MAP)
-                      .map(
-                        (k) =>
-                          `<option value="${k}" ${
-                            order.status === k ? "selected" : ""
-                          }>${ORDER_STATUS_MAP[k]}</option>`
-                      )
-                      .join("")}
-                 </select>
-             </div>
-             <div class="form-group">
-                 <label>付款狀態</label>
-                 <select id="modal-order-payment-status">
-                     ${Object.keys(PAYMENT_STATUS_MAP)
-                       .map(
-                         (k) =>
-                           `<option value="${k}" ${
-                             order.payment_status === k ? "selected" : ""
-                           }>${PAYMENT_STATUS_MAP[k]}</option>`
-                       )
-                       .join("")}
-                 </select>
-                 ${
-                   order.payment_status === "PENDING_REVIEW"
-                     ? `<button class="btn btn-small btn-success w-100 mt-5" onclick="approveOrder(${order.id})">✅ 通過審核</button>`
-                     : ""
-                 }
-             </div>
-          </div>
-      </div>
-      <hr>
-      <div class="form-row-2">
-          <div class="form-group">
-              <label>指派操作員 (${
-                userRole === "admin" ? "可選" : "唯讀"
-              })</label>
-              <select id="modal-order-operator" ${
-                userRole !== "admin" ? "disabled" : ""
-              }>
-                  <option value="">-- 未指派 --</option>
-                  ${operatorOptions}
-              </select>
-          </div>
-          <div class="form-group">
-              <label>${trackingLabel}</label>
-              <input type="text" id="modal-order-tracking" value="${
-                order.domestic_tracking_number || ""
-              }" placeholder="輸入單號">
-          </div>
-      </div>
-      <div class="form-group">
-          <label>管理員備註</label>
-          <textarea id="modal-order-notes" rows="2">${
-            order.notes || ""
-          }</textarea>
-      </div>
-      
-      <div class="form-group bg-light p-10">
-          <label style="color: #d35400;">🔔 付款憑證區</label>
-          <div>${voucherHtml}</div>
-      </div>
-      
-      <h4 class="mt-5">商品清單</h4>
-      ${itemsHtml}
-  `;
+        <div class="form-row-2">
+            <div>
+                <p>
+                    <strong>訂單編號:</strong> #${order.id}
+                    <button class="btn btn-small btn-light" onclick="copyOrderSummary()" style="margin-left:10px;">📋 複製摘要</button>
+                </p>
+                <p><strong>會員:</strong> ${order.paopao_id}</p>
+                <p><strong>Email:</strong> ${order.customer_email || "-"}</p>
+                ${shippingHtml}
+            </div>
+            <div>
+                <div class="form-group">
+                    <label>訂單狀態</label>
+                    <select id="modal-order-status">
+                        ${Object.keys(ORDER_STATUS_MAP)
+                          .map(
+                            (k) =>
+                              `<option value="${k}" ${
+                                order.status === k ? "selected" : ""
+                              }>${ORDER_STATUS_MAP[k]}</option>`
+                          )
+                          .join("")}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>付款狀態</label>
+                    <p>${PAYMENT_STATUS_MAP[order.payment_status]} 
+                       ${
+                         order.payment_status === "UNPAID"
+                           ? `<button class="btn btn-small btn-success" onclick="markOrderPaid(${order.id})">標記已付</button>`
+                           : ""
+                       }
+                       ${
+                         order.payment_status === "PENDING_REVIEW"
+                           ? `<button class="btn btn-small btn-success" onclick="approveOrder(${order.id})">✅ 通過審核</button>`
+                           : ""
+                       }
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <hr>
+        
+        <div class="form-row-2">
+            <div class="form-group">
+                <label>指派操作員</label>
+                <select id="modal-order-operator" ${
+                  userRole !== "admin" ? "disabled" : ""
+                }>
+                    <option value="">-- 未指派 --</option>
+                    ${operatorOptions}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>${trackingLabel}</label>
+                <input type="text" id="modal-order-tracking" value="${
+                  order.domestic_tracking_number || ""
+                }" placeholder="輸入單號">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>管理員備註</label>
+            <textarea id="modal-order-notes" rows="2">${
+              order.notes || ""
+            }</textarea>
+        </div>
+        
+        <div class="form-group bg-light p-10">
+            <label style="color: #d35400;">🔔 付款憑證區</label>
+            <div>${voucherHtml}</div>
+        </div>
+
+        <h4 class="mt-5">商品清單</h4>
+        <table class="data-table" style="font-size: 0.85rem;">
+            <thead>
+                <tr><th>商品/規格</th><th>連結/圖片</th><th>成本(CNY)</th><th>數量</th></tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+        </table>
+    `;
 
   modal.style.display = "block";
-};
+}
 
-// 儲存訂單變更 (包含代購商品編輯)
 async function saveOrderChanges() {
   if (!currentOrder) return;
-
   const status = document.getElementById("modal-order-status").value;
-  const payment_status = document.getElementById(
-    "modal-order-payment-status"
-  ).value;
   const operatorId = document.getElementById("modal-order-operator").value;
   const tracking = document.getElementById("modal-order-tracking").value;
   const notes = document.getElementById("modal-order-notes").value;
 
-  const data = {
-    status: status,
-    payment_status: payment_status,
-    domestic_tracking_number: tracking,
-    notes: notes,
-    operator_id: operatorId || null,
-  };
-
-  // 如果是代購訂單，收集商品資料
-  if (currentOrder.type === "Assist") {
-    const rows = document.querySelectorAll(".assist-item-row");
-    const newItems = [];
-    rows.forEach((row) => {
-      newItems.push({
-        snapshot_name: row.querySelector(".item-name").value,
-        item_spec: row.querySelector(".item-spec").value,
-        client_remarks: row.querySelector(".item-remark").value,
-        item_url: row.querySelector(".item-url").value,
-        item_image_url: row.querySelector(".item-img").value,
-        snapshot_price_twd: row.querySelector(".item-price").value,
-        snapshot_cost_cny: row.querySelector(".item-cost").value,
-        quantity: row.querySelector(".item-qty").value,
-      });
-    });
-
-    if (newItems.length === 0) {
-      alert("錯誤：商品清單不能為空");
-      return;
-    }
-
-    data.items = newItems; // 送出新陣列
-  }
-
   try {
+    const data = {
+      status: status,
+      notes: notes,
+      domestic_tracking_number: tracking,
+      operator_id: operatorId || null,
+    };
+
     await api.updateOrder(currentOrder.id, data);
     alert("訂單已更新");
+
     await loadOrders();
-    // 刷新 modal 內容
     openOrderModal(currentOrder.id);
     loadStats();
   } catch (e) {
@@ -644,30 +633,69 @@ async function saveOrderChanges() {
   }
 }
 
-// --- 7. 商品管理 (Products) ---
+// --- 7. 商品管理 (Products) - 包含規格與直購設定 ---
 async function loadProducts() {
   const tbody = document.getElementById("products-tbody");
   tbody.innerHTML =
     '<tr><td colspan="7" class="text-center">載入中...</td></tr>';
   try {
     const products = await api.getProducts();
-    renderProducts(products, tbody);
-
-    document.querySelectorAll(".btn-edit-product").forEach((btn) => {
-      btn.addEventListener("click", () => openProductModal(btn.dataset.id));
-    });
-    document.querySelectorAll(".btn-delete-product").forEach((btn) => {
-      btn.addEventListener("click", () => archiveProduct(btn.dataset.id));
-    });
+    renderProductsTable(products);
   } catch (e) {
     console.error(e);
   }
+}
+
+function renderProductsTable(products) {
+  const tbody = document.getElementById("products-tbody");
+  tbody.innerHTML = "";
+
+  if (products.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="7" class="text-center">無商品</td></tr>';
+    return;
+  }
+
+  products.forEach((p) => {
+    const imgUrl =
+      p.images && p.images.length > 0
+        ? p.images[0]
+        : "https://via.placeholder.com/50?text=No+Img";
+    const categoryName = p.category ? p.category.name : "-";
+
+    const directTag = p.is_direct_buy
+      ? '<br><span class="badge badge-warning" style="font-size:0.7rem;">直購</span>'
+      : "";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+            <td>${p.id}</td>
+            <td><img src="${imgUrl}" class="img-thumb" onclick="window.open('${imgUrl}')"></td>
+            <td>${p.name} ${directTag}</td>
+            <td>${categoryName}</td>
+            <td>${p.price_twd}</td>
+            <td>${p.cost_cny}</td>
+            <td>
+                <button class="btn btn-small btn-primary btn-edit-product" data-id="${p.id}"><i class="fas fa-edit"></i> 編輯</button>
+                <button class="btn btn-small btn-danger btn-delete-product" data-id="${p.id}"><i class="fas fa-trash"></i> 封存</button>
+            </td>
+        `;
+    tbody.appendChild(tr);
+  });
+
+  document.querySelectorAll(".btn-edit-product").forEach((btn) => {
+    btn.addEventListener("click", () => openProductModal(btn.dataset.id));
+  });
+  document.querySelectorAll(".btn-delete-product").forEach((btn) => {
+    btn.addEventListener("click", () => archiveProduct(btn.dataset.id));
+  });
 }
 
 function setupProductEvents() {
   document
     .getElementById("btn-add-product")
     .addEventListener("click", () => openProductModal(null));
+
   document.getElementById("btn-add-img-field").addEventListener("click", () => {
     const container = document.getElementById("product-images-container");
     const input = document.createElement("input");
@@ -685,6 +713,7 @@ function setupProductEvents() {
       const images = Array.from(document.querySelectorAll(".product-img-input"))
         .map((i) => i.value.trim())
         .filter((v) => v);
+
       const specsStr = document.getElementById("product-specs").value;
       const specs = specsStr
         ? specsStr
@@ -701,12 +730,15 @@ function setupProductEvents() {
         description: document.getElementById("product-description").value,
         images: images,
         specs: specs,
-        is_direct_buy: document.getElementById("product-is-direct").checked,
+        is_direct_buy: document.getElementById("product-is-direct").checked, // [新增]
       };
 
       try {
-        if (id) await api.updateProduct(id, data);
-        else await api.createProduct(data);
+        if (id) {
+          await api.updateProduct(id, data);
+        } else {
+          await api.createProduct(data);
+        }
         alert("儲存成功");
         document.getElementById("product-modal").style.display = "none";
         loadProducts();
@@ -766,6 +798,7 @@ async function openProductModal(id) {
       }
     }
   }
+
   document.getElementById("product-modal").style.display = "block";
 }
 
@@ -787,14 +820,40 @@ async function loadCategories() {
     '<tr><td colspan="4" class="text-center">載入中...</td></tr>';
   try {
     allCategories = await api.getCategories();
-    renderCategories(allCategories, tbody);
+    tbody.innerHTML = "";
+    if (allCategories.length === 0) {
+      tbody.innerHTML =
+        '<tr><td colspan="4" class="text-center">無分類</td></tr>';
+      return;
+    }
+    allCategories.forEach((c) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+                <td>${c.id}</td>
+                <td>${c.name}</td>
+                <td>${c.description || "-"}</td>
+                <td>
+                     <button class="btn btn-small btn-primary btn-edit-cat" data-id="${
+                       c.id
+                     }"><i class="fas fa-edit"></i></button>
+                     <button class="btn btn-small btn-danger btn-del-cat" data-id="${
+                       c.id
+                     }"><i class="fas fa-trash"></i></button>
+                </td>
+            `;
+      tbody.appendChild(tr);
+    });
 
-    document.querySelectorAll(".btn-edit-category").forEach((btn) => {
-      btn.addEventListener("click", () => openCategoryModal(btn.dataset.id));
-    });
-    document.querySelectorAll(".btn-delete-category").forEach((btn) => {
-      btn.addEventListener("click", () => deleteCategory(btn.dataset.id));
-    });
+    document
+      .querySelectorAll(".btn-edit-cat")
+      .forEach((btn) =>
+        btn.addEventListener("click", () => openCategoryModal(btn.dataset.id))
+      );
+    document
+      .querySelectorAll(".btn-del-cat")
+      .forEach((btn) =>
+        btn.addEventListener("click", () => deleteCategory(btn.dataset.id))
+      );
   } catch (e) {
     console.error(e);
   }
@@ -858,11 +917,30 @@ async function loadWarehouses() {
 
     const tbody = document.getElementById("warehouses-tbody");
     if (!tbody) return;
-    renderWarehouses(warehouses, tbody);
-
-    document.querySelectorAll(".btn-edit-warehouse").forEach((btn) => {
-      btn.addEventListener("click", () => openWarehouseModal(btn.dataset.id));
+    tbody.innerHTML = "";
+    warehouses.forEach((w) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+                <td>${w.id}</td>
+                <td>${w.name}</td>
+                <td>${w.receiver}<br>${w.phone}</td>
+                <td><small>${w.address}</small></td>
+                <td>${
+                  w.is_active
+                    ? '<span class="badge badge-success">啟用</span>'
+                    : '<span class="badge badge-secondary">停用</span>'
+                }</td>
+                <td><button class="btn btn-small btn-primary btn-edit-wh" data-id="${
+                  w.id
+                }"><i class="fas fa-edit"></i></button></td>
+            `;
+      tbody.appendChild(tr);
     });
+    document
+      .querySelectorAll(".btn-edit-wh")
+      .forEach((btn) =>
+        btn.addEventListener("click", () => openWarehouseModal(btn.dataset.id))
+      );
   } catch (e) {
     console.error(e);
   }
@@ -932,21 +1010,63 @@ async function loadUsers() {
 
 function renderUsersTable(users) {
   const tbody = document.getElementById("users-tbody");
+
   const filtered = users.filter((u) =>
     u.username.toLowerCase().includes(userSearchTerm.toLowerCase())
   );
 
-  renderUsers(filtered, tbody, getUser());
+  if (filtered.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="5" class="text-center">找不到符合條件的用戶</td></tr>';
+    return;
+  }
 
-  document.querySelectorAll(".btn-toggle-status").forEach((btn) =>
+  tbody.innerHTML = "";
+  filtered.forEach((u) => {
+    const tr = document.createElement("tr");
+    const isSelf = getUser().id === u.id;
+    tr.innerHTML = `
+                <td>${u.id}</td>
+                <td>${u.username}</td>
+                <td>${u.role}</td>
+                <td>${
+                  u.status === "active"
+                    ? '<span class="badge badge-success">正常</span>'
+                    : '<span class="badge badge-danger">停權</span>'
+                }</td>
+                <td>
+                    ${
+                      !isSelf
+                        ? `
+                    <button class="btn btn-small btn-primary btn-edit-user" data-id="${
+                      u.id
+                    }">
+                        <i class="fas fa-edit"></i> 編輯
+                    </button>
+                    <button class="btn btn-small ${
+                      u.status === "active" ? "btn-danger" : "btn-success"
+                    } btn-toggle-user" data-id="${u.id}" data-status="${
+                            u.status
+                          }">
+                        ${u.status === "active" ? "停權" : "啟用"}
+                    </button>`
+                        : '<span class="text-muted">自己</span>'
+                    }
+                </td>
+            `;
+    tbody.appendChild(tr);
+  });
+
+  document.querySelectorAll(".btn-toggle-user").forEach((btn) =>
     btn.addEventListener("click", async () => {
-      const newStatus = btn.dataset.newStatus;
+      const newStatus = btn.dataset.status === "active" ? "inactive" : "active";
       if (confirm(`確定要變更狀態為 ${newStatus} 嗎?`)) {
         await api.updateUserStatus(btn.dataset.id, newStatus);
         loadUsers();
       }
     })
   );
+
   document
     .querySelectorAll(".btn-edit-user")
     .forEach((btn) =>
@@ -1009,6 +1129,7 @@ function setupUserEvents() {
           });
           alert("用戶建立成功");
         }
+
         document.getElementById("user-modal").style.display = "none";
         loadUsers();
       } catch (err) {
@@ -1053,6 +1174,7 @@ function openUserModal(id) {
     document.getElementById("user-password").placeholder = "請輸入密碼";
     passHint.textContent = "";
   }
+
   document.getElementById("user-modal").style.display = "block";
 }
 
@@ -1064,40 +1186,94 @@ async function loadCustomers() {
   try {
     const customers = await api.getCustomers();
     allCustomers = customers;
-    handleRenderCustomers();
+    renderCustomersTable(allCustomers);
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan='6' class='text-center text-danger'>${e.message}</td></tr>`;
   }
 }
 
-function handleRenderCustomers() {
+function renderCustomersTable(customers) {
   const tbody = document.getElementById("customers-tbody");
-  const filtered = allCustomers.filter(
+  const filtered = customers.filter(
     (c) =>
       c.paopao_id.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
       c.email.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
       (c.phone && c.phone.includes(customerSearchTerm))
   );
 
-  renderCustomersTable(filtered, tbody);
+  if (filtered.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="6" class="text-center">找不到符合條件的會員</td></tr>';
+    return;
+  }
 
-  // 綁定事件 (這些按鈕由 render.js 生成)
-  // [重要] 使用 window 上的全域函式，因為模組隔離
-  tbody
+  tbody.innerHTML = "";
+  filtered.forEach((c) => {
+    // VIP 樣式
+    const vipBadge = c.is_vip
+      ? '<span class="badge" style="background:gold; color:#333; margin-top: 4px; display: inline-block;">👑 VIP</span>'
+      : '<span class="badge badge-secondary" style="margin-top: 4px; display: inline-block;">一般</span>';
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+            <td>${c.id}</td>
+            <td>${c.paopao_id} <br> ${vipBadge}</td>
+            <td>${c.email}</td>
+            <td>${c.phone || "-"}</td>
+            <td>${new Date(c.created_at).toLocaleString()}</td>
+            <td>
+                <button class="btn btn-small btn-primary btn-edit-customer" data-id="${
+                  c.id
+                }"><i class="fas fa-edit"></i> 編輯</button>
+            </td>
+        `;
+    tbody.appendChild(tr);
+  });
+
+  document
     .querySelectorAll(".btn-edit-customer")
     .forEach((btn) =>
       btn.addEventListener("click", () => openCustomerModal(btn.dataset.id))
     );
-  tbody
-    .querySelectorAll(".btn-impersonate")
-    .forEach((btn) =>
-      btn.addEventListener("click", () => impersonate(btn.dataset.id))
-    );
 }
 
-// [重要] 為了讓 render.js 裡的按鈕能呼叫 admin.js 的函式，必須確保 openCustomerModal 和 impersonate 都在 window 上
-// 雖然上面已經有 window.impersonate，這裡補充 openCustomerModal
-window.openCustomerModal = function (id) {
+function setupCustomerEvents() {
+  const searchInput = document.getElementById("customer-search-input");
+  if (searchInput) {
+    searchInput.addEventListener("keyup", (e) => {
+      customerSearchTerm = e.target.value.trim();
+      renderCustomersTable(allCustomers);
+    });
+  }
+
+  const form = document.getElementById("customer-form");
+  if (form)
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const id = document.getElementById("customer-id").value;
+      const email = document.getElementById("customer-email").value;
+      const phone = document.getElementById("customer-phone").value;
+      const password = document.getElementById("customer-password").value;
+
+      const isVipStr = document.getElementById("customer-is-vip").value;
+      const is_vip = isVipStr === "true";
+
+      try {
+        await api.updateCustomer(id, { email, phone, is_vip });
+
+        if (password) {
+          await api.updateCustomerPassword(id, password);
+        }
+        alert("會員資料已更新");
+        document.getElementById("customer-modal").style.display = "none";
+        loadCustomers();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+}
+
+function openCustomerModal(id) {
   const customer = allCustomers.find((c) => c.id == id);
   if (!customer) return;
 
@@ -1114,40 +1290,6 @@ window.openCustomerModal = function (id) {
 
   document.getElementById("customer-password").value = "";
   document.getElementById("customer-modal").style.display = "block";
-};
-
-function setupCustomerEvents() {
-  document
-    .getElementById("customer-search-input")
-    .addEventListener("keyup", (e) => {
-      customerSearchTerm = e.target.value.trim();
-      handleRenderCustomers();
-    });
-
-  document
-    .getElementById("customer-form")
-    .addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const id = document.getElementById("customer-id").value;
-      const email = document.getElementById("customer-email").value;
-      const phone = document.getElementById("customer-phone").value;
-      const password = document.getElementById("customer-password").value;
-
-      const isVipStr = document.getElementById("customer-is-vip").value;
-      const is_vip = isVipStr === "true";
-
-      try {
-        await api.updateCustomer(id, { email, phone, is_vip });
-        if (password) {
-          await api.updateCustomerPassword(id, password);
-        }
-        alert("會員資料已更新");
-        document.getElementById("customer-modal").style.display = "none";
-        loadCustomers();
-      } catch (err) {
-        alert(err.message);
-      }
-    });
 }
 
 // --- 12. 系統設置 ---

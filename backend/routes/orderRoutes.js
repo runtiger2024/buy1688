@@ -14,7 +14,7 @@ import {
   sendPaymentReceivedEmail,
   sendOrderStatusUpdateEmail,
   sendNewOrderNotificationToStaff,
-  sendAssistOrderReceivedEmail,
+  sendAssistOrderReceivedEmail, // [新增]
 } from "../emailService.js";
 
 const router = express.Router();
@@ -243,7 +243,7 @@ router.post(
   }
 );
 
-// --- 建立代購訂單 ---
+// --- 建立代購訂單 (修改：支援新欄位與審核狀態) ---
 router.post(
   "/assist",
   authenticateToken,
@@ -357,8 +357,8 @@ router.get("/share/:token", async (req, res, next) => {
             item_spec: true,
             quantity: true,
             snapshot_price_twd: true,
-            item_image_url: true,
-            client_remarks: true,
+            item_image_url: true, // [新增]
+            client_remarks: true, // [新增]
           },
         },
       },
@@ -397,8 +397,8 @@ router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
             item_url: true,
             item_spec: true,
             snapshot_cost_cny: true,
-            item_image_url: true,
-            client_remarks: true,
+            item_image_url: true, // [新增]
+            client_remarks: true, // [新增]
           },
         },
         warehouse: { select: { name: true } },
@@ -458,8 +458,8 @@ router.get(
               snapshot_price_twd: true,
               item_spec: true,
               item_url: true,
-              item_image_url: true,
-              client_remarks: true,
+              item_image_url: true, // [新增]
+              client_remarks: true, // [新增]
             },
           },
         },
@@ -489,6 +489,7 @@ router.get(
 
 router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
   try {
+    // Admin logic is identical to Operator but guarded by isAdmin
     const { status, paymentStatus, search, hasVoucher } = req.query;
     const whereClause = {};
     if (status) whereClause.status = status;
@@ -518,8 +519,8 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
             snapshot_price_twd: true,
             item_spec: true,
             item_url: true,
-            item_image_url: true,
-            client_remarks: true,
+            item_image_url: true, // [新增]
+            client_remarks: true, // [新增]
           },
         },
       },
@@ -545,7 +546,7 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
   }
 });
 
-// --- 更新訂單 (管理員審核、修改商品與操作) ---
+// --- 更新訂單 (管理員審核與操作) ---
 router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
@@ -555,9 +556,9 @@ router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
       payment_status,
       operator_id,
       domestic_tracking_number,
-      items, // [新增] 接收商品變更
     } = req.body;
 
+    // 先撈出舊資料以比對狀態
     const oldOrder = await prisma.orders.findUnique({ where: { id } });
     if (!oldOrder) return res.status(404).json({ message: "訂單不存在" });
 
@@ -571,47 +572,13 @@ router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
       data.operator_id = operator_id ? parseInt(operator_id) : null;
     }
 
-    // [新增] 處理商品變更 (重新計算總金額並覆蓋)
-    if (items && Array.isArray(items)) {
-      // 刪除舊的 items
-      await prisma.orderItems.deleteMany({ where: { order_id: id } });
-
-      // 計算新金額
-      let newTotalTwd = 0;
-      let newTotalCny = 0;
-      const newItemsData = items.map((item) => {
-        const qty = parseInt(item.quantity);
-        const priceTwd = parseInt(item.snapshot_price_twd);
-        const costCny = parseFloat(item.snapshot_cost_cny);
-
-        newTotalTwd += priceTwd * qty;
-        newTotalCny += costCny * qty;
-
-        return {
-          product_id: null,
-          item_url: item.item_url,
-          item_spec: item.item_spec,
-          quantity: qty,
-          snapshot_name: item.snapshot_name,
-          snapshot_price_twd: priceTwd,
-          snapshot_cost_cny: costCny,
-          item_image_url: item.item_image_url,
-          client_remarks: item.client_remarks,
-        };
-      });
-
-      data.total_amount_twd = newTotalTwd;
-      data.total_cost_cny = newTotalCny;
-      data.items = { create: newItemsData };
-    }
-
     const updated = await prisma.orders.update({
       where: { id },
       data,
-      include: { items: true },
+      include: { items: true }, // 需要 items 來寄信
     });
 
-    // [審核通過邏輯]
+    // [新增] 審核通過邏輯：如果從 PENDING_REVIEW 變成 UNPAID，寄送付款通知
     if (
       oldOrder.payment_status === "PENDING_REVIEW" &&
       payment_status === "UNPAID"
@@ -619,15 +586,16 @@ router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
       const { bankInfo } = await getSettingsAndBankInfo();
       const paymentDetails = {
         ...bankInfo,
-        note: `銀行：${bankInfo.bank_name}\n帳號：${bankInfo.bank_account}\n戶名：${bankInfo.bank_account_name}\n\n代購訂單 #${updated.id} 已審核通過！(金額已更新)\n應付金額 TWD ${updated.total_amount_twd}。\n請匯款後上傳憑證。`,
+        note: `銀行：${bankInfo.bank_name}\n帳號：${bankInfo.bank_account}\n戶名：${bankInfo.bank_account_name}\n\n代購訂單 #${updated.id} 已審核通過！金額 TWD ${updated.total_amount_twd}。\n請匯款後上傳憑證。`,
       };
       sendOrderConfirmationEmail(updated, paymentDetails).catch(console.error);
-    } else if (
-      payment_status === "PAID" &&
-      oldOrder.payment_status !== "PAID"
-    ) {
+    }
+    // 原有的付款確認邏輯
+    else if (payment_status === "PAID" && oldOrder.payment_status !== "PAID") {
       sendPaymentReceivedEmail(updated).catch(console.error);
-    } else if (status && status !== oldOrder.status) {
+    }
+    // 原有的狀態更新邏輯
+    else if (status && status !== updated.status) {
       sendOrderStatusUpdateEmail(updated).catch(console.error);
     }
 

@@ -4,7 +4,7 @@ import Joi from "joi";
 import prisma from "../db.js";
 import { comparePassword, generateToken, hashPassword } from "../auth.js";
 import { sendRegistrationSuccessEmail } from "../emailService.js";
-import { authenticateToken, isOperator } from "../middleware.js"; // [修改] 引入權限中間件
+import { authenticateToken } from "../middleware.js";
 
 const router = express.Router();
 
@@ -41,41 +41,6 @@ router.post("/login", async (req, res, next) => {
 router.get("/me", authenticateToken, (req, res) => {
   res.json(req.user);
 });
-
-// --- [新增] 模擬客戶登入 (Impersonate) ---
-router.post(
-  "/impersonate",
-  authenticateToken,
-  isOperator,
-  async (req, res, next) => {
-    try {
-      const { customerId } = req.body;
-      if (!customerId) return res.status(400).json({ message: "缺少客戶 ID" });
-
-      const customer = await prisma.customers.findUnique({
-        where: { id: parseInt(customerId) },
-      });
-
-      if (!customer) return res.status(404).json({ message: "客戶不存在" });
-
-      // 簽發該客戶的 Token
-      const token = generateToken({ ...customer, role: "customer" });
-
-      res.json({
-        token,
-        customer: {
-          id: customer.id,
-          paopao_id: customer.paopao_id,
-          email: customer.email,
-          phone: customer.phone,
-          is_vip: customer.is_vip,
-        },
-      });
-    } catch (err) {
-      next(err);
-    }
-  }
-);
 
 // --- 客戶註冊 ---
 router.post("/customer-register", async (req, res, next) => {
@@ -140,6 +105,7 @@ router.post("/customer-login", async (req, res, next) => {
 
     const token = generateToken({ ...customer, role: "customer" });
 
+    // [修改] 回傳資料加入 phone 和 is_vip
     res.json({
       token,
       customer: {
@@ -147,7 +113,7 @@ router.post("/customer-login", async (req, res, next) => {
         paopao_id: customer.paopao_id,
         email: customer.email,
         phone: customer.phone,
-        is_vip: customer.is_vip,
+        is_vip: customer.is_vip, // [新增] 確保前端能拿到 VIP 狀態
       },
     });
   } catch (err) {
