@@ -1,7 +1,7 @@
 // frontend/admin/js/admin.js
 import { checkAuth, getUser, logout, copyToClipboard } from "./utils.js";
 import { api } from "./api.js";
-import { ORDER_STATUS_MAP, PAYMENT_STATUS_MAP } from "./constants.js";
+// 雖然引入了 constants，但為了強制顯示中文，我們將在下方定義本地對照表覆蓋
 import {
   renderOrders,
   renderProducts,
@@ -11,7 +11,7 @@ import {
   renderCustomers,
 } from "./render.js";
 
-// --- 1. 全域變數 ---
+// --- 1. 全域變數與中文對照表 ---
 let availableOperators = [];
 let allWarehouses = new Map();
 let allCategories = [];
@@ -26,6 +26,22 @@ let currentSearchTerm = "";
 let currentHasVoucherFilter = false;
 let userSearchTerm = "";
 let customerSearchTerm = "";
+
+// [關鍵修改] 強制定義本地中文對照表，確保顯示中文
+const LOCAL_ORDER_STATUS_MAP = {
+  Pending: "待處理",
+  Processing: "採購中",
+  Shipped_Internal: "已發貨 (往集運倉)",
+  Warehouse_Received: "已入倉",
+  Completed: "已完成",
+  Cancelled: "已取消",
+};
+
+const LOCAL_PAYMENT_STATUS_MAP = {
+  UNPAID: "待付款",
+  PAID: "已付款",
+  PENDING_REVIEW: "審核中", // 確保這個狀態有中文
+};
 
 // --- 2. 暴露給全局的工具函式 (供 HTML onclick 使用) ---
 
@@ -44,7 +60,12 @@ window.impersonateUser = async function (customerId) {
 
 // [新增] 模擬客戶登入 (By Paopao ID - 供訂單頁面使用)
 window.impersonateUserByPaopaoId = async function (paopaoId) {
-  if (!confirm(`確定要登入會員 [${paopaoId}] 的前台帳號嗎？`)) return;
+  if (
+    !confirm(
+      `確定要登入會員 [${paopaoId}] 的前台帳號嗎？\n這將會開啟一個新的視窗。`
+    )
+  )
+    return;
   try {
     const data = await api.impersonateCustomerByPaopaoId(paopaoId);
     localStorage.setItem("customerToken", data.token);
@@ -91,7 +112,7 @@ window.copyOrderSummary = () => {
   const text = `
 【訂單確認】 #${currentOrder.id}
 會員: ${currentOrder.paopao_id}
-狀態: ${ORDER_STATUS_MAP[currentOrder.status] || currentOrder.status}
+狀態: ${LOCAL_ORDER_STATUS_MAP[currentOrder.status] || currentOrder.status}
 ----------------
 ${itemsText}
 ----------------
@@ -108,7 +129,6 @@ window.markOrderPaid = async function (id) {
   try {
     await api.updateOrder(id, { payment_status: "PAID" });
     loadOrders();
-    // 如果 Modal 是開著的，重新整理它
     if (currentOrder && currentOrder.id == id) {
       openOrderModal(id);
     }
@@ -126,7 +146,6 @@ window.approveOrder = async function (id) {
     alert("✅ 訂單已審核通過，等待客戶付款。");
     loadOrders();
     loadStats();
-    // 如果 Modal 是開著的，重新整理它
     if (currentOrder && currentOrder.id == id) {
       openOrderModal(id);
     }
@@ -335,10 +354,10 @@ async function loadOrders() {
     const exchangeRate = parseFloat(rateInput.value) || 4.5;
     const userRole = getUser().role;
 
-    // 使用新的、乾淨的 render.js 函式渲染
+    // 使用 render.js 的函式渲染列表
     renderOrders(allOrders, tbody, availableOperators, exchangeRate, userRole);
 
-    // 綁定「管理」按鈕事件 (因為 render.js 已經生成了 .btn-view-order)
+    // 綁定「管理」按鈕事件 (對應 render.js 生成的按鈕)
     tbody.querySelectorAll(".btn-view-order").forEach((btn) => {
       btn.addEventListener("click", () => {
         openOrderModal(btn.dataset.id);
@@ -512,19 +531,22 @@ async function openOrderModal(orderId) {
                 <div class="form-group">
                     <label>訂單狀態</label>
                     <select id="modal-order-status">
-                        ${Object.keys(ORDER_STATUS_MAP)
+                        ${Object.keys(LOCAL_ORDER_STATUS_MAP)
                           .map(
                             (k) =>
                               `<option value="${k}" ${
                                 order.status === k ? "selected" : ""
-                              }>${ORDER_STATUS_MAP[k]}</option>`
+                              }>${LOCAL_ORDER_STATUS_MAP[k]}</option>`
                           )
                           .join("")}
                     </select>
                 </div>
                 <div class="form-group">
                     <label>付款狀態</label>
-                    <p>${PAYMENT_STATUS_MAP[order.payment_status]} 
+                    <p>${
+                      LOCAL_PAYMENT_STATUS_MAP[order.payment_status] ||
+                      order.payment_status
+                    } 
                        ${
                          order.payment_status === "UNPAID"
                            ? `<button class="btn btn-small btn-success" onclick="markOrderPaid(${order.id})">標記已付</button>`
