@@ -9,6 +9,7 @@ import {
   getCustomer,
   customerLogout,
   loadCart,
+  setupFooter, // [修正] 引入 setupFooter
 } from "./sharedUtils.js";
 
 let allOrdersData = [];
@@ -31,6 +32,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupHamburgerMenu();
   setupCustomerAuth();
   setupBottomNav();
+  setupFooter(); // [修正] 執行 setupFooter
 
   let cart = {};
   loadCart(cart);
@@ -155,10 +157,8 @@ function renderOrders() {
     const isUnpaid = order.payment_status === "UNPAID";
     const hasVoucher = !!order.payment_voucher_url;
 
-    // [新增] 判斷是否取消
     const isCancelled = order.status === "Cancelled";
 
-    // [新增] 訂單類型標籤
     let typeBadge = "";
     if (order.type === "Assist") {
       typeBadge = `<span style="background:#17a2b8; color:white; padding:2px 6px; border-radius:4px; font-size:0.75rem; margin-left:8px; font-weight:normal;">代購商品</span>`;
@@ -197,7 +197,6 @@ function renderOrders() {
     let actionsHtml = "";
     let hiddenAreaHtml = "";
 
-    // [修改] 按鈕顯示邏輯：如果已取消，只顯示「查看詳情」，不顯示付款/上傳按鈕
     if (isCancelled) {
       actionsHtml = `<button class="btn-action" onclick="window.location.href='order-share.html?token=${order.share_token}'">查看詳情</button>`;
     } else if (isUnpaid) {
@@ -233,18 +232,15 @@ function renderOrders() {
       actionsHtml = `<button class="btn-action" onclick="window.location.href='order-share.html?token=${order.share_token}'">查看詳情</button>`;
     }
 
-    // [新增] 視覺樣式處理
-    // 如果訂單已取消：背景變灰、文字變淡、加上透明度
     const cardStyle = isCancelled
       ? "background-color: #f2f2f2; opacity: 0.7;"
       : "";
     const statusColor = isCancelled
       ? "color: #dc3545;"
-      : "color: var(--taobao-orange);"; // 紅色 vs 橘色
+      : "color: var(--taobao-orange);";
 
     const card = document.createElement("div");
     card.className = "order-card";
-    // 套用樣式
     if (isCancelled) card.setAttribute("style", cardStyle);
 
     card.innerHTML = `

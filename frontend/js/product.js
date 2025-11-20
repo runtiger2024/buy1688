@@ -6,6 +6,7 @@ import {
   setupHamburgerMenu,
   loadCart,
   addToCart,
+  setupFooter, // [修正] 引入 setupFooter
 } from "./sharedUtils.js";
 
 let shoppingCart = {};
@@ -16,6 +17,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadComponent("../html/_navbar.html", "navbar-placeholder");
   setupHamburgerMenu();
   setupCustomerAuth();
+  setupFooter(); // [修正] 執行 setupFooter
 
   // [修正] 使用正確的 ID 'nav-cart-link-desktop'
   const navCartLink = document.getElementById("nav-cart-link-desktop");
@@ -155,6 +157,7 @@ window.selectSpec = function (el, spec) {
 function handleAddToCart() {
   if (!currentProduct) return false;
 
+  // [新增] 檢查是否選擇了規格
   if (
     currentProduct.specs &&
     currentProduct.specs.length > 0 &&
@@ -164,7 +167,7 @@ function handleAddToCart() {
     return false;
   }
 
-  // 呼叫 addToCart 並接收結果
+  // 傳入 spec 和 is_direct_buy
   const result = addToCart(
     shoppingCart,
     currentProduct.id,

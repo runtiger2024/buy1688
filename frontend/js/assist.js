@@ -9,6 +9,7 @@ import {
   populateWarehouseSelect,
   checkAuth,
   getAuthToken,
+  setupFooter, // [修正] 引入 setupFooter
 } from "./sharedUtils.js";
 
 // --- 全局變數 ---
@@ -23,6 +24,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupHamburgerMenu();
   setupCustomerAuth();
   setupBottomNav(); // 設置底部導航
+  setupFooter(); // [修正] 執行 setupFooter
 
   await loadSettingsAndWarehouses();
 

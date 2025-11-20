@@ -4,9 +4,9 @@ import {
   loadComponent,
   setupHamburgerMenu,
   setupCustomerAuth,
+  setupFooter, // [修正] 引入 setupFooter
 } from "./sharedUtils.js";
 
-// 狀態對照表
 const ORDER_STATUS_MAP = {
   Pending: "待處理",
   Processing: "採購中",
@@ -21,16 +21,14 @@ const PAYMENT_STATUS_MAP = {
   PAID: "已付款",
 };
 
-// 當前訂單資料快取 (供複製功能使用)
 let currentOrderData = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // 1. 載入共用組件 (Navbar)
   await loadComponent("../html/_navbar.html", "navbar-placeholder");
   setupHamburgerMenu();
   setupCustomerAuth();
+  setupFooter(); // [修正] 執行 setupFooter
 
-  // 2. 獲取 Token
   const params = new URLSearchParams(window.location.search);
   const token = params.get("token");
 
@@ -40,7 +38,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // 3. 載入訂單
   fetchOrderDetails(token);
 });
 
@@ -51,7 +48,7 @@ async function fetchOrderDetails(token) {
       throw new Error("找不到訂單或連結已失效");
     }
     const order = await response.json();
-    currentOrderData = order; // 存起來供複製使用
+    currentOrderData = order;
     renderOrder(order);
   } catch (error) {
     console.error(error);
@@ -64,12 +61,10 @@ async function fetchOrderDetails(token) {
 }
 
 function renderOrder(order) {
-  // 1. 填寫基本資訊
   setText("display-id", `#${order.id}`);
   setText("display-date", new Date(order.created_at).toLocaleString());
   setText("display-total", order.total_amount_twd.toLocaleString());
 
-  // 狀態顯示
   const statusText = ORDER_STATUS_MAP[order.status] || order.status;
   const statusEl = document.getElementById("display-status");
   if (statusEl) {
@@ -77,7 +72,6 @@ function renderOrder(order) {
     statusEl.style.color = order.status === "Cancelled" ? "red" : "green";
   }
 
-  // 付款狀態顯示
   const payText =
     PAYMENT_STATUS_MAP[order.payment_status] || order.payment_status;
   const payEl = document.getElementById("display-payment");
@@ -85,10 +79,9 @@ function renderOrder(order) {
     payEl.textContent = payText;
     payEl.className =
       order.payment_status === "PAID"
-        ? "badge badge-success" // 需確保 style.css 有這些 class，或直接用 style
+        ? "badge badge-success"
         : "badge badge-warning";
 
-    // 簡單樣式補強
     payEl.style.padding = "2px 8px";
     payEl.style.borderRadius = "10px";
     payEl.style.fontSize = "0.85rem";
@@ -98,7 +91,6 @@ function renderOrder(order) {
     if (order.payment_status !== "PAID") payEl.style.color = "#000";
   }
 
-  // 2. 匯款資訊區塊 (僅在待付款時顯示)
   const bankSection = document.getElementById("bank-section");
   if (
     order.payment_status === "UNPAID" &&
@@ -111,11 +103,9 @@ function renderOrder(order) {
     setText("bank-user", order.bank_info.bank_account_name);
   } else {
     bankSection.style.display = "none";
-    // 如果已付款，修改標題文字
     document.getElementById("page-title").textContent = "訂單詳情";
   }
 
-  // 3. 渲染商品列表
   const itemsContainer = document.getElementById("items-container");
   itemsContainer.innerHTML = "";
 
@@ -155,13 +145,11 @@ function renderOrder(order) {
   });
 }
 
-// 輔助函式：安全設定文字
 function setText(id, text) {
   const el = document.getElementById(id);
   if (el) el.textContent = text;
 }
 
-// 全局函式：複製文字
 window.copyText = function (elementId) {
   const text = document.getElementById(elementId).innerText;
   navigator.clipboard.writeText(text).then(() => {
@@ -169,7 +157,6 @@ window.copyText = function (elementId) {
   });
 };
 
-// 全局函式：複製訂單摘要
 window.copyOrderSummary = function () {
   if (!currentOrderData) return;
   const o = currentOrderData;

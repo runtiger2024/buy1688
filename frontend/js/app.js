@@ -11,6 +11,7 @@ import {
   populateWarehouseSelect,
   checkAuth,
   getAuthToken,
+  setupFooter, // [修正 1] 引入 setupFooter
 } from "./sharedUtils.js";
 
 let shoppingCart = {};
@@ -22,6 +23,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 1. 載入導航與組件
   await loadComponent("../html/_navbar.html", "navbar-placeholder");
   loadComponent("../html/_header.html", "notice-placeholder");
+  setupFooter(); // [修正 2] 執行 setupFooter
 
   // 2. 初始化功能
   setupHamburgerMenu();
@@ -221,7 +223,8 @@ async function fetchProducts() {
                         data-name="${product.name}" 
                         data-price="${product.price_twd}"
                         data-has-specs="${hasSpecs}"
-                        data-is-direct="${product.is_direct_buy}"> <i class="fas fa-cart-plus"></i>
+                        data-is-direct="${product.is_direct_buy}"> 
+                    <i class="fas fa-cart-plus"></i>
                 </button>
             </div>
         </div>
