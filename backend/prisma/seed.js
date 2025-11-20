@@ -71,7 +71,7 @@ async function main() {
     { key: "payment_merchant_id", value: "", description: "金流商店代號" },
     { key: "payment_api_key", value: "", description: "金流 HashKey/API Key" },
 
-    // [新增] 通知開關預設值
+    // 通知開關預設值
     {
       key: "enable_email_register",
       value: "true",
@@ -126,36 +126,48 @@ async function main() {
     console.log(`✅ 管理員帳號 (${adminUsername}) 已確認/建立。`);
   }
 
-  // --- [核心修正] 動態設定訂單 ID 序列 ---
-  try {
-    // 1. 找出目前資料庫中最大的訂單 ID
-    const maxOrder = await prisma.orders.findFirst({
-      orderBy: { id: "desc" },
-      select: { id: true },
-    });
+  // --- [全域修復] 自動修復所有資料表的 ID 序列 (Sequence) ---
+  // 這段程式碼會檢查所有使用自動編號的表，並將計數器重置為當前最大 ID + 1
+  // 可以防止 P2002 Unique constraint failed 錯誤
+  const tableNames = [
+    "users",
+    "categories",
+    "products",
+    "warehouses",
+    "customers",
+    "order_items",
+    "orders", // 訂單表放在最後，或單獨處理也可以
+  ];
 
-    // 預設起始值為 6001687 (這樣下一筆會是 6001688)
-    let nextSeqVal = 6001687;
+  for (const tableName of tableNames) {
+    try {
+      // 1. 找出該表目前最大的 ID
+      // 注意：這裡使用 raw query 因為 Prisma 的 $queryRaw 比較靈活
+      const result = await prisma.$queryRawUnsafe(
+        `SELECT MAX(id) as max_id FROM "${tableName}";`
+      );
+      const maxId = result[0]?.max_id || 0;
 
-    // 如果資料庫中已經有訂單，且 ID 比預設值大，就使用該 ID
-    if (maxOrder && maxOrder.id > nextSeqVal) {
-      nextSeqVal = maxOrder.id;
+      // 訂單表特殊處理：起始 ID 至少為 6001687
+      let nextVal = Number(maxId);
+      if (tableName === "orders" && nextVal < 6001687) {
+        nextVal = 6001687;
+      }
+
+      // 2. 更新序列值 (Postgres 語法)
+      // setval 的第三個參數 true 表示下一個值是 nextVal + 1
+      await prisma.$executeRawUnsafe(
+        `SELECT setval(pg_get_serial_sequence('"${tableName}"', 'id'), ${nextVal}, true);`
+      );
+
+      console.log(`🔧 已修復序列: ${tableName} (目前 Max ID: ${nextVal})`);
+    } catch (e) {
+      // 某些表可能沒有 id 序列 (例如 system_settings 如果手動管理)，忽略錯誤
+      // console.log(`⚠️ 無法修復 ${tableName} 序列 (可能無此表或無序列):`, e.message);
     }
-
-    // 2. 設定序列值
-    const setSequenceSql = `SELECT setval(pg_get_serial_sequence('"orders"', 'id'), ${nextSeqVal})`;
-
-    await prisma.$executeRawUnsafe(setSequenceSql);
-
-    console.log(
-      `✅ 訂單 ID 序列已動態校正。目前最大 ID: ${nextSeqVal}，下一筆將是: ${
-        nextSeqVal + 1
-      }`
-    );
-  } catch (e) {
-    console.error("❌ 設定訂單 ID 序列失敗:", e);
   }
-  // --- 修正結束 ---
+  console.log("✅ 所有資料表 ID 序列校正完成。");
+  // --- 修復結束 ---
 
   console.log("資料填充完畢。");
 }
