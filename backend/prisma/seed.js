@@ -1,3 +1,4 @@
+// backend/prisma/seed.js
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../auth.js";
 import dotenv from "dotenv";
@@ -69,6 +70,28 @@ async function main() {
     },
     { key: "payment_merchant_id", value: "", description: "金流商店代號" },
     { key: "payment_api_key", value: "", description: "金流 HashKey/API Key" },
+
+    // [新增] 通知開關預設值
+    {
+      key: "enable_email_register",
+      value: "true",
+      description: "開關：會員註冊成功通知信",
+    },
+    {
+      key: "enable_email_order",
+      value: "true",
+      description: "開關：訂單建立確認信",
+    },
+    {
+      key: "enable_email_payment",
+      value: "true",
+      description: "開關：收款確認通知信",
+    },
+    {
+      key: "enable_email_status",
+      value: "true",
+      description: "開關：訂單狀態更新通知信",
+    },
   ];
 
   for (const setting of defaultSettings) {
@@ -120,9 +143,6 @@ async function main() {
     }
 
     // 2. 設定序列值
-    // setval(sequence, value, true/false)
-    // true (預設): 下一個值會是 value + 1
-    // 我們這裡直接設定為目前的 max ID，這樣下一筆自動會 +1，不會衝突
     const setSequenceSql = `SELECT setval(pg_get_serial_sequence('"orders"', 'id'), ${nextSeqVal})`;
 
     await prisma.$executeRawUnsafe(setSequenceSql);

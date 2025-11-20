@@ -6,14 +6,14 @@ import { hashPassword } from "../auth.js";
 
 const router = express.Router();
 
-// --- 系統設定 (匯率/服務費/銀行/API整合) ---
+// --- 系統設定 (匯率/服務費/銀行/API整合/通知開關) ---
 router.get("/settings", async (req, res, next) => {
   try {
     const settings = await prisma.systemSettings.findMany();
     const obj = {};
     settings.forEach((s) => {
       const numVal = parseFloat(s.value);
-      // 針對非數值欄位 (API Key, ID 等) 保持字串格式
+      // 針對非數值欄位 (API Key, ID, 開關等) 保持字串格式
       const isNumericField = ["exchange_rate", "service_fee"].includes(s.key);
       obj[s.key] = isNumericField && !isNaN(numVal) ? numVal : s.value;
     });
@@ -40,6 +40,11 @@ router.put("/settings", authenticateToken, isAdmin, async (req, res, next) => {
       // 金流
       payment_merchant_id,
       payment_api_key,
+      // [新增] 通知開關
+      enable_email_register,
+      enable_email_order,
+      enable_email_payment,
+      enable_email_status,
     } = req.body;
 
     const updates = [];
@@ -73,6 +78,28 @@ router.put("/settings", authenticateToken, isAdmin, async (req, res, next) => {
       updates.push({ key: "payment_merchant_id", value: payment_merchant_id });
     if (payment_api_key !== undefined)
       updates.push({ key: "payment_api_key", value: payment_api_key });
+
+    // [新增] 通知開關設定 (轉為字串儲存)
+    if (enable_email_register !== undefined)
+      updates.push({
+        key: "enable_email_register",
+        value: String(enable_email_register),
+      });
+    if (enable_email_order !== undefined)
+      updates.push({
+        key: "enable_email_order",
+        value: String(enable_email_order),
+      });
+    if (enable_email_payment !== undefined)
+      updates.push({
+        key: "enable_email_payment",
+        value: String(enable_email_payment),
+      });
+    if (enable_email_status !== undefined)
+      updates.push({
+        key: "enable_email_status",
+        value: String(enable_email_status),
+      });
 
     await Promise.all(
       updates.map((setting) =>
@@ -208,7 +235,6 @@ router.delete(
 );
 
 // --- 人員管理 (Staff) ---
-// [修改] 新增 email, receive_notifications 欄位
 router.get("/users", authenticateToken, isAdmin, async (req, res, next) => {
   try {
     const users = await prisma.users.findMany({
@@ -229,9 +255,9 @@ router.get("/users", authenticateToken, isAdmin, async (req, res, next) => {
   }
 });
 
-// [修改] 建立用戶時接收 email 和 notification
 router.post("/users", authenticateToken, isAdmin, async (req, res, next) => {
   try {
+    // [修改] 接收 email 和 receive_notifications
     const { username, password, role, email, receive_notifications } = req.body;
     const hashedPassword = await hashPassword(password);
     const user = await prisma.users.create({
@@ -353,7 +379,7 @@ router.get("/customers", authenticateToken, isAdmin, async (req, res, next) => {
         paopao_id: true,
         email: true,
         phone: true,
-        is_vip: true,
+        is_vip: true, // [新增] VIP 狀態
         created_at: true,
       },
     });
@@ -374,6 +400,7 @@ router.put(
 
       const dataToUpdate = { email, phone };
 
+      // [修改] 處理 is_vip 更新
       if (
         typeof is_vip === "boolean" ||
         is_vip === "true" ||

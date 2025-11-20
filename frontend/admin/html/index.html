@@ -296,6 +296,84 @@
           <div class="section-header">
             <h2><i class="fas fa-cog"></i> 系統參數設置</h2>
           </div>
+
+          <div class="settings-card">
+            <h3><i class="fas fa-bell"></i> 客戶通知開關</h3>
+            <div
+              class="form-group"
+              style="
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 10px;
+              "
+            >
+              <input
+                type="checkbox"
+                id="enable-email-register"
+                style="width: auto"
+              />
+              <label
+                for="enable-email-register"
+                style="margin: 0; cursor: pointer"
+                >發送「會員註冊成功」通知</label
+              >
+            </div>
+            <div
+              class="form-group"
+              style="
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 10px;
+              "
+            >
+              <input
+                type="checkbox"
+                id="enable-email-order"
+                style="width: auto"
+              />
+              <label for="enable-email-order" style="margin: 0; cursor: pointer"
+                >發送「訂單建立/待付款」通知</label
+              >
+            </div>
+            <div
+              class="form-group"
+              style="
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 10px;
+              "
+            >
+              <input
+                type="checkbox"
+                id="enable-email-payment"
+                style="width: auto"
+              />
+              <label
+                for="enable-email-payment"
+                style="margin: 0; cursor: pointer"
+                >發送「收款確認」通知</label
+              >
+            </div>
+            <div
+              class="form-group"
+              style="display: flex; align-items: center; gap: 10px"
+            >
+              <input
+                type="checkbox"
+                id="enable-email-status"
+                style="width: auto"
+              />
+              <label
+                for="enable-email-status"
+                style="margin: 0; cursor: pointer"
+                >發送「訂單狀態更新」通知</label
+              >
+            </div>
+          </div>
+
           <div class="settings-card">
             <h3><i class="fas fa-coins"></i> 費率設定</h3>
             <div class="form-group">
@@ -522,10 +600,10 @@
 
           <div class="form-group">
             <label id="user-password-label">密碼</label>
-            <input type="text" id="user-password" />
-            <small id="user-password-hint"></small>
+            <input type="text" id="user-password" /><small
+              id="user-password-hint"
+            ></small>
           </div>
-
           <div class="form-group">
             <label>角色</label>
             <select id="user-role">
@@ -533,7 +611,6 @@
               <option value="admin">管理員</option>
             </select>
           </div>
-
           <div class="modal-footer">
             <button type="submit" class="btn btn-primary">儲存</button>
           </div>

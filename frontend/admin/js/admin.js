@@ -1253,6 +1253,16 @@ async function loadSettings() {
       settings.payment_merchant_id || "";
     document.getElementById("payment-api-key-input").value =
       settings.payment_api_key || "";
+
+    // [新增] 回填通知開關
+    document.getElementById("enable-email-register").checked =
+      settings.enable_email_register === "true";
+    document.getElementById("enable-email-order").checked =
+      settings.enable_email_order === "true";
+    document.getElementById("enable-email-payment").checked =
+      settings.enable_email_payment === "true";
+    document.getElementById("enable-email-status").checked =
+      settings.enable_email_status === "true";
   } catch (e) {
     console.error(e);
   }
@@ -1282,6 +1292,16 @@ function setupSettingsEvents() {
           ).value,
           payment_api_key: document.getElementById("payment-api-key-input")
             .value,
+          // [新增] 儲存通知開關
+          enable_email_register: document.getElementById(
+            "enable-email-register"
+          ).checked,
+          enable_email_order:
+            document.getElementById("enable-email-order").checked,
+          enable_email_payment: document.getElementById("enable-email-payment")
+            .checked,
+          enable_email_status: document.getElementById("enable-email-status")
+            .checked,
         });
         alert("設定已儲存");
       } catch (e) {

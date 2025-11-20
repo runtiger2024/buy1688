@@ -6,7 +6,6 @@ import prisma from "./db.js"; // 引入 prisma 用於查詢設定
 dotenv.config();
 
 const SITE_NAME = process.env.SITE_NAME || "代採購平台";
-// 請根據實際部署網址修改這裡
 const SITE_URL = process.env.SITE_URL || "http://localhost:5500/frontend/html";
 
 /**
@@ -25,6 +24,23 @@ async function getEmailConfig() {
   const fromEmail = config.email_from_email || process.env.SENDGRID_FROM_EMAIL;
 
   return { apiKey, fromEmail };
+}
+
+/**
+ * [新增] 檢查特定通知是否開啟
+ */
+async function isNotificationEnabled(key) {
+  try {
+    const setting = await prisma.systemSettings.findUnique({
+      where: { key: key },
+    });
+    // 預設為 true (找不到設定時預設開啟)
+    if (!setting) return true;
+    return setting.value === "true";
+  } catch (error) {
+    console.error(`檢查通知開關失敗 (${key}):`, error);
+    return true; // 發生錯誤時預設開啟，避免漏信
+  }
 }
 
 /**
@@ -68,13 +84,18 @@ async function sendEmail(to, subject, html, bcc = null) {
 
 // --- 模板 1：客戶註冊成功 ---
 export async function sendRegistrationSuccessEmail(customer) {
+  // [新增] 檢查開關
+  if (!(await isNotificationEnabled("enable_email_register"))) {
+    console.log("🔕 系統設定已關閉「註冊通知」，跳過發送。");
+    return;
+  }
+
   const subject = "歡迎加入！您的帳戶已成功建立";
   const html = `
     <h1>歡迎, ${customer.paopao_id}！</h1>
     <p>感謝您註冊 ${SITE_NAME}。</p>
     <p>您的帳號：${customer.paopao_id}</p>
-    <p>您的密碼：(請用您註冊時設定的密碼登入)</p> 
-    <p>您可以隨時前往 <a href="${SITE_URL}/login.html">登入</a> 並開始購物。</p>
+    <p>您的密碼：(請用您註冊時設定的密碼登入)</p> <p>您可以隨時前往 <a href="${SITE_URL}/login.html">登入</a> 並開始購物。</p>
   `;
 
   await sendEmail(customer.email, subject, html);
@@ -82,6 +103,12 @@ export async function sendRegistrationSuccessEmail(customer) {
 
 // --- 模板 2：客戶建立訂單 (線下轉帳) ---
 export async function sendOrderConfirmationEmail(order, payment_details) {
+  // [新增] 檢查開關
+  if (!(await isNotificationEnabled("enable_email_order"))) {
+    console.log("🔕 系統設定已關閉「訂單建立通知」，跳過發送。");
+    return;
+  }
+
   const subject = `您的訂單 #${order.id} 已成功建立 (待付款)`;
 
   // 產生商品列表
@@ -125,6 +152,12 @@ ${payment_details.note}
 
 // --- 模板 3：管理員確認收到款項 ---
 export async function sendPaymentReceivedEmail(order) {
+  // [新增] 檢查開關
+  if (!(await isNotificationEnabled("enable_email_payment"))) {
+    console.log("🔕 系統設定已關閉「收款確認通知」，跳過發送。");
+    return;
+  }
+
   const subject = `您的訂單 #${order.id} 已確認付款`;
   const html = `
         <h1>訂單 #${order.id} 已確認付款</h1>
@@ -139,6 +172,12 @@ export async function sendPaymentReceivedEmail(order) {
 
 // --- 模板 4：管理員更新訂單狀態 ---
 export async function sendOrderStatusUpdateEmail(order) {
+  // [新增] 檢查開關
+  if (!(await isNotificationEnabled("enable_email_status"))) {
+    console.log("🔕 系統設定已關閉「狀態更新通知」，跳過發送。");
+    return;
+  }
+
   const subject = `您的訂單 #${order.id} 狀態已更新為：${order.status}`;
 
   let trackingHtml = "";
@@ -169,6 +208,7 @@ export async function sendOrderStatusUpdateEmail(order) {
 }
 
 // --- 模板 5：新訂單通知 (給工作人員) ---
+// [注意] 此通知由 "Users.receive_notifications" 控制，不受 SystemSettings 開關影響
 export async function sendNewOrderNotificationToStaff(order, staffEmails) {
   if (!staffEmails || staffEmails.length === 0) return;
 
@@ -180,7 +220,6 @@ export async function sendNewOrderNotificationToStaff(order, staffEmails) {
     .join("<br>");
 
   // 注意：這裡的連結假設 admin 位於 ../admin/html/index.html 相對路徑
-  // 實際部署時建議使用絕對路徑
   const adminUrl =
     process.env.ADMIN_URL || `${SITE_URL}/../admin/html/index.html`;
 
