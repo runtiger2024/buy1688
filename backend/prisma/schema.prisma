@@ -48,12 +48,17 @@ model SystemSettings {
 
 // 管理員/操作員
 model Users {
-  id            Int      @id @default(autoincrement())
-  username      String   @unique
-  password_hash String
-  role          UserRole @default(operator)
-  status        String   @default("active")
-  created_at    DateTime @default(now())
+  id                    Int      @id @default(autoincrement())
+  username              String   @unique
+  password_hash         String
+  role                  UserRole @default(operator)
+  status                String   @default("active")
+  
+  // [新增] 用於接收通知的 Email 與開關
+  email                 String?  
+  receive_notifications Boolean  @default(false)
+
+  created_at            DateTime @default(now())
 
   orders Orders[]
 
@@ -78,7 +83,7 @@ model Products {
   name        String
   description String?
   images      String[]
-  specs       String[] // [新增] 規格選項 (如: ["紅色", "藍色", "S", "M"])
+  specs       String[] // 規格選項
   cost_cny    Decimal
   price_twd   Int
   is_archived Boolean  @default(false)
@@ -126,7 +131,7 @@ model OrderItems {
   order_id           Int
   product_id         Int?
   item_url           String?
-  item_spec          String? // 這裡原本就有，現在會真正被使用到
+  item_spec          String?
   quantity           Int
   snapshot_name      String?
   snapshot_price_twd Int
@@ -160,8 +165,8 @@ model Customers {
   password_hash String
   email         String   @unique
   phone         String?
-  is_vip        Boolean  @default(false)  // [新增] VIP 狀態欄位，預設為 false
+  is_vip        Boolean  @default(false) // VIP 狀態
   created_at    DateTime @default(now())
-  
+
   @@map("customers")
 }

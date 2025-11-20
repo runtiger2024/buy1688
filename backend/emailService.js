@@ -6,6 +6,7 @@ import prisma from "./db.js"; // 引入 prisma 用於查詢設定
 dotenv.config();
 
 const SITE_NAME = process.env.SITE_NAME || "代採購平台";
+// 請根據實際部署網址修改這裡
 const SITE_URL = process.env.SITE_URL || "http://localhost:5500/frontend/html";
 
 /**
@@ -29,7 +30,7 @@ async function getEmailConfig() {
 /**
  * 統一的 Email 寄送函數
  */
-async function sendEmail(to, subject, html) {
+async function sendEmail(to, subject, html, bcc = null) {
   const { apiKey, fromEmail } = await getEmailConfig();
 
   if (!apiKey || !fromEmail) {
@@ -50,9 +51,13 @@ async function sendEmail(to, subject, html) {
     html: html,
   };
 
+  if (bcc) {
+    msg.bcc = bcc;
+  }
+
   try {
     await sgMail.send(msg);
-    console.log(`Email 已成功寄送至 ${to}`);
+    console.log(`Email 已成功寄送至 ${to} (BCC: ${bcc ? bcc.length : 0})`);
   } catch (error) {
     console.error("Email 寄送失敗:", error);
     if (error.response) {
@@ -68,7 +73,8 @@ export async function sendRegistrationSuccessEmail(customer) {
     <h1>歡迎, ${customer.paopao_id}！</h1>
     <p>感謝您註冊 ${SITE_NAME}。</p>
     <p>您的帳號：${customer.paopao_id}</p>
-    <p>您的密碼：(請用您註冊時設定的密碼登入)</p> <p>您可以隨時前往 <a href="${SITE_URL}/login.html">登入</a> 並開始購物。</p>
+    <p>您的密碼：(請用您註冊時設定的密碼登入)</p> 
+    <p>您可以隨時前往 <a href="${SITE_URL}/login.html">登入</a> 並開始購物。</p>
   `;
 
   await sendEmail(customer.email, subject, html);
@@ -160,4 +166,57 @@ export async function sendOrderStatusUpdateEmail(order) {
     `;
 
   await sendEmail(order.customer_email, subject, html);
+}
+
+// --- 模板 5：新訂單通知 (給工作人員) ---
+export async function sendNewOrderNotificationToStaff(order, staffEmails) {
+  if (!staffEmails || staffEmails.length === 0) return;
+
+  const subject = `【新訂單通知】 #${order.id} (金額: $${order.total_amount_twd})`;
+
+  // 簡單的商品摘要
+  const itemsSummary = order.items
+    .map((i) => `- ${i.snapshot_name} x${i.quantity}`)
+    .join("<br>");
+
+  // 注意：這裡的連結假設 admin 位於 ../admin/html/index.html 相對路徑
+  // 實際部署時建議使用絕對路徑
+  const adminUrl =
+    process.env.ADMIN_URL || `${SITE_URL}/../admin/html/index.html`;
+
+  const html = `
+    <h2>🔔 新訂單通知</h2>
+    <p>有一筆新的訂單已提交，請盡快處理。</p>
+    <hr>
+    <ul>
+        <li><strong>訂單編號：</strong> <a href="${adminUrl}">${order.id}</a></li>
+        <li><strong>客戶 ID：</strong> ${order.paopao_id}</li>
+        <li><strong>總金額：</strong> TWD ${order.total_amount_twd}</li>
+        <li><strong>訂單類型：</strong> ${order.type}</li>
+    </ul>
+    <p><strong>商品摘要：</strong></p>
+    <p>${itemsSummary}</p>
+    <hr>
+    <p>此為系統自動發送，請勿回覆。</p>
+  `;
+
+  const { apiKey, fromEmail } = await getEmailConfig();
+  if (!apiKey || !fromEmail) return;
+
+  sgMail.setApiKey(apiKey);
+
+  const msg = {
+    to: fromEmail, // 主收件人為系統信箱
+    bcc: staffEmails, // 密件副本發送給所有開啟通知的管理員
+    from: { name: SITE_NAME, email: fromEmail },
+    subject: subject,
+    html: html,
+  };
+
+  try {
+    await sgMail.send(msg);
+    console.log(`工作人員通知信已發送至 ${staffEmails.length} 位管理員`);
+  } catch (error) {
+    console.error("工作人員通知信發送失敗:", error);
+  }
 }

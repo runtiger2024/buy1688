@@ -921,7 +921,7 @@ function renderUsersTable(users) {
 
   if (filtered.length === 0) {
     tbody.innerHTML =
-      '<tr><td colspan="5" class="text-center">找不到符合條件的用戶</td></tr>';
+      '<tr><td colspan="6" class="text-center">找不到符合條件的用戶</td></tr>';
     return;
   }
 
@@ -929,19 +929,41 @@ function renderUsersTable(users) {
   filtered.forEach((u) => {
     const tr = document.createElement("tr");
     const isSelf = getUser().id === u.id;
+    const isUserActive = u.status === "active";
+
+    // [新增] 通知圖示
+    const notifyIcon = u.receive_notifications
+      ? '<i class="fas fa-bell text-success" title="接收通知"></i>'
+      : '<i class="fas fa-bell-slash text-muted" title="不接收"></i>';
+
+    const roleCellContent = isSelf
+      ? u.role === "admin"
+        ? "管理員 (自己)"
+        : "操作員 (自己)"
+      : `<select class="user-role-select" data-id="${u.id}">
+            <option value="operator" ${
+              u.role === "operator" ? "selected" : ""
+            }>操作員</option>
+            <option value="admin" ${
+              u.role === "admin" ? "selected" : ""
+            }>管理員</option>
+         </select>`;
+
     tr.innerHTML = `
-                <td>${u.id}</td>
-                <td>${u.username}</td>
-                <td>${u.role}</td>
-                <td>${
-                  u.status === "active"
-                    ? '<span class="badge badge-success">正常</span>'
-                    : '<span class="badge badge-danger">停權</span>'
-                }</td>
-                <td>
-                    ${
-                      !isSelf
-                        ? `
+            <td>${u.id}</td>
+            <td>
+                ${u.username} <br>
+                <small class="text-muted">${u.email || "無 Email"}</small>
+            </td>
+            <td>${roleCellContent}</td>
+            <td class="text-center">${notifyIcon}</td>
+            <td><span class="${
+              isUserActive ? "status-active" : "status-inactive"
+            }">${isUserActive ? "啟用中" : "已停權"}</span></td>
+            <td>
+                ${
+                  !isSelf
+                    ? `
                     <button class="btn btn-small btn-primary btn-edit-user" data-id="${
                       u.id
                     }">
@@ -950,14 +972,14 @@ function renderUsersTable(users) {
                     <button class="btn btn-small ${
                       u.status === "active" ? "btn-danger" : "btn-success"
                     } btn-toggle-user" data-id="${u.id}" data-status="${
-                            u.status
-                          }">
+                        u.status
+                      }">
                         ${u.status === "active" ? "停權" : "啟用"}
                     </button>`
-                        : '<span class="text-muted">自己</span>'
-                    }
-                </td>
-            `;
+                    : `<button class="btn btn-small btn-primary btn-edit-user" data-id="${u.id}"><i class="fas fa-edit"></i> 設定</button>`
+                }
+            </td>
+        `;
     tbody.appendChild(tr);
   });
 
@@ -999,10 +1021,22 @@ function setupUserEvents() {
       const password = document.getElementById("user-password").value;
       const role = document.getElementById("user-role").value;
 
+      // [新增] 獲取新欄位
+      const email = document.getElementById("user-email").value;
+      const receiveNotifications =
+        document.getElementById("user-notify").checked;
+
       try {
         if (id) {
+          // 編輯模式
+          // 1. 更新 Email 和 通知設定
+          await api.updateUserInfo(id, {
+            email,
+            receive_notifications: receiveNotifications,
+          });
+
           const originalUser = allUsers.find((u) => u.id == id);
-          if (originalUser.role !== role) {
+          if (getUser().id !== parseInt(id) && originalUser.role !== role) {
             await api.updateUserRole(id, role);
           }
           if (password) {
@@ -1010,11 +1044,18 @@ function setupUserEvents() {
           }
           alert("用戶資料已更新");
         } else {
+          // 新增模式
           if (!password) {
             alert("建立用戶需填寫密碼");
             return;
           }
-          await api.createUser({ username, password, role });
+          await api.createUser({
+            username,
+            password,
+            role,
+            email,
+            receive_notifications: receiveNotifications,
+          });
           alert("用戶建立成功");
         }
 
@@ -1034,6 +1075,10 @@ function openUserModal(id) {
   const passHint = document.getElementById("user-password-hint");
   const usernameInput = document.getElementById("user-username");
 
+  // [新增] 清空新欄位
+  document.getElementById("user-email").value = "";
+  document.getElementById("user-notify").checked = false;
+
   if (id) {
     const user = allUsers.find((u) => u.id == id);
     if (!user) return;
@@ -1043,6 +1088,10 @@ function openUserModal(id) {
     usernameInput.value = user.username;
     usernameInput.disabled = true;
     document.getElementById("user-role").value = user.role;
+
+    // [新增] 回填新欄位
+    document.getElementById("user-email").value = user.email || "";
+    document.getElementById("user-notify").checked = user.receive_notifications;
 
     document.getElementById("user-password").required = false;
     document.getElementById("user-password").placeholder = "若不修改請留空";

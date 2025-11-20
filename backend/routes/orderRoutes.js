@@ -13,11 +13,12 @@ import {
   sendOrderConfirmationEmail,
   sendPaymentReceivedEmail,
   sendOrderStatusUpdateEmail,
+  sendNewOrderNotificationToStaff, // [新增] 引入通知函式
 } from "../emailService.js";
 
 const router = express.Router();
 
-// --- 共通函式 ---
+// --- 共通函式：取得設定與銀行資訊 ---
 async function getSettingsAndBankInfo() {
   const settings = await prisma.systemSettings.findMany();
   const config = {};
@@ -31,6 +32,32 @@ async function getSettingsAndBankInfo() {
     bank_account_name: config.bank_account_name || "未設定戶名",
   };
   return { rate, fee, bankInfo };
+}
+
+// --- 輔助函式：通知工作人員 ---
+async function notifyStaff(order) {
+  try {
+    // 找出所有狀態為 active 且開啟通知，並且有 email 的使用者
+    const staffToNotify = await prisma.users.findMany({
+      where: {
+        status: "active",
+        receive_notifications: true,
+        email: { not: null },
+      },
+      select: { email: true },
+    });
+
+    // 過濾掉空字串
+    const emails = staffToNotify
+      .map((u) => u.email)
+      .filter((e) => e && e.trim() !== "");
+
+    if (emails.length > 0) {
+      await sendNewOrderNotificationToStaff(order, emails);
+    }
+  } catch (error) {
+    console.error("通知工作人員失敗:", error);
+  }
 }
 
 // --- 建立一般訂單 ---
@@ -123,6 +150,10 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
     }
 
     sendOrderConfirmationEmail(newOrder, paymentDetails).catch(console.error);
+
+    // [新增] 通知工作人員
+    notifyStaff(newOrder).catch(console.error);
+
     res.status(201).json({
       message: "訂單建立成功",
       order: newOrder,
@@ -133,7 +164,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
   }
 });
 
-// --- 憑證上傳路由 (關鍵修復位置) ---
+// --- 憑證上傳路由 ---
 router.post(
   "/:id/voucher",
   authenticateToken,
@@ -161,13 +192,11 @@ router.post(
       if (order.payment_status !== "UNPAID")
         return res.status(400).json({ message: "該訂單狀態無法上傳憑證" });
 
-      // 【↓↓↓ 這是您之前缺少的關鍵防護代碼 ↓↓↓】
       if (order.payment_voucher_url) {
         return res.status(400).json({
           message: "您已上傳過憑證，請勿重複上傳。如需修改請聯繫客服。",
         });
       }
-      // 【↑↑↑ 必須加上這段，後端才會擋住重複上傳 ↑↑↑】
 
       const updatedOrder = await prisma.orders.update({
         where: { id: orderId },
@@ -277,6 +306,9 @@ router.post(
 
       sendOrderConfirmationEmail(newOrder, paymentDetails).catch(console.error);
 
+      // [新增] 通知工作人員
+      notifyStaff(newOrder).catch(console.error);
+
       res.status(201).json({
         message: "代購申請已提交",
         order: newOrder,
@@ -288,7 +320,8 @@ router.post(
   }
 );
 
-// --- 公開/客戶/管理員查詢路由 (保持不變) ---
+// --- 公開/客戶/管理員查詢路由 ---
+
 router.get("/share/:token", async (req, res, next) => {
   try {
     const { token } = req.params;

@@ -31,13 +31,13 @@ router.put("/settings", authenticateToken, isAdmin, async (req, res, next) => {
       bank_name,
       bank_account,
       bank_account_name,
-      // [新增] Email
+      // Email
       email_api_key,
       email_from_email,
-      // [新增] 發票
+      // 發票
       invoice_merchant_id,
       invoice_api_key,
-      // [新增] 金流
+      // 金流
       payment_merchant_id,
       payment_api_key,
     } = req.body;
@@ -208,6 +208,7 @@ router.delete(
 );
 
 // --- 人員管理 (Staff) ---
+// [修改] 新增 email, receive_notifications 欄位
 router.get("/users", authenticateToken, isAdmin, async (req, res, next) => {
   try {
     const users = await prisma.users.findMany({
@@ -216,6 +217,8 @@ router.get("/users", authenticateToken, isAdmin, async (req, res, next) => {
         username: true,
         role: true,
         status: true,
+        email: true, // [新增]
+        receive_notifications: true, // [新增]
         created_at: true,
       },
       orderBy: { id: "asc" },
@@ -226,12 +229,20 @@ router.get("/users", authenticateToken, isAdmin, async (req, res, next) => {
   }
 });
 
+// [修改] 建立用戶時接收 email 和 notification
 router.post("/users", authenticateToken, isAdmin, async (req, res, next) => {
   try {
-    const { username, password, role } = req.body;
+    const { username, password, role, email, receive_notifications } = req.body;
     const hashedPassword = await hashPassword(password);
     const user = await prisma.users.create({
-      data: { username, password_hash: hashedPassword, role, status: "active" },
+      data: {
+        username,
+        password_hash: hashedPassword,
+        role,
+        status: "active",
+        email: email || null,
+        receive_notifications: receive_notifications || false,
+      },
     });
     res.status(201).json(user);
   } catch (err) {
@@ -240,6 +251,30 @@ router.post("/users", authenticateToken, isAdmin, async (req, res, next) => {
     next(err);
   }
 });
+
+// [新增] 更新用戶基本資料 (Email / Notification)
+router.put(
+  "/users/:id/info",
+  authenticateToken,
+  isAdmin,
+  async (req, res, next) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { email, receive_notifications } = req.body;
+
+      const updated = await prisma.users.update({
+        where: { id },
+        data: {
+          email,
+          receive_notifications: Boolean(receive_notifications),
+        },
+      });
+      res.json(updated);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 router.put(
   "/users/:id/status",
@@ -318,7 +353,7 @@ router.get("/customers", authenticateToken, isAdmin, async (req, res, next) => {
         paopao_id: true,
         email: true,
         phone: true,
-        is_vip: true, // [新增] 查詢 VIP 狀態供列表顯示
+        is_vip: true,
         created_at: true,
       },
     });
@@ -335,12 +370,10 @@ router.put(
   async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
-      // [修改] 這裡新增接收 is_vip
       const { email, phone, is_vip } = req.body;
 
       const dataToUpdate = { email, phone };
 
-      // 只有當 is_vip 明確傳入 true 或 false 時才更新 (避免 undefined 覆蓋)
       if (
         typeof is_vip === "boolean" ||
         is_vip === "true" ||

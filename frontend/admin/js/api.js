@@ -68,6 +68,14 @@ export const api = {
   getUsers: () => fetchData("/admin/users"),
   createUser: (data) =>
     fetchData("/admin/users", { method: "POST", body: JSON.stringify(data) }),
+
+  // [新增] 更新用戶基本資料 (Email, 通知)
+  updateUserInfo: (id, data) =>
+    fetchData(`/admin/users/${id}/info`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
   updateUserStatus: (id, status) =>
     fetchData(`/admin/users/${id}/status`, {
       method: "PUT",
@@ -84,7 +92,7 @@ export const api = {
       body: JSON.stringify({ password }),
     }),
 
-  // [新增] 會員 (Customers)
+  // 會員 (Customers)
   getCustomers: () => fetchData("/admin/customers"),
   updateCustomer: (id, data) =>
     fetchData(`/admin/customers/${id}`, {
