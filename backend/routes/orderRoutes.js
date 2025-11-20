@@ -65,7 +65,6 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
     customerEmail: Joi.string().email().required(),
     payment_method: Joi.string().required(),
     warehouse_id: Joi.number().integer().allow(null).optional(),
-    // [新增] 收件人資訊驗證 (先設為 optional，邏輯中再檢查)
     recipient_name: Joi.string().allow("").optional(),
     recipient_phone: Joi.string().allow("").optional(),
     recipient_address: Joi.string().allow("").optional(),
@@ -99,7 +98,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
 
     let totalTwd = 0;
     let totalCny = 0;
-    let hasDirectBuyItem = false; // [新增] 檢查是否有直購商品
+    let hasDirectBuyItem = false;
     const orderItemsData = [];
 
     for (const item of value.items) {
@@ -125,9 +124,7 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
       });
     }
 
-    // --- [新增] 驗證邏輯 ---
     if (hasDirectBuyItem) {
-      // 如果有直購商品，必須填寫收件人資訊
       if (
         !value.recipient_name ||
         !value.recipient_phone ||
@@ -138,11 +135,9 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
         );
       }
     } else {
-      // 如果沒有直購商品 (全是集運商品)，必須選擇集運倉
       if (!value.warehouse_id) {
         throw new Error("此訂單需選擇集運倉");
       }
-      // 確認倉庫有效性
       const warehouse = await prisma.warehouses.findUnique({
         where: { id: value.warehouse_id, is_active: true },
       });
@@ -158,7 +153,6 @@ router.post("/", authenticateToken, isCustomer, async (req, res, next) => {
         status: "Pending",
         type: "Standard",
         payment_method: value.payment_method,
-        // [新增] 根據模式存入不同資訊
         warehouse_id: hasDirectBuyItem ? null : value.warehouse_id,
         recipient_name: hasDirectBuyItem ? value.recipient_name : null,
         recipient_phone: hasDirectBuyItem ? value.recipient_phone : null,
@@ -376,9 +370,10 @@ router.get("/share/:token", async (req, res, next) => {
       created_at: order.created_at,
       items: order.items,
       bank_info: bankInfo,
-      // [新增] 回傳直購資訊
+      // 回傳直購資訊與物流單號
       recipient_name: order.recipient_name,
       recipient_address: order.recipient_address,
+      domestic_tracking_number: order.domestic_tracking_number, // [新增]
     };
     res.json(safeOrder);
   } catch (err) {
@@ -473,7 +468,6 @@ router.get(
           total_cost_cny: Number(o.total_cost_cny),
           operator_name: o.operator?.username,
           warehouse_name: o.warehouse?.name,
-          // [新增] 回傳收件資訊
           recipient_name: o.recipient_name,
           recipient_phone: o.recipient_phone,
           recipient_address: o.recipient_address,
@@ -531,7 +525,6 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
         ...o,
         total_cost_cny: Number(o.total_cost_cny),
         warehouse_name: o.warehouse?.name,
-        // [新增]
         recipient_name: o.recipient_name,
         recipient_phone: o.recipient_phone,
         recipient_address: o.recipient_address,

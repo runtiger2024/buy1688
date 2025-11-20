@@ -180,12 +180,24 @@ export async function sendOrderStatusUpdateEmail(order) {
 
   const subject = `您的訂單 #${order.id} 狀態已更新為：${order.status}`;
 
+  // [修改] 根據是否為直購訂單 (有收件地址) 顯示不同的單號名稱與提示
   let trackingHtml = "";
+
+  // 只有當狀態是 "已發貨" 且有單號時才顯示
   if (order.status === "Shipped_Internal" && order.domestic_tracking_number) {
-    trackingHtml = `
+    if (order.recipient_address) {
+      // 直購模式
+      trackingHtml = `
+            <p><strong>台灣物流單號：</strong> ${order.domestic_tracking_number}</p>
+            <p style="color:#d32f2f;">請注意：此為直寄台灣的物流單號，請至對應物流公司查詢進度。</p>
+        `;
+    } else {
+      // 集運模式
+      trackingHtml = `
             <p><strong>大陸境內物流單號：</strong> ${order.domestic_tracking_number}</p>
             <p style="color:#d32f2f;">請注意：貨物已發往集運倉，此單號僅供大陸境內查詢，請登入您的跑跑虎集運APP追蹤後續國際運單。</p>
         `;
+    }
   }
 
   const html = `

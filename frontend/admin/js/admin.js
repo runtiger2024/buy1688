@@ -340,10 +340,10 @@ function renderOrdersTable(orders) {
             <div style="display:flex; align-items:center; gap:5px;">
                 <input type="text" class="tracking-input" value="${
                   order.domestic_tracking_number || ""
-                }" placeholder="單號" style="width:80px; padding:4px;">
+                }" placeholder="輸入單號" style="width:100px; padding:4px;">
                 <button class="btn btn-primary btn-save-tracking" data-id="${
                   order.id
-                }" style="padding:4px 6px; font-size:0.8rem;">存</button>
+                }" style="padding:4px 8px; font-size:0.8rem;">存</button>
             </div>`;
     }
 
@@ -502,6 +502,11 @@ function openOrderModal(orderId) {
       `;
   }
 
+  // [修改] 根據訂單類型，動態設定物流單號的標籤名稱
+  const trackingLabel = order.recipient_address
+    ? "台灣物流單號"
+    : "大陸物流單號";
+
   const itemsHtml = order.items
     .map(
       (item) => `
@@ -576,10 +581,9 @@ function openOrderModal(orderId) {
                 </select>
             </div>
             <div class="form-group">
-                <label>大陸物流單號</label>
-                <input type="text" id="modal-order-tracking" value="${
-                  order.domestic_tracking_number || ""
-                }" placeholder="輸入快遞單號">
+                <label>${trackingLabel}</label> <input type="text" id="modal-order-tracking" value="${
+    order.domestic_tracking_number || ""
+  }" placeholder="輸入單號">
             </div>
         </div>
 
@@ -1020,7 +1024,7 @@ function renderUsersTable(users) {
 
   if (filtered.length === 0) {
     tbody.innerHTML =
-      '<tr><td colspan="6" class="text-center">找不到符合條件的用戶</td></tr>';
+      '<tr><td colspan="5" class="text-center">找不到符合條件的用戶</td></tr>';
     return;
   }
 
@@ -1028,41 +1032,19 @@ function renderUsersTable(users) {
   filtered.forEach((u) => {
     const tr = document.createElement("tr");
     const isSelf = getUser().id === u.id;
-    const isUserActive = u.status === "active";
-
-    // [新增] 通知圖示
-    const notifyIcon = u.receive_notifications
-      ? '<i class="fas fa-bell text-success" title="接收通知"></i>'
-      : '<i class="fas fa-bell-slash text-muted" title="不接收"></i>';
-
-    const roleCellContent = isSelf
-      ? u.role === "admin"
-        ? "管理員 (自己)"
-        : "操作員 (自己)"
-      : `<select class="user-role-select" data-id="${u.id}">
-            <option value="operator" ${
-              u.role === "operator" ? "selected" : ""
-            }>操作員</option>
-            <option value="admin" ${
-              u.role === "admin" ? "selected" : ""
-            }>管理員</option>
-         </select>`;
-
     tr.innerHTML = `
-            <td>${u.id}</td>
-            <td>
-                ${u.username} <br>
-                <small class="text-muted">${u.email || "無 Email"}</small>
-            </td>
-            <td>${roleCellContent}</td>
-            <td class="text-center">${notifyIcon}</td>
-            <td><span class="${
-              isUserActive ? "status-active" : "status-inactive"
-            }">${isUserActive ? "啟用中" : "已停權"}</span></td>
-            <td>
-                ${
-                  !isSelf
-                    ? `
+                <td>${u.id}</td>
+                <td>${u.username}</td>
+                <td>${u.role}</td>
+                <td>${
+                  u.status === "active"
+                    ? '<span class="badge badge-success">正常</span>'
+                    : '<span class="badge badge-danger">停權</span>'
+                }</td>
+                <td>
+                    ${
+                      !isSelf
+                        ? `
                     <button class="btn btn-small btn-primary btn-edit-user" data-id="${
                       u.id
                     }">
@@ -1071,14 +1053,14 @@ function renderUsersTable(users) {
                     <button class="btn btn-small ${
                       u.status === "active" ? "btn-danger" : "btn-success"
                     } btn-toggle-user" data-id="${u.id}" data-status="${
-                        u.status
-                      }">
+                            u.status
+                          }">
                         ${u.status === "active" ? "停權" : "啟用"}
                     </button>`
-                    : `<button class="btn btn-small btn-primary btn-edit-user" data-id="${u.id}"><i class="fas fa-edit"></i> 設定</button>`
-                }
-            </td>
-        `;
+                        : '<span class="text-muted">自己</span>'
+                    }
+                </td>
+            `;
     tbody.appendChild(tr);
   });
 
@@ -1135,7 +1117,7 @@ function setupUserEvents() {
           });
 
           const originalUser = allUsers.find((u) => u.id == id);
-          if (getUser().id !== parseInt(id) && originalUser.role !== role) {
+          if (originalUser.role !== role) {
             await api.updateUserRole(id, role);
           }
           if (password) {

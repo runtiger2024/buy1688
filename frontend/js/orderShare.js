@@ -91,6 +91,21 @@ function renderOrder(order) {
     if (order.payment_status !== "PAID") payEl.style.color = "#000";
   }
 
+  // [新增] 物流單號顯示邏輯
+  const trackingRow = document.getElementById("tracking-row");
+  if (order.domestic_tracking_number) {
+    trackingRow.style.display = "flex";
+    document.getElementById("display-tracking").textContent =
+      order.domestic_tracking_number;
+
+    // 判斷是否為直購 (有收件地址 = 直購)
+    if (order.recipient_address) {
+      document.getElementById("tracking-label").textContent = "台灣物流單號";
+    } else {
+      document.getElementById("tracking-label").textContent = "大陸物流單號";
+    }
+  }
+
   const bankSection = document.getElementById("bank-section");
   if (
     order.payment_status === "UNPAID" &&
