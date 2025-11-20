@@ -9,7 +9,7 @@ import {
   populateWarehouseSelect,
   checkAuth,
   getAuthToken,
-  setupFooter, // [修正] 引入 setupFooter
+  setupFooter, // [新增] 引入頁尾
 } from "./sharedUtils.js";
 
 // --- 全局變數 ---
@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupHamburgerMenu();
   setupCustomerAuth();
   setupBottomNav(); // 設置底部導航
-  setupFooter(); // [修正] 執行 setupFooter
+  setupFooter(); // [新增] 載入頁尾
 
   await loadSettingsAndWarehouses();
 
@@ -51,7 +51,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-// 設置底部導航 (複製自 app.js)
+// 設置底部導航
 function setupBottomNav() {
   document.getElementById("tab-assist")?.classList.add("active");
   const bottomCartBtn = document.getElementById("tab-cart");
@@ -96,6 +96,10 @@ function handleAddItem(e) {
   const priceCny = parseFloat(document.getElementById("item-price-cny").value);
   const quantity = parseInt(document.getElementById("item-quantity").value);
 
+  // [新增] 讀取圖片與備註
+  const imgUrl = document.getElementById("item-image-url").value;
+  const remark = document.getElementById("item-remark").value;
+
   if (priceCny < 0 || quantity < 1 || isNaN(priceCny) || isNaN(quantity)) {
     alert("請輸入有效的價格與數量");
     return;
@@ -114,6 +118,9 @@ function handleAddItem(e) {
     price_cny: priceCny,
     quantity: quantity,
     estimated_twd: estimatedTwd,
+    // [新增] 儲存欄位
+    item_image_url: imgUrl,
+    client_remarks: remark,
   };
 
   assistList.push(newItem);
@@ -151,23 +158,39 @@ function renderAssistList() {
     const itemTotal = item.estimated_twd * item.quantity;
     totalAmount += itemTotal;
 
+    // [新增] 顯示圖片預覽
+    const imgDisplay = item.item_image_url
+      ? `<img src="${item.item_image_url}" style="width:50px; height:50px; object-fit:cover; border-radius:4px; margin-right:10px;">`
+      : `<div style="width:50px; height:50px; background:#eee; border-radius:4px; margin-right:10px; display:flex; align-items:center; justify-content:center; color:#999;"><i class="fas fa-image"></i></div>`;
+
+    // [新增] 顯示備註
+    const remarkDisplay = item.client_remarks
+      ? `<div style="color:#d63384; font-size:0.85rem; margin-top:2px;"><i class="fas fa-comment-alt"></i> ${item.client_remarks}</div>`
+      : "";
+
     const card = document.createElement("div");
     card.style.borderBottom = "1px solid #eee";
     card.style.padding = "10px 0";
     card.innerHTML = `
-        <div style="display:flex; justify-content:space-between;">
-            <strong style="font-size:1rem;">${item.item_name}</strong>
-            <button class="btn-remove" data-index="${index}" style="background:none; border:none; color:#999;">&times;</button>
-        </div>
-        <div style="font-size:0.85rem; color:#666; margin:5px 0;">
-            ${item.item_spec ? `規格: ${item.item_spec} | ` : ""} 
-            <a href="${
-              item.item_url
-            }" target="_blank" style="color:#007bff;">連結</a>
-        </div>
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span>¥${item.price_cny} x ${item.quantity}</span>
-            <span style="color:var(--taobao-orange); font-weight:bold;">NT$ ${itemTotal}</span>
+        <div style="display:flex;">
+            ${imgDisplay}
+            <div style="flex:1;">
+                <div style="display:flex; justify-content:space-between;">
+                    <strong style="font-size:1rem;">${item.item_name}</strong>
+                    <button class="btn-remove" data-index="${index}" style="background:none; border:none; color:#999;">&times;</button>
+                </div>
+                <div style="font-size:0.85rem; color:#666; margin:5px 0;">
+                    ${item.item_spec ? `規格: ${item.item_spec} | ` : ""} 
+                    <a href="${
+                      item.item_url
+                    }" target="_blank" style="color:#007bff;">連結</a>
+                </div>
+                ${remarkDisplay}
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
+                    <span>¥${item.price_cny} x ${item.quantity}</span>
+                    <span style="color:var(--taobao-orange); font-weight:bold;">NT$ ${itemTotal}</span>
+                </div>
+            </div>
         </div>
     `;
     container.appendChild(card);
@@ -213,6 +236,9 @@ async function handleSubmitOrder(e) {
       item_spec: item.item_spec,
       price_cny: item.price_cny,
       quantity: item.quantity,
+      // [新增] 傳送詳細資訊
+      item_image_url: item.item_image_url,
+      client_remarks: item.client_remarks,
     }));
 
     const orderData = {
@@ -235,12 +261,9 @@ async function handleSubmitOrder(e) {
     const result = await response.json();
     if (!response.ok) throw new Error(result.message || "提交失敗");
 
-    if (result.order && result.order.share_token) {
-      window.location.href = `../html/order-share.html?token=${result.order.share_token}`;
-    } else {
-      alert("訂單提交成功！");
-      window.location.href = "./my-account.html";
-    }
+    // [修改] 成功提示文字
+    alert("代購申請已提交！\n請等待管理員審核，審核通過後將通知您付款。");
+    window.location.href = "./my-account.html";
   } catch (error) {
     alert(`錯誤: ${error.message}`);
     submitBtn.disabled = false;

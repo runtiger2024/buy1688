@@ -30,19 +30,39 @@ export function renderOrders(
     const assignedTo = order.operator_name
       ? ` (指派給: ${order.operator_name})`
       : " (未指派)";
-    const warehouseName =
-      order.warehouse?.name ||
-      '<span style="color:#dc3545">未選擇集運倉</span>';
 
-    const warehouseCopyBtn = order.warehouse_id
-      ? `<button class="btn btn-primary btn-copy-shipping" 
+    // [新增] 顯示直購收件資訊
+    let warehouseInfoHtml = "";
+    let trackingLabel = "大陸物流單號"; // 預設
+
+    if (order.recipient_address) {
+      // 直購
+      warehouseInfoHtml = `
+         <div style="font-size:0.85rem; line-height:1.4;">
+            <span class="badge badge-warning">直寄</span><br>
+            <strong>${order.recipient_name}</strong><br>
+            ${order.recipient_phone}<br>
+            ${order.recipient_address}
+         </div>`;
+      trackingLabel = "台灣物流單號";
+    } else {
+      // 集運
+      const warehouseName =
+        order.warehouse_name || '<span style="color:#dc3545">未選擇</span>';
+      const copyBtn = order.warehouse_name
+        ? `<button class="btn btn-primary btn-copy-shipping" 
                    data-paopao-id="${order.paopao_id}" 
                    data-warehouse-id="${order.warehouse_id}"
-                   style="margin-top: 5px;">📋 複製寄送資訊</button>`
-      : "";
+                   style="margin-top: 5px; font-size:0.7rem; padding:2px 6px;">📋 複製</button>`
+        : "";
+      warehouseInfoHtml = `<strong>${warehouseName}</strong><br>${copyBtn}`;
+    }
 
+    // [新增] 審核狀態按鈕
     let voucherContent = "無";
-    if (order.payment_voucher_url) {
+    if (order.payment_status === "PENDING_REVIEW") {
+      voucherContent = `<button class="btn btn-success btn-approve-order" data-id="${order.id}" style="font-size:0.8rem;">✅ 通過審核</button>`;
+    } else if (order.payment_voucher_url) {
       voucherContent = `<button class="btn-link btn-view-voucher" data-id="${order.id}" style="color: #28a745; font-weight: bold; border: none; background: none; cursor: pointer; text-decoration: underline;">查看憑證</button>`;
     } else if (order.payment_status === "UNPAID") {
       voucherContent = '<span style="color:#dc3545;">待上傳</span>';
@@ -52,33 +72,56 @@ export function renderOrders(
       ? `<a href="https://www.baidu.com/s?wd=${order.domestic_tracking_number}" target="_blank">${order.domestic_tracking_number}</a>`
       : "無";
 
+    // 允許輸入單號的狀態
     if (
       order.payment_status === "PAID" &&
       (order.status === "Processing" || order.status === "Shipped_Internal")
     ) {
       trackingInputHtml = `
-            <div style="display:flex; align-items:center; gap:5px;">
-                <input type="text" class="tracking-input" value="${
-                  order.domestic_tracking_number || ""
-                }" placeholder="輸入單號" style="width:100px; padding:4px;">
-                <button class="btn btn-primary btn-save-tracking" data-id="${
-                  order.id
-                }" style="padding:4px 8px; font-size:0.8rem;">存</button>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+                <small style="color:#666;">${trackingLabel}</small>
+                <div style="display:flex; align-items:center; gap:5px;">
+                    <input type="text" class="tracking-input" value="${
+                      order.domestic_tracking_number || ""
+                    }" placeholder="單號" style="width:100px; padding:4px;">
+                    <button class="btn btn-primary btn-save-tracking" data-id="${
+                      order.id
+                    }" style="padding:4px 8px; font-size:0.8rem;">存</button>
+                </div>
             </div>`;
+    }
+
+    // [新增] 商品詳細資訊預覽 (備註/圖片)
+    let productPreview = "";
+    if (order.items && order.items.length > 0) {
+      productPreview = `<div style="font-size:0.8rem; color:#666; max-width:200px;">`;
+      order.items.forEach((item) => {
+        const remark = item.client_remarks
+          ? `<span style="color:#d63384;">(註)</span>`
+          : "";
+        const img = item.item_image_url
+          ? `<a href="${item.item_image_url}" target="_blank" title="查看圖片">📷</a>`
+          : "";
+        productPreview += `<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">• ${item.snapshot_name} ${remark} ${img}</div>`;
+      });
+      productPreview += `</div>`;
     }
 
     tr.innerHTML = `
             <td>${order.id}</td>
-            <td><span style="color: ${
-              order.type === "Assist" ? "blue" : "gray"
-            }; font-weight: bold;">${
+            <td>
+                <span style="color: ${
+                  order.type === "Assist" ? "blue" : "gray"
+                }; font-weight: bold;">${
       ORDER_TYPE_MAP[order.type] || "一般商城"
-    }</span></td>
+    }</span>
+                ${productPreview}
+            </td>
             <td>${new Date(order.created_at).toLocaleString()}</td>
             <td>${order.paopao_id}</td>
             <td>${Number(order.total_amount_twd).toLocaleString("en-US")}</td>
             <td class="${profitClass}">${profitTwd.toFixed(0)}</td>
-            <td><strong>${warehouseName}</strong><br>${warehouseCopyBtn}</td>
+            <td>${warehouseInfoHtml}</td>
             <td>${voucherContent}</td>
             <td>${trackingInputHtml}</td>
             <td><span class="status-${order.status}">${
@@ -90,7 +133,7 @@ export function renderOrders(
             <td>
                 ${
                   order.payment_status === "UNPAID"
-                    ? `<button class="btn btn-update btn-mark-paid" data-id="${order.id}">標記為已付款</button>`
+                    ? `<button class="btn btn-update btn-mark-paid" data-id="${order.id}">標記已付</button>`
                     : ""
                 }
                 <select class="order-status-select" data-id="${order.id}">
@@ -121,8 +164,17 @@ export function renderOrders(
 
     tbody.appendChild(tr);
   });
+
+  // [新增] 綁定審核按鈕事件
+  document.querySelectorAll(".btn-approve-order").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      // 呼叫 window 上掛載的 approveOrder (定義在 admin.js)
+      if (window.approveOrder) window.approveOrder(btn.dataset.id);
+    });
+  });
 }
 
+// ... (renderProducts, renderUsers, etc. 保持不變) ...
 export function renderProducts(products, tbody) {
   tbody.innerHTML = "";
   if (products.length === 0) {
@@ -136,10 +188,16 @@ export function renderProducts(products, tbody) {
     const imgHtml = imgUrl
       ? `<img src="${imgUrl}" alt="${product.name}" style="width: 50px; height: 50px; object-fit: cover;">`
       : "無圖片";
+
+    // [直購] 標記
+    const directTag = product.is_direct_buy
+      ? '<br><span class="badge badge-warning" style="font-size:0.7rem">直購</span>'
+      : "";
+
     tr.innerHTML = `
             <td>${product.id}</td>
             <td>${imgHtml}</td>
-            <td>${product.name}</td>
+            <td>${product.name} ${directTag}</td>
             <td>${product.price_twd}</td>
             <td>${product.cost_cny}</td>
             <td>

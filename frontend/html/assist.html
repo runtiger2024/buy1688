@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
   <head>
-    <link rel="icon" href="../images/favicon.ico" type="image/x-icon" />
     <meta charset="UTF-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
     <title>代購服務 - 代採購平台</title>
+
+    <link rel="icon" href="../images/favicon.ico" type="image/x-icon" />
+
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -51,6 +53,11 @@
             />
           </div>
 
+          <div class="form-group" style="margin-bottom: 15px">
+            <label>商品圖片連結 (選填，避免買錯)</label>
+            <input type="url" id="item-image-url" placeholder="https://..." />
+          </div>
+
           <div class="form-row">
             <div class="form-group">
               <label>商品名稱 *</label>
@@ -65,6 +72,15 @@
               <label>規格 (顏色/尺寸)</label>
               <input type="text" id="item-spec" placeholder="例：白色 XL" />
             </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 15px">
+            <label>商品備註 (選填)</label>
+            <input
+              type="text"
+              id="item-remark"
+              placeholder="例：如果缺貨請通知我..."
+            />
           </div>
 
           <div class="form-row">

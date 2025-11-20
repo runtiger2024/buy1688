@@ -27,7 +27,7 @@ async function getEmailConfig() {
 }
 
 /**
- * [新增] 檢查特定通知是否開啟
+ * 檢查特定通知是否開啟
  */
 async function isNotificationEnabled(key) {
   try {
@@ -84,7 +84,6 @@ async function sendEmail(to, subject, html, bcc = null) {
 
 // --- 模板 1：客戶註冊成功 ---
 export async function sendRegistrationSuccessEmail(customer) {
-  // [新增] 檢查開關
   if (!(await isNotificationEnabled("enable_email_register"))) {
     console.log("🔕 系統設定已關閉「註冊通知」，跳過發送。");
     return;
@@ -101,15 +100,44 @@ export async function sendRegistrationSuccessEmail(customer) {
   await sendEmail(customer.email, subject, html);
 }
 
-// --- 模板 2：客戶建立訂單 (線下轉帳) ---
+// --- [新增] 模板 1.5：代購申請已收到 (審核中) ---
+export async function sendAssistOrderReceivedEmail(order) {
+  const subject = `代購申請 #${order.id} 已收到 (審核中)`;
+
+  const itemsHtml = order.items
+    .map(
+      (item) =>
+        `<li>${item.snapshot_name} <small>(x${item.quantity})</small></li>`
+    )
+    .join("");
+
+  const html = `
+    <h1>代購申請 #${order.id} 已提交</h1>
+    <p>嗨, ${order.paopao_id}！</p>
+    <p>我們已收到您的代購申請。管理員正在審核商品連結與庫存狀態，請耐心等候。</p>
+    <p><strong>審核通過後，您將會收到付款通知信。</strong></p>
+    
+    <h3>申請清單：</h3>
+    <ul>${itemsHtml}</ul>
+    
+    <p>您可以隨時前往「<a href="${SITE_URL}/my-account.html">我的訂單</a>」查看審核進度。</p>
+  `;
+
+  await sendEmail(order.customer_email, subject, html);
+}
+
+// --- 模板 2：訂單確認/付款通知 (修改支援審核通過) ---
 export async function sendOrderConfirmationEmail(order, payment_details) {
-  // [新增] 檢查開關
   if (!(await isNotificationEnabled("enable_email_order"))) {
     console.log("🔕 系統設定已關閉「訂單建立通知」，跳過發送。");
     return;
   }
 
-  const subject = `您的訂單 #${order.id} 已成功建立 (待付款)`;
+  // 區分標題：如果是代購，表示審核通過
+  const title =
+    order.type === "Assist"
+      ? `代購訂單 #${order.id} 審核通過！請進行付款`
+      : `您的訂單 #${order.id} 已成功建立 (待付款)`;
 
   // 產生商品列表
   const itemsHtml = order.items
@@ -131,9 +159,9 @@ ${payment_details.note}
     : "";
 
   const html = `
-        <h1>訂單 #${order.id} 待付款</h1>
+        <h1>${title}</h1>
         <p>嗨, ${order.paopao_id}！</p>
-        <p>您的訂單已成功建立，總金額為 <strong>TWD ${order.total_amount_twd}</strong>。</p>
+        <p>總金額為 <strong>TWD ${order.total_amount_twd}</strong>。</p>
         
         <h3>訂單詳情</h3>
         <ul>
@@ -147,12 +175,11 @@ ${payment_details.note}
         </p>
     `;
 
-  await sendEmail(order.customer_email, subject, html);
+  await sendEmail(order.customer_email, title, html);
 }
 
 // --- 模板 3：管理員確認收到款項 ---
 export async function sendPaymentReceivedEmail(order) {
-  // [新增] 檢查開關
   if (!(await isNotificationEnabled("enable_email_payment"))) {
     console.log("🔕 系統設定已關閉「收款確認通知」，跳過發送。");
     return;
@@ -172,7 +199,6 @@ export async function sendPaymentReceivedEmail(order) {
 
 // --- 模板 4：管理員更新訂單狀態 ---
 export async function sendOrderStatusUpdateEmail(order) {
-  // [新增] 檢查開關
   if (!(await isNotificationEnabled("enable_email_status"))) {
     console.log("🔕 系統設定已關閉「狀態更新通知」，跳過發送。");
     return;
@@ -180,9 +206,7 @@ export async function sendOrderStatusUpdateEmail(order) {
 
   const subject = `您的訂單 #${order.id} 狀態已更新為：${order.status}`;
 
-  // [修改] 根據是否為直購訂單 (有收件地址) 顯示不同的單號名稱與提示
   let trackingHtml = "";
-
   // 只有當狀態是 "已發貨" 且有單號時才顯示
   if (order.status === "Shipped_Internal" && order.domestic_tracking_number) {
     if (order.recipient_address) {
@@ -220,18 +244,15 @@ export async function sendOrderStatusUpdateEmail(order) {
 }
 
 // --- 模板 5：新訂單通知 (給工作人員) ---
-// [注意] 此通知由 "Users.receive_notifications" 控制，不受 SystemSettings 開關影響
 export async function sendNewOrderNotificationToStaff(order, staffEmails) {
   if (!staffEmails || staffEmails.length === 0) return;
 
   const subject = `【新訂單通知】 #${order.id} (金額: $${order.total_amount_twd})`;
 
-  // 簡單的商品摘要
   const itemsSummary = order.items
     .map((i) => `- ${i.snapshot_name} x${i.quantity}`)
     .join("<br>");
 
-  // 注意：這裡的連結假設 admin 位於 ../admin/html/index.html 相對路徑
   const adminUrl =
     process.env.ADMIN_URL || `${SITE_URL}/../admin/html/index.html`;
 
@@ -257,8 +278,8 @@ export async function sendNewOrderNotificationToStaff(order, staffEmails) {
   sgMail.setApiKey(apiKey);
 
   const msg = {
-    to: fromEmail, // 主收件人為系統信箱
-    bcc: staffEmails, // 密件副本發送給所有開啟通知的管理員
+    to: fromEmail,
+    bcc: staffEmails,
     from: { name: SITE_NAME, email: fromEmail },
     subject: subject,
     html: html,

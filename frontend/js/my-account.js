@@ -9,7 +9,7 @@ import {
   getCustomer,
   customerLogout,
   loadCart,
-  setupFooter, // [修正] 引入 setupFooter
+  setupFooter, // [新增] 引入頁尾
 } from "./sharedUtils.js";
 
 let allOrdersData = [];
@@ -32,7 +32,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupHamburgerMenu();
   setupCustomerAuth();
   setupBottomNav();
-  setupFooter(); // [修正] 執行 setupFooter
+  setupFooter(); // [新增] 執行頁尾
 
   let cart = {};
   loadCart(cart);
@@ -128,9 +128,16 @@ function renderOrders() {
   const container = document.getElementById("order-history-container");
   container.innerHTML = "";
 
+  // 篩選邏輯
   const filteredOrders = allOrdersData.filter((order) => {
     if (currentTab === "all") return true;
-    if (currentTab === "UNPAID") return order.payment_status === "UNPAID";
+    if (currentTab === "UNPAID") {
+      // 包含「待付款」與「審核中」
+      return (
+        order.payment_status === "UNPAID" ||
+        order.payment_status === "PENDING_REVIEW"
+      );
+    }
     if (currentTab === "Processing")
       return (
         ["Pending", "Processing"].includes(order.status) &&
@@ -157,8 +164,11 @@ function renderOrders() {
     const isUnpaid = order.payment_status === "UNPAID";
     const hasVoucher = !!order.payment_voucher_url;
 
+    // [新增] 狀態變數
     const isCancelled = order.status === "Cancelled";
+    const isPendingReview = order.payment_status === "PENDING_REVIEW";
 
+    // [新增] 訂單類型標籤
     let typeBadge = "";
     if (order.type === "Assist") {
       typeBadge = `<span style="background:#17a2b8; color:white; padding:2px 6px; border-radius:4px; font-size:0.75rem; margin-left:8px; font-weight:normal;">代購商品</span>`;
@@ -197,9 +207,15 @@ function renderOrders() {
     let actionsHtml = "";
     let hiddenAreaHtml = "";
 
+    // 按鈕顯示邏輯
     if (isCancelled) {
+      // [優化] 取消訂單只顯示詳情
       actionsHtml = `<button class="btn-action" onclick="window.location.href='order-share.html?token=${order.share_token}'">查看詳情</button>`;
+    } else if (isPendingReview) {
+      // [優化] 審核中只顯示提示
+      actionsHtml = `<span class="badge badge-warning" style="background:#ffc107; color:#000; font-size:0.9rem; padding:5px 10px; margin-right:5px;">⏳ 訂單審核中</span> <button class="btn-action" onclick="window.location.href='order-share.html?token=${order.share_token}'">查看</button>`;
     } else if (isUnpaid) {
+      // 待付款 (已過審或一般訂單)
       const bankBtn = `<button class="btn-action" onclick="copyBankInfo('${order.id}', '${order.total_amount_twd}')">複製匯款資訊</button>`;
       if (hasVoucher) {
         actionsHtml = `${bankBtn} <button class="btn-action" onclick="toggleVoucherForm('${order.id}')">查看已傳憑證</button>`;
@@ -210,34 +226,40 @@ function renderOrders() {
           imgDisplay = `<a href="${order.payment_voucher_url}" target="_blank" style="color:#007bff; text-decoration:underline;">點擊查看憑證圖片</a>`;
         }
         hiddenAreaHtml = `
-                    <div id="voucher-area-${order.id}" style="display:none; padding:15px; border-top:1px dashed #eee; background:#f0fff4;">
-                        <p style="color:#28a745; font-weight:bold; margin:0;"><i class="fas fa-check-circle"></i> 憑證已上傳成功！</p>
-                        ${imgDisplay}
-                    </div>
-                `;
+            <div id="voucher-area-${order.id}" style="display:none; padding:15px; border-top:1px dashed #eee; background:#f0fff4;">
+                <p style="color:#28a745; font-weight:bold; margin:0;"><i class="fas fa-check-circle"></i> 憑證已上傳成功！</p>
+                ${imgDisplay}
+            </div>`;
       } else {
         actionsHtml = `${bankBtn} <button class="btn-action solid" onclick="toggleVoucherForm('${order.id}')">上傳憑證</button>`;
         hiddenAreaHtml = `
-                    <div id="voucher-area-${order.id}" style="display:none; padding:15px; border-top:1px dashed #eee; background:#fafafa;">
-                        <form onsubmit="window.handleVoucherUpload(event, '${order.id}')">
-                            <p style="margin:0 0 5px 0; font-size:0.9rem;">上傳匯款憑證 (請選擇圖片):</p>
-                            <input type="file" id="voucher-file-${order.id}" accept="image/*" required style="font-size:0.9rem; width:100%; margin-bottom:10px;">
-                            <button type="submit" class="btn-action solid" style="width:100%;">確認上傳</button>
-                            <div class="voucher-status" style="font-size:0.8rem; margin-top:5px; color:#666;"></div>
-                        </form>
-                    </div>
-                `;
+            <div id="voucher-area-${order.id}" style="display:none; padding:15px; border-top:1px dashed #eee; background:#fafafa;">
+                <form onsubmit="window.handleVoucherUpload(event, '${order.id}')">
+                    <p style="margin:0 0 5px 0; font-size:0.9rem;">上傳匯款憑證 (請選擇圖片):</p>
+                    <input type="file" id="voucher-file-${order.id}" accept="image/*" required style="font-size:0.9rem; width:100%; margin-bottom:10px;">
+                    <button type="submit" class="btn-action solid" style="width:100%;">確認上傳</button>
+                    <div class="voucher-status" style="font-size:0.8rem; margin-top:5px; color:#666;"></div>
+                </form>
+            </div>`;
       }
     } else {
+      // 已付款/已完成
       actionsHtml = `<button class="btn-action" onclick="window.location.href='order-share.html?token=${order.share_token}'">查看詳情</button>`;
     }
 
+    // [優化] 視覺樣式：已取消訂單反灰
     const cardStyle = isCancelled
       ? "background-color: #f2f2f2; opacity: 0.7;"
       : "";
     const statusColor = isCancelled
       ? "color: #dc3545;"
       : "color: var(--taobao-orange);";
+
+    // 狀態文字
+    let statusDisplay = statusText;
+    if (isCancelled) statusDisplay = '<i class="fas fa-ban"></i> 已取消';
+    else if (isPendingReview) statusDisplay = "審核中";
+    else if (isUnpaid) statusDisplay = "待付款";
 
     const card = document.createElement("div");
     card.className = "order-card";
@@ -249,9 +271,7 @@ function renderOrders() {
             }>
                 <span class="order-id">訂單號 ${order.id} ${typeBadge}</span>
                 <span class="order-status" style="${statusColor} font-weight:bold;">
-                    ${isCancelled ? '<i class="fas fa-ban"></i> ' : ""}${
-      isUnpaid && !isCancelled ? "待付款" : statusText
-    }
+                    ${statusDisplay}
                 </span>
             </div>
             <div class="order-card-body" onclick="window.location.href='order-share.html?token=${

@@ -14,6 +14,7 @@ import {
   sendPaymentReceivedEmail,
   sendOrderStatusUpdateEmail,
   sendNewOrderNotificationToStaff,
+  sendAssistOrderReceivedEmail, // [新增]
 } from "../emailService.js";
 
 const router = express.Router();
@@ -242,7 +243,7 @@ router.post(
   }
 );
 
-// --- 建立代購訂單 ---
+// --- 建立代購訂單 (修改：支援新欄位與審核狀態) ---
 router.post(
   "/assist",
   authenticateToken,
@@ -261,6 +262,9 @@ router.post(
             item_spec: Joi.string().allow("").optional(),
             price_cny: Joi.number().min(0).required(),
             quantity: Joi.number().integer().min(1).required(),
+            // [新增] 接收新欄位
+            item_image_url: Joi.string().uri().allow("").optional(),
+            client_remarks: Joi.string().allow("").optional(),
           })
         )
         .min(1)
@@ -299,6 +303,9 @@ router.post(
           snapshot_name: item.item_name,
           snapshot_cost_cny: cny,
           snapshot_price_twd: itemTwd,
+          // [新增] 存入新欄位
+          item_image_url: item.item_image_url || null,
+          client_remarks: item.client_remarks || null,
         });
       }
 
@@ -313,26 +320,21 @@ router.post(
           payment_method: value.payment_method,
           warehouse_id: value.warehouse_id,
           share_token: randomUUID(),
+          // [修改] 預設為審核中
+          payment_status: "PENDING_REVIEW",
           items: { create: orderItemsData },
         },
         include: { items: true },
       });
 
-      let paymentDetails = null;
-      if (value.payment_method === "OFFLINE_TRANSFER") {
-        paymentDetails = {
-          ...bankInfo,
-          note: `銀行：${bankInfo.bank_name}\n帳號：${bankInfo.bank_account}\n戶名：${bankInfo.bank_account_name}\n\n代購訂單已提交！預估金額 TWD ${totalTwd}。\n請匯款後聯繫客服，並告知訂單編號 (${newOrder.id})。`,
-        };
-      }
-
-      sendOrderConfirmationEmail(newOrder, paymentDetails).catch(console.error);
+      // [修改] 寄送「已收到申請」信件，而非付款信
+      sendAssistOrderReceivedEmail(newOrder).catch(console.error);
       notifyStaff(newOrder).catch(console.error);
 
       res.status(201).json({
-        message: "代購申請已提交",
+        message: "代購申請已提交，請等待管理員審核。",
         order: newOrder,
-        payment_details: paymentDetails,
+        payment_details: null, // 暫不回傳付款資訊
       });
     } catch (err) {
       next(err);
@@ -355,6 +357,8 @@ router.get("/share/:token", async (req, res, next) => {
             item_spec: true,
             quantity: true,
             snapshot_price_twd: true,
+            item_image_url: true, // [新增]
+            client_remarks: true, // [新增]
           },
         },
       },
@@ -370,10 +374,9 @@ router.get("/share/:token", async (req, res, next) => {
       created_at: order.created_at,
       items: order.items,
       bank_info: bankInfo,
-      // 回傳直購資訊與物流單號
       recipient_name: order.recipient_name,
       recipient_address: order.recipient_address,
-      domestic_tracking_number: order.domestic_tracking_number, // [新增]
+      domestic_tracking_number: order.domestic_tracking_number,
     };
     res.json(safeOrder);
   } catch (err) {
@@ -394,6 +397,8 @@ router.get("/my", authenticateToken, isCustomer, async (req, res, next) => {
             item_url: true,
             item_spec: true,
             snapshot_cost_cny: true,
+            item_image_url: true, // [新增]
+            client_remarks: true, // [新增]
           },
         },
         warehouse: { select: { name: true } },
@@ -453,6 +458,8 @@ router.get(
               snapshot_price_twd: true,
               item_spec: true,
               item_url: true,
+              item_image_url: true, // [新增]
+              client_remarks: true, // [新增]
             },
           },
         },
@@ -482,6 +489,7 @@ router.get(
 
 router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
   try {
+    // Admin logic is identical to Operator but guarded by isAdmin
     const { status, paymentStatus, search, hasVoucher } = req.query;
     const whereClause = {};
     if (status) whereClause.status = status;
@@ -511,6 +519,8 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
             snapshot_price_twd: true,
             item_spec: true,
             item_url: true,
+            item_image_url: true, // [新增]
+            client_remarks: true, // [新增]
           },
         },
       },
@@ -536,8 +546,10 @@ router.get("/admin", authenticateToken, isAdmin, async (req, res, next) => {
   }
 });
 
+// --- 更新訂單 (管理員審核與操作) ---
 router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
   try {
+    const id = parseInt(req.params.id);
     const {
       status,
       notes,
@@ -545,6 +557,11 @@ router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
       operator_id,
       domestic_tracking_number,
     } = req.body;
+
+    // 先撈出舊資料以比對狀態
+    const oldOrder = await prisma.orders.findUnique({ where: { id } });
+    if (!oldOrder) return res.status(404).json({ message: "訂單不存在" });
+
     const data = {};
     if (status) data.status = status;
     if (notes !== undefined) data.notes = notes;
@@ -554,14 +571,34 @@ router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
     if (operator_id !== undefined && req.user.role === "admin") {
       data.operator_id = operator_id ? parseInt(operator_id) : null;
     }
+
     const updated = await prisma.orders.update({
-      where: { id: parseInt(req.params.id) },
+      where: { id },
       data,
+      include: { items: true }, // 需要 items 來寄信
     });
-    if (payment_status === "PAID")
+
+    // [新增] 審核通過邏輯：如果從 PENDING_REVIEW 變成 UNPAID，寄送付款通知
+    if (
+      oldOrder.payment_status === "PENDING_REVIEW" &&
+      payment_status === "UNPAID"
+    ) {
+      const { bankInfo } = await getSettingsAndBankInfo();
+      const paymentDetails = {
+        ...bankInfo,
+        note: `銀行：${bankInfo.bank_name}\n帳號：${bankInfo.bank_account}\n戶名：${bankInfo.bank_account_name}\n\n代購訂單 #${updated.id} 已審核通過！金額 TWD ${updated.total_amount_twd}。\n請匯款後上傳憑證。`,
+      };
+      sendOrderConfirmationEmail(updated, paymentDetails).catch(console.error);
+    }
+    // 原有的付款確認邏輯
+    else if (payment_status === "PAID" && oldOrder.payment_status !== "PAID") {
       sendPaymentReceivedEmail(updated).catch(console.error);
-    else if (status && status !== updated.status)
+    }
+    // 原有的狀態更新邏輯
+    else if (status && status !== updated.status) {
       sendOrderStatusUpdateEmail(updated).catch(console.error);
+    }
+
     res.json(updated);
   } catch (err) {
     next(err);
