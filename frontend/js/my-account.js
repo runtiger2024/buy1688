@@ -8,7 +8,7 @@ import {
   getAuthToken,
   getCustomer,
   customerLogout,
-  loadCart, // 為了更新購物車數字
+  loadCart,
 } from "./sharedUtils.js";
 
 let allOrdersData = [];
@@ -32,7 +32,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupCustomerAuth();
   setupBottomNav();
 
-  // 更新購物車數字 (雖不顯示購物車內容，但更新 Badge)
   let cart = {};
   loadCart(cart);
   const count = Object.values(cart).reduce((a, b) => a + b.quantity, 0);
@@ -42,12 +41,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     badge.style.display = count > 0 ? "block" : "none";
   }
 
-  // 渲染個人資料
   renderUserProfile();
-
   await loadBankInfo();
   loadOrders();
-
   setupTabs();
 });
 
@@ -58,15 +54,12 @@ function renderUserProfile() {
   const idEl = document.getElementById("profile-id");
   const emailEl = document.getElementById("profile-email");
   const phoneEl = document.getElementById("profile-phone");
-
-  // 抓取顯示角色的元素 (對應 my-account.html 中的 .profile-role)
   const roleEl = document.querySelector(".profile-role");
 
   if (idEl) idEl.textContent = customer.paopao_id || "未知";
   if (emailEl) emailEl.textContent = customer.email || "-";
-  if (phoneEl) phoneEl.textContent = customer.phone || "未設定 (重新登入更新)";
+  if (phoneEl) phoneEl.textContent = customer.phone || "未設定";
 
-  // 根據 is_vip 改變顯示文字與樣式
   if (roleEl) {
     if (customer.is_vip) {
       roleEl.textContent = "👑 VIP 會員";
@@ -133,7 +126,6 @@ function renderOrders() {
   const container = document.getElementById("order-history-container");
   container.innerHTML = "";
 
-  // 篩選訂單
   const filteredOrders = allOrdersData.filter((order) => {
     if (currentTab === "all") return true;
     if (currentTab === "UNPAID") return order.payment_status === "UNPAID";
@@ -161,23 +153,21 @@ function renderOrders() {
   filteredOrders.forEach((order) => {
     const statusText = STATUS_LABEL[order.status] || order.status;
     const isUnpaid = order.payment_status === "UNPAID";
-    const hasVoucher = !!order.payment_voucher_url; // 檢查是否有憑證
+    const hasVoucher = !!order.payment_voucher_url;
 
-    // [新增] 訂單類型標籤判斷邏輯
+    // [新增] 判斷是否取消
+    const isCancelled = order.status === "Cancelled";
+
+    // [新增] 訂單類型標籤
     let typeBadge = "";
-    // 判斷順序：先看是不是代購，再看是不是直購，最後歸為一般
     if (order.type === "Assist") {
-      // 代購商品 (藍色)
       typeBadge = `<span style="background:#17a2b8; color:white; padding:2px 6px; border-radius:4px; font-size:0.75rem; margin-left:8px; font-weight:normal;">代購商品</span>`;
     } else if (order.recipient_address) {
-      // 台灣直購 (橘色/淘寶色)
       typeBadge = `<span style="background:#ff5000; color:white; padding:2px 6px; border-radius:4px; font-size:0.75rem; margin-left:8px; font-weight:normal;">台灣直購</span>`;
     } else {
-      // 一般商品 (灰色)
       typeBadge = `<span style="background:#6c757d; color:white; padding:2px 6px; border-radius:4px; font-size:0.75rem; margin-left:8px; font-weight:normal;">一般商品</span>`;
     }
 
-    // 訂單商品摘要
     const itemsHtml = order.items
       .slice(0, 2)
       .map(
@@ -204,37 +194,30 @@ function renderOrders() {
           } 項商品</div>`
         : "";
 
-    // 動態決定操作按鈕與隱藏區塊內容
     let actionsHtml = "";
     let hiddenAreaHtml = "";
 
-    if (isUnpaid) {
-      // 待付款狀態
+    // [修改] 按鈕顯示邏輯：如果已取消，只顯示「查看詳情」，不顯示付款/上傳按鈕
+    if (isCancelled) {
+      actionsHtml = `<button class="btn-action" onclick="window.location.href='order-share.html?token=${order.share_token}'">查看詳情</button>`;
+    } else if (isUnpaid) {
       const bankBtn = `<button class="btn-action" onclick="copyBankInfo('${order.id}', '${order.total_amount_twd}')">複製匯款資訊</button>`;
-
       if (hasVoucher) {
-        // [已上傳過] -> 顯示「查看憑證」按鈕，隱藏上傳表單
         actionsHtml = `${bankBtn} <button class="btn-action" onclick="toggleVoucherForm('${order.id}')">查看已傳憑證</button>`;
-
-        // 顯示憑證圖片
         let imgDisplay = "";
         if (order.payment_voucher_url.startsWith("data:image")) {
           imgDisplay = `<img src="${order.payment_voucher_url}" style="max-width:100%; border-radius:4px; margin-top:10px;">`;
         } else {
           imgDisplay = `<a href="${order.payment_voucher_url}" target="_blank" style="color:#007bff; text-decoration:underline;">點擊查看憑證圖片</a>`;
         }
-
         hiddenAreaHtml = `
                     <div id="voucher-area-${order.id}" style="display:none; padding:15px; border-top:1px dashed #eee; background:#f0fff4;">
                         <p style="color:#28a745; font-weight:bold; margin:0;"><i class="fas fa-check-circle"></i> 憑證已上傳成功！</p>
-                        <p style="font-size:0.85rem; color:#666;">請等待管理員核對款項。若需修改請聯繫客服。</p>
                         ${imgDisplay}
                     </div>
                 `;
       } else {
-        // [尚未上傳] -> 顯示「上傳憑證」按鈕與表單
         actionsHtml = `${bankBtn} <button class="btn-action solid" onclick="toggleVoucherForm('${order.id}')">上傳憑證</button>`;
-
         hiddenAreaHtml = `
                     <div id="voucher-area-${order.id}" style="display:none; padding:15px; border-top:1px dashed #eee; background:#fafafa;">
                         <form onsubmit="window.handleVoucherUpload(event, '${order.id}')">
@@ -247,28 +230,43 @@ function renderOrders() {
                 `;
       }
     } else {
-      // 已付款狀態 -> 查看詳情
       actionsHtml = `<button class="btn-action" onclick="window.location.href='order-share.html?token=${order.share_token}'">查看詳情</button>`;
-      // 無隱藏區塊
     }
+
+    // [新增] 視覺樣式處理
+    // 如果訂單已取消：背景變灰、文字變淡、加上透明度
+    const cardStyle = isCancelled
+      ? "background-color: #f2f2f2; opacity: 0.7;"
+      : "";
+    const statusColor = isCancelled
+      ? "color: #dc3545;"
+      : "color: var(--taobao-orange);"; // 紅色 vs 橘色
 
     const card = document.createElement("div");
     card.className = "order-card";
-    // [修改] 在 order-id 後面加入 typeBadge
+    // 套用樣式
+    if (isCancelled) card.setAttribute("style", cardStyle);
+
     card.innerHTML = `
-            <div class="order-card-header">
+            <div class="order-card-header" ${
+              isCancelled ? 'style="background-color: #e9e9e9;"' : ""
+            }>
                 <span class="order-id">訂單號 ${order.id} ${typeBadge}</span>
-                <span class="order-status">${
-                  isUnpaid ? "待付款" : statusText
-                }</span>
+                <span class="order-status" style="${statusColor} font-weight:bold;">
+                    ${isCancelled ? '<i class="fas fa-ban"></i> ' : ""}${
+      isUnpaid && !isCancelled ? "待付款" : statusText
+    }
+                </span>
             </div>
             <div class="order-card-body" onclick="window.location.href='order-share.html?token=${
               order.share_token
-            }'">
+            }'" style="cursor:pointer;">
                 ${itemsHtml}
                 ${moreItemsHtml}
             </div>
-            <div class="order-card-footer">
+            <div class="order-card-footer" ${
+              isCancelled ? 'style="background-color: #e9e9e9;"' : ""
+            }>
                 <div class="order-total-price">
                     <small>總計</small> TWD ${order.total_amount_twd}
                 </div>
@@ -282,7 +280,6 @@ function renderOrders() {
   });
 }
 
-// 顯示/隱藏憑證上傳或查看區
 window.toggleVoucherForm = function (id) {
   const area = document.getElementById(`voucher-area-${id}`);
   if (area) {
@@ -315,7 +312,6 @@ async function loadBankInfo() {
   }
 }
 
-// 複製匯款資訊
 window.copyBankInfo = function (orderId, amount) {
   if (!bankInfo) return alert("讀取銀行資訊失敗");
   const text = `
@@ -329,7 +325,6 @@ window.copyBankInfo = function (orderId, amount) {
   navigator.clipboard.writeText(text).then(() => alert("匯款資訊已複製！"));
 };
 
-// 處理上傳
 window.handleVoucherUpload = function (e, orderId) {
   e.preventDefault();
   const headers = getAuthHeaders();
@@ -344,7 +339,6 @@ window.handleVoucherUpload = function (e, orderId) {
   if (!file) return alert("請選擇檔案");
 
   if (file.size > 5 * 1024 * 1024) {
-    // 5MB Limit
     return alert("檔案過大，請選擇小於 5MB 的圖片");
   }
 
@@ -368,7 +362,6 @@ window.handleVoucherUpload = function (e, orderId) {
       }
 
       alert("憑證上傳成功！");
-      // 重新載入訂單，這會觸發 renderOrders，將界面更新為「已上傳」狀態
       loadOrders();
     } catch (error) {
       statusDiv.textContent = `錯誤: ${error.message}`;
