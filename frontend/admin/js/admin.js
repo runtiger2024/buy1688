@@ -335,24 +335,14 @@ async function loadOrders() {
     const exchangeRate = parseFloat(rateInput.value) || 4.5;
     const userRole = getUser().role;
 
-    // 使用 render.js 的函式渲染
+    // 使用新的、乾淨的 render.js 函式渲染
     renderOrders(allOrders, tbody, availableOperators, exchangeRate, userRole);
 
-    // 綁定「查看訂單」按鈕 (補強)
-    tbody.querySelectorAll("tr").forEach((tr) => {
-      const viewBtn = document.createElement("button");
-      viewBtn.className = "btn btn-small btn-info";
-      viewBtn.innerHTML = '<i class="fas fa-edit"></i>';
-      viewBtn.title = "查看/編輯詳情";
-      viewBtn.style.marginLeft = "5px";
-
-      // 找到 orderId (假設在第一個 td，去除 #)
-      const orderId = tr.querySelector("td").textContent.replace("#", "");
-      viewBtn.onclick = () => openOrderModal(orderId);
-
-      // 插入到操作欄 (最後一個 td)
-      const actionTd = tr.querySelector("td:last-child");
-      if (actionTd) actionTd.prepend(viewBtn);
+    // 綁定「管理」按鈕事件 (因為 render.js 已經生成了 .btn-view-order)
+    tbody.querySelectorAll(".btn-view-order").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        openOrderModal(btn.dataset.id);
+      });
     });
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan="12" class="text-center text-danger">${e.message}</td></tr>`;
@@ -675,10 +665,10 @@ async function loadProducts() {
     renderProducts(products, tbody);
 
     // 綁定編輯與封存按鈕
-    tbody.querySelectorAll(".btn-edit").forEach((btn) => {
+    tbody.querySelectorAll(".btn-edit-product").forEach((btn) => {
       btn.addEventListener("click", () => openProductModal(btn.dataset.id));
     });
-    tbody.querySelectorAll(".btn-delete").forEach((btn) => {
+    tbody.querySelectorAll(".btn-delete-product").forEach((btn) => {
       btn.addEventListener("click", () => archiveProduct(btn.dataset.id));
     });
   } catch (e) {

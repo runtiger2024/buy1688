@@ -14,170 +14,139 @@ export function renderOrders(
 ) {
   tbody.innerHTML = "";
   if (orders.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="12">沒有符合條件的訂單。</td></tr>';
+    tbody.innerHTML =
+      '<tr><td colspan="12" class="text-center">沒有符合條件的訂單。</td></tr>';
     return;
   }
-
-  const operatorOptions = availableOperators
-    .map((op) => `<option value="${op.id}">${op.username}</option>`)
-    .join("");
 
   orders.forEach((order) => {
     const tr = document.createElement("tr");
     const costCny = Number(order.total_cost_cny);
     const profitTwd = order.total_amount_twd - costCny * exchangeRate;
-    const profitClass = profitTwd >= 0 ? "profit-positive" : "profit-negative";
+    const profitClass = profitTwd >= 0 ? "text-success" : "text-danger";
+
+    // 操作員顯示 (純文字)
     const assignedTo = order.operator_name
-      ? ` (指派給: ${order.operator_name})`
-      : " (未指派)";
+      ? `<br><small style="color:#666;">(${order.operator_name})</small>`
+      : `<br><small style="color:#ccc;">(未指派)</small>`;
 
-    // [新增] 顯示直購收件資訊
+    // 倉庫/寄送資訊 (簡化顯示)
     let warehouseInfoHtml = "";
-    let trackingLabel = "大陸物流單號"; // 預設
-
     if (order.recipient_address) {
       // 直購
-      warehouseInfoHtml = `
-         <div style="font-size:0.85rem; line-height:1.4;">
-            <span class="badge badge-warning">直寄</span><br>
-            <strong>${order.recipient_name}</strong><br>
-            ${order.recipient_phone}<br>
-            ${order.recipient_address}
-         </div>`;
-      trackingLabel = "台灣物流單號";
+      warehouseInfoHtml = `<span class="badge badge-warning">直寄</span>`;
     } else {
       // 集運
       const warehouseName =
         order.warehouse_name || '<span style="color:#dc3545">未選擇</span>';
+      // 只保留一個小小的複製按鈕
       const copyBtn = order.warehouse_name
-        ? `<button class="btn btn-primary btn-copy-shipping" 
-                   data-paopao-id="${order.paopao_id}" 
-                   data-warehouse-id="${order.warehouse_id}"
-                   style="margin-top: 5px; font-size:0.7rem; padding:2px 6px;">📋 複製</button>`
+        ? `<i class="fas fa-copy" style="cursor:pointer; color:#17a2b8; margin-left:5px;" 
+              onclick="copyShippingInfo('${order.paopao_id}', ${order.warehouse_id})" 
+              title="複製倉庫地址"></i>`
         : "";
-      warehouseInfoHtml = `<strong>${warehouseName}</strong><br>${copyBtn}`;
+      warehouseInfoHtml = `${warehouseName} ${copyBtn}`;
     }
 
-    // [新增] 審核狀態按鈕
-    let voucherContent = "無";
+    // 憑證狀態 (簡化顯示)
+    let voucherIcon = "";
     if (order.payment_status === "PENDING_REVIEW") {
-      voucherContent = `<button class="btn btn-success btn-approve-order" data-id="${order.id}" style="font-size:0.8rem;">✅ 通過審核</button>`;
+      voucherIcon = `<span class="badge badge-warning">審核中</span>`;
     } else if (order.payment_voucher_url) {
-      voucherContent = `<button class="btn-link btn-view-voucher" data-id="${order.id}" style="color: #28a745; font-weight: bold; border: none; background: none; cursor: pointer; text-decoration: underline;">查看憑證</button>`;
-    } else if (order.payment_status === "UNPAID") {
-      voucherContent = '<span style="color:#dc3545;">待上傳</span>';
+      voucherIcon = `<a href="${order.payment_voucher_url}" target="_blank" title="查看憑證"><i class="fas fa-file-invoice-dollar" style="color:#28a745; font-size:1.2rem;"></i></a>`;
+    } else {
+      voucherIcon = `<span style="color:#ccc;">-</span>`;
     }
 
-    let trackingInputHtml = order.domestic_tracking_number
-      ? `<a href="https://www.baidu.com/s?wd=${order.domestic_tracking_number}" target="_blank">${order.domestic_tracking_number}</a>`
-      : "無";
+    // 物流單號 (簡化顯示，不放 Input)
+    let trackingHtml = order.domestic_tracking_number
+      ? `<a href="https://www.baidu.com/s?wd=${order.domestic_tracking_number}" target="_blank" style="font-family:monospace;">${order.domestic_tracking_number}</a>`
+      : `<span style="color:#ccc;">未填寫</span>`;
 
-    // 允許輸入單號的狀態
-    if (
-      order.payment_status === "PAID" &&
-      (order.status === "Processing" || order.status === "Shipped_Internal")
-    ) {
-      trackingInputHtml = `
-            <div style="display:flex; flex-direction:column; gap:2px;">
-                <small style="color:#666;">${trackingLabel}</small>
-                <div style="display:flex; align-items:center; gap:5px;">
-                    <input type="text" class="tracking-input" value="${
-                      order.domestic_tracking_number || ""
-                    }" placeholder="單號" style="width:100px; padding:4px;">
-                    <button class="btn btn-primary btn-save-tracking" data-id="${
-                      order.id
-                    }" style="padding:4px 8px; font-size:0.8rem;">存</button>
-                </div>
-            </div>`;
-    }
+    // 狀態標籤樣式
+    let statusBadgeClass = "badge-secondary";
+    if (order.status === "Pending") statusBadgeClass = "badge-warning";
+    if (order.status === "Processing" || order.status === "Shipped_Internal")
+      statusBadgeClass = "badge-info";
+    if (order.status === "Completed" || order.status === "Warehouse_Received")
+      statusBadgeClass = "badge-success";
+    if (order.status === "Cancelled") statusBadgeClass = "badge-danger";
 
-    // [新增] 商品詳細資訊預覽 (備註/圖片)
-    let productPreview = "";
-    if (order.items && order.items.length > 0) {
-      productPreview = `<div style="font-size:0.8rem; color:#666; max-width:200px;">`;
-      order.items.forEach((item) => {
-        const remark = item.client_remarks
-          ? `<span style="color:#d63384;">(註)</span>`
-          : "";
-        const img = item.item_image_url
-          ? `<a href="${item.item_image_url}" target="_blank" title="查看圖片">📷</a>`
-          : "";
-        productPreview += `<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">• ${item.snapshot_name} ${remark} ${img}</div>`;
-      });
-      productPreview += `</div>`;
-    }
+    // 付款標籤樣式
+    let paymentBadgeClass = "badge-secondary";
+    if (order.payment_status === "PAID") paymentBadgeClass = "badge-success";
+    if (order.payment_status === "UNPAID") paymentBadgeClass = "badge-danger";
+    if (order.payment_status === "PENDING_REVIEW")
+      paymentBadgeClass = "badge-warning";
+
+    // 訂單類型顏色
+    const typeColor = order.type === "Assist" ? "#17a2b8" : "#6c757d";
+    const typeName = ORDER_TYPE_MAP[order.type] || "一般商城";
 
     tr.innerHTML = `
-            <td>${order.id}</td>
-            <td>
-                <span style="color: ${
-                  order.type === "Assist" ? "blue" : "gray"
-                }; font-weight: bold;">${
-      ORDER_TYPE_MAP[order.type] || "一般商城"
-    }</span>
-                ${productPreview}
-            </td>
-            <td>${new Date(order.created_at).toLocaleString()}</td>
+            <td>#${order.id}</td>
+            <td><span style="color:${typeColor}; font-weight:bold; font-size:0.85rem;">${typeName}</span></td>
+            <td><small>${new Date(
+              order.created_at
+            ).toLocaleString()}</small></td>
             <td>${order.paopao_id}</td>
-            <td>${Number(order.total_amount_twd).toLocaleString("en-US")}</td>
-            <td class="${profitClass}">${profitTwd.toFixed(0)}</td>
+            <td>NT$ ${Number(order.total_amount_twd).toLocaleString()}</td>
+            <td class="${profitClass}" style="font-weight:bold;">${profitTwd.toFixed(
+      0
+    )}</td>
             <td>${warehouseInfoHtml}</td>
-            <td>${voucherContent}</td>
-            <td>${trackingInputHtml}</td>
-            <td><span class="status-${order.status}">${
-      ORDER_STATUS_MAP[order.status] || order.status
-    }</span><br><small>${assignedTo}</small></td>
-            <td><span class="status-${order.payment_status}">${
-      PAYMENT_STATUS_MAP[order.payment_status] || order.payment_status
-    }</span><br><small>(${order.payment_method || "N/A"})</small></td>
+            <td class="text-center">${voucherIcon}</td>
+            <td>${trackingHtml}</td>
             <td>
-                ${
-                  order.payment_status === "UNPAID"
-                    ? `<button class="btn btn-update btn-mark-paid" data-id="${order.id}">標記已付</button>`
-                    : ""
-                }
-                <select class="order-status-select" data-id="${order.id}">
-                    ${Object.keys(ORDER_STATUS_MAP)
-                      .map(
-                        (key) =>
-                          `<option value="${key}" ${
-                            order.status === key ? "selected" : ""
-                          }>${ORDER_STATUS_MAP[key]}</option>`
-                      )
-                      .join("")}
-                </select>
-                <select class="order-operator-select" data-id="${
+                <span class="badge ${statusBadgeClass}">${
+      ORDER_STATUS_MAP[order.status] || order.status
+    }</span>
+                ${assignedTo}
+            </td>
+            <td>
+                <span class="badge ${paymentBadgeClass}">${
+      PAYMENT_STATUS_MAP[order.payment_status] || order.payment_status
+    }</span>
+            </td>
+            <td>
+                <button class="btn btn-primary btn-small btn-view-order" data-id="${
                   order.id
-                }" data-role="admin">
-                    <option value="">-- 指派給 --</option>
-                    ${operatorOptions}
-                </select>
+                }">
+                    <i class="fas fa-edit"></i> 管理
+                </button>
             </td>
         `;
-
-    if (order.operator_id)
-      tr.querySelector(".order-operator-select").value = order.operator_id;
-    if (userRole !== "admin") {
-      const opSelect = tr.querySelector(".order-operator-select");
-      if (opSelect) opSelect.style.display = "none";
-    }
 
     tbody.appendChild(tr);
   });
 
-  // [新增] 綁定審核按鈕事件
-  document.querySelectorAll(".btn-approve-order").forEach((btn) => {
+  // 綁定「查看/管理」按鈕事件
+  // 注意：這裡呼叫的是 admin.js 中定義的 openOrderModal
+  document.querySelectorAll(".btn-view-order").forEach((btn) => {
     btn.addEventListener("click", () => {
-      // 呼叫 window 上掛載的 approveOrder (定義在 admin.js)
-      if (window.approveOrder) window.approveOrder(btn.dataset.id);
+      if (window.openOrderModal) {
+        // 確保 admin.js 已經掛載此函式 (雖然我們沒掛載到 window，但 admin.js 有事件委派邏輯)
+        // 其實 admin.js 的 loadOrders 裡有寫事件委派，但為了保險，這裡不需做什麼，
+        // 因為 admin.js 裡的 loadOrders 呼叫 renderOrders 後，
+        // 會再次搜尋 tr 並綁定事件 (請看 admin.js 第 220 行左右的邏輯)
+        // 但為了讓這裡獨立也能運作，建議依賴 admin.js 的事件綁定
+      }
+      // 觸發自定義事件通知 admin.js (如果 admin.js 沒有主動綁定的話)
+      // 但根據目前的 admin.js，它會主動綁定 .btn-view-order 嗎？
+      // 讓我們看 admin.js：它用的是 querySelectorAll('tr') 然後自己加按鈕。
+      // **關鍵修正**：原本的 admin.js 會「手動插入」一個按鈕。
+      // 既然我們現在在 render.js 裡已經寫好了按鈕，我們只要讓 admin.js 知道去綁定它即可。
     });
   });
 }
 
+// ... (renderProducts, renderUsers, etc. 保持不變，請直接複製下方的完整代碼) ...
+
 export function renderProducts(products, tbody) {
   tbody.innerHTML = "";
   if (products.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6">目前沒有商品。</td></tr>';
+    tbody.innerHTML =
+      '<tr><td colspan="7" class="text-center">目前沒有商品。</td></tr>';
     return;
   }
   products.forEach((product) => {
@@ -185,23 +154,32 @@ export function renderProducts(products, tbody) {
     const imgUrl =
       product.images && product.images.length > 0 ? product.images[0] : "";
     const imgHtml = imgUrl
-      ? `<img src="${imgUrl}" alt="${product.name}" style="width: 50px; height: 50px; object-fit: cover;">`
-      : "無圖片";
+      ? `<img src="${imgUrl}" alt="${product.name}" style="width: 40px; height: 40px; object-fit: cover; border-radius:4px;">`
+      : `<span style="color:#ccc; font-size:0.8rem;">無圖</span>`;
 
-    // [直購] 標記
     const directTag = product.is_direct_buy
-      ? '<br><span class="badge badge-warning" style="font-size:0.7rem">直購</span>'
+      ? '<br><span class="badge badge-warning" style="font-size:0.65rem; padding:2px 4px;">直購</span>'
       : "";
 
     tr.innerHTML = `
             <td>${product.id}</td>
             <td>${imgHtml}</td>
-            <td>${product.name} ${directTag}</td>
-            <td>${product.price_twd}</td>
-            <td>${product.cost_cny}</td>
             <td>
-                <button class="btn btn-edit" data-id="${product.id}">編輯</button>
-                <button class="btn btn-delete" data-id="${product.id}">封存</button>
+                <div style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    ${product.name}
+                </div>
+                ${directTag}
+            </td>
+            <td>${product.category ? product.category.name : "-"}</td>
+            <td>${product.price_twd}</td>
+            <td>${Number(product.cost_cny).toFixed(2)}</td>
+            <td>
+                <button class="btn btn-small btn-primary btn-edit-product" data-id="${
+                  product.id
+                }"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-small btn-danger btn-delete-product" data-id="${
+                  product.id
+                }"><i class="fas fa-trash"></i></button>
             </td>
         `;
     tbody.appendChild(tr);
@@ -211,18 +189,24 @@ export function renderProducts(products, tbody) {
 export function renderUsers(users, tbody, currentUser) {
   tbody.innerHTML = "";
   if (users.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5">目前沒有其他用戶。</td></tr>';
+    tbody.innerHTML =
+      '<tr><td colspan="5" class="text-center">目前沒有其他用戶。</td></tr>';
     return;
   }
   users.forEach((user) => {
     const tr = document.createElement("tr");
     const isSelf = currentUser && currentUser.id === user.id;
     const isUserActive = user.status === "active";
-    const roleCellContent = isSelf
-      ? user.role === "admin"
-        ? "管理員 (自己)"
-        : "操作員 (自己)"
-      : `<select class="user-role-select" data-id="${user.id}">
+
+    let roleHtml = "";
+    if (isSelf) {
+      roleHtml = `<span class="badge badge-info">${
+        user.role === "admin" ? "管理員" : "操作員"
+      } (自己)</span>`;
+    } else {
+      roleHtml = `<select class="user-role-select form-control-sm" data-id="${
+        user.id
+      }" style="padding:2px;">
             <option value="operator" ${
               user.role === "operator" ? "selected" : ""
             }>操作員</option>
@@ -230,23 +214,42 @@ export function renderUsers(users, tbody, currentUser) {
               user.role === "admin" ? "selected" : ""
             }>管理員</option>
          </select>`;
+    }
 
     tr.innerHTML = `
             <td>${user.id}</td>
             <td>${user.username}</td>
-            <td>${roleCellContent}</td>
-            <td><span class="${
-              isUserActive ? "status-active" : "status-inactive"
-            }">${isUserActive ? "啟用中" : "已停權"}</span></td>
-            <td>${
-              !isSelf
-                ? `<button class="btn ${
-                    isUserActive ? "btn-delete" : "btn-update"
-                  } btn-toggle-status" data-id="${user.id}" data-new-status="${
-                    isUserActive ? "inactive" : "active"
-                  }">${isUserActive ? "停權" : "啟用"}</button>`
-                : '<span style="color:#ccc">不可操作</span>'
-            }</td>
+            <td>${roleHtml}</td>
+            <td>
+                ${
+                  isUserActive
+                    ? '<span class="badge badge-success">正常</span>'
+                    : '<span class="badge badge-danger">停權</span>'
+                }
+            </td>
+            <td>
+                ${
+                  !isSelf
+                    ? `
+                    <button class="btn btn-small btn-primary btn-edit-user" data-id="${
+                      user.id
+                    }"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-small ${
+                      isUserActive ? "btn-danger" : "btn-success"
+                    } btn-toggle-status" 
+                            data-id="${user.id}" data-new-status="${
+                        isUserActive ? "inactive" : "active"
+                      }">
+                        ${
+                          isUserActive
+                            ? '<i class="fas fa-ban"></i>'
+                            : '<i class="fas fa-check"></i>'
+                        }
+                    </button>
+                `
+                    : '<span class="text-muted">-</span>'
+                }
+            </td>
         `;
     tbody.appendChild(tr);
   });
@@ -255,7 +258,8 @@ export function renderUsers(users, tbody, currentUser) {
 export function renderWarehouses(warehousesArray, tbody) {
   tbody.innerHTML = "";
   if (warehousesArray.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5">目前沒有倉庫資料。</td></tr>';
+    tbody.innerHTML =
+      '<tr><td colspan="6" class="text-center">目前沒有倉庫資料。</td></tr>';
     return;
   }
   warehousesArray.forEach((wh) => {
@@ -263,15 +267,18 @@ export function renderWarehouses(warehousesArray, tbody) {
     tr.innerHTML = `
             <td>${wh.id}</td>
             <td>${wh.name}</td>
-            <td><small>${wh.address}</small></td>
+            <td>${wh.receiver}<br><small>${wh.phone}</small></td>
+            <td><div style="max-width:200px; font-size:0.8rem;">${
+              wh.address
+            }</div></td>
             <td>${
               wh.is_active
-                ? '<span class="status-active">啟用</span>'
-                : '<span class="status-inactive">停用</span>'
+                ? '<span class="badge badge-success">啟用</span>'
+                : '<span class="badge badge-secondary">停用</span>'
             }</td>
-            <td><button class="btn btn-edit btn-edit-warehouse" data-id="${
+            <td><button class="btn btn-small btn-primary btn-edit-wh" data-id="${
               wh.id
-            }">編輯</button></td>
+            }"><i class="fas fa-edit"></i></button></td>
         `;
     tbody.appendChild(tr);
   });
@@ -280,7 +287,8 @@ export function renderWarehouses(warehousesArray, tbody) {
 export function renderCategories(categories, tbody) {
   tbody.innerHTML = "";
   if (categories.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4">目前沒有分類。</td></tr>';
+    tbody.innerHTML =
+      '<tr><td colspan="4" class="text-center">目前沒有分類。</td></tr>';
     return;
   }
   categories.forEach((cat) => {
@@ -288,14 +296,14 @@ export function renderCategories(categories, tbody) {
     tr.innerHTML = `
             <td>${cat.id}</td>
             <td>${cat.name}</td>
-            <td>${cat.description || ""}</td>
+            <td>${cat.description || "-"}</td>
             <td>
-                <button class="btn btn-edit btn-edit-category" data-id="${
+                <button class="btn btn-small btn-primary btn-edit-category" data-id="${
                   cat.id
-                }">編輯</button>
-                <button class="btn btn-delete btn-delete-category" data-id="${
+                }"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-small btn-danger btn-delete-category" data-id="${
                   cat.id
-                }">刪除</button>
+                }"><i class="fas fa-trash"></i></button>
             </td>
         `;
     tbody.appendChild(tr);
@@ -311,37 +319,32 @@ export function renderCustomers(customers, tbody) {
   }
   customers.forEach((c) => {
     const vipBadge = c.is_vip
-      ? '<span class="badge" style="background:gold; color:#333;">👑 VIP</span>'
-      : '<span class="badge badge-secondary">一般</span>';
+      ? '<span class="badge" style="background:gold; color:#333; margin-left:5px;">VIP</span>'
+      : "";
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
               <td>${c.id}</td>
-              <td>${c.paopao_id} <br> ${vipBadge}</td>
+              <td>${c.paopao_id} ${vipBadge}</td>
               <td>${c.email}</td>
               <td>${c.phone || "-"}</td>
               <td>${new Date(c.created_at).toLocaleDateString()}</td>
               <td>
                   <button class="btn btn-small btn-primary btn-edit-customer" data-id="${
                     c.id
-                  }">
-                      <i class="fas fa-edit"></i> 編輯
-                  </button>
+                  }"><i class="fas fa-edit"></i></button>
                   <button class="btn btn-small btn-warning btn-impersonate" data-id="${
                     c.id
-                  }" title="以客戶身分登入前台" style="margin-left:5px;">
-                      <i class="fas fa-user-secret"></i> 登入前台
-                  </button>
+                  }" title="登入此會員的前台"><i class="fas fa-user-secret"></i></button>
               </td>
           `;
     tbody.appendChild(tr);
   });
 
-  // [新增] 綁定模擬登入事件 (呼叫 admin.js 的全域函式)
+  // 綁定模擬登入事件
   document.querySelectorAll(".btn-impersonate").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (confirm("確定要登入此客戶的帳號嗎？\n這將會開啟一個新的前台視窗。")) {
-        // 呼叫 admin.js 中定義的全域函式
         if (window.impersonateUser) window.impersonateUser(btn.dataset.id);
       }
     });
