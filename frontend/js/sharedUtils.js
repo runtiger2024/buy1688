@@ -156,13 +156,14 @@ export function loadCart(shoppingCart) {
 }
 
 /**
- * 將商品加入購物車 (支援規格與直購屬性)
+ * 將商品加入購物車 (支援規格與直購屬性，並檢查是否混用)
  * @param {object} shoppingCart - 購物車物件
  * @param {string} id - 商品 ID
  * @param {string} name - 商品名稱
  * @param {number} price - 價格
  * @param {string|null} spec - 規格 (可選)
  * @param {boolean} isDirectBuy - [新增] 是否為直購商品
+ * @returns {object} { success: boolean, message: string }
  */
 export function addToCart(
   shoppingCart,
@@ -172,25 +173,48 @@ export function addToCart(
   spec = null,
   isDirectBuy = false
 ) {
-  // 使用 複合 Key (ID + 規格) 來區分不同規格的同一商品
+  // 1. 檢查購物車內是否已有商品
+  const cartItems = Object.values(shoppingCart);
+
+  if (cartItems.length > 0) {
+    // 取得現有購物車的類型 (假設第一個商品的類型代表整個購物車)
+    const existingIsDirect = cartItems[0].is_direct_buy === true;
+    const newIsDirect = isDirectBuy === true;
+
+    // 2. 如果類型不一致，禁止加入
+    if (existingIsDirect !== newIsDirect) {
+      const existingType = existingIsDirect ? "台灣直購" : "一般/代購";
+      const newType = newIsDirect ? "台灣直購" : "一般/代購";
+
+      return {
+        success: false,
+        message: `⚠️ 無法加入購物車\n\n您的購物車內已有「${existingType}」商品，無法與「${newType}」商品合併結帳。\n\n因為寄送方式不同 (集運 vs 直寄)，請先完成現有訂單或清空購物車後再購買。`,
+      };
+    }
+  }
+
+  // 3. 正常加入邏輯
   const cartKey = spec ? `${id}_${spec}` : `${id}`;
 
   if (shoppingCart[cartKey]) {
     shoppingCart[cartKey].quantity++;
   } else {
     shoppingCart[cartKey] = {
-      id: id, // 保留原始 ID (API用)
+      id: id,
       name: name,
       price: price,
       spec: spec,
       quantity: 1,
-      is_direct_buy: isDirectBuy, // [新增]
+      is_direct_buy: isDirectBuy,
     };
   }
+
   try {
     localStorage.setItem("shoppingCart", JSON.stringify(shoppingCart));
+    return { success: true, message: "加入成功" };
   } catch (e) {
     console.error("保存購物車失敗:", e);
+    return { success: false, message: "系統錯誤，無法儲存購物車" };
   }
 }
 

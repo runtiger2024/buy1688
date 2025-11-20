@@ -155,7 +155,6 @@ window.selectSpec = function (el, spec) {
 function handleAddToCart() {
   if (!currentProduct) return false;
 
-  // [新增] 檢查是否選擇了規格
   if (
     currentProduct.specs &&
     currentProduct.specs.length > 0 &&
@@ -165,8 +164,8 @@ function handleAddToCart() {
     return false;
   }
 
-  // 傳入 spec 和 is_direct_buy
-  addToCart(
+  // 呼叫 addToCart 並接收結果
+  const result = addToCart(
     shoppingCart,
     currentProduct.id,
     currentProduct.name,
@@ -174,6 +173,12 @@ function handleAddToCart() {
     selectedSpec,
     currentProduct.is_direct_buy // [新增] 傳入直購屬性
   );
+
+  // 如果加入失敗 (因為混用)，顯示錯誤訊息並中止
+  if (!result.success) {
+    alert(result.message);
+    return false;
+  }
 
   const typeMsg = currentProduct.is_direct_buy ? "(直購商品)" : "";
   alert(

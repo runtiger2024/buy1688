@@ -246,7 +246,13 @@ async function fetchProducts() {
         const price = parseInt(button.dataset.price, 10);
         const isDirect = button.dataset.isDirect === "true"; // [新增]
 
-        addToCart(shoppingCart, id, name, price, null, isDirect);
+        // [重點修改] 檢查加入結果
+        const result = addToCart(shoppingCart, id, name, price, null, isDirect);
+
+        if (!result.success) {
+          alert(result.message); // 如果混用，跳出警告並停止
+          return;
+        }
 
         // 按鈕動畫
         const originalContent = button.innerHTML;
@@ -295,9 +301,11 @@ function setupCartModal() {
 
   // [關鍵修正] 檢查網址是否有 #cart-modal，若有則自動開啟
   if (window.location.hash === "#cart-modal") {
+    // 使用 setTimeout 確保 DOM 元素與事件都準備好
     setTimeout(() => {
       if (openBtn) {
         openBtn.click();
+        // 開啟後清除 hash，讓網址變回乾淨的狀態 (可選)
         history.replaceState(null, null, window.location.pathname);
       }
     }, 300);
@@ -359,7 +367,7 @@ function renderCart() {
         </div>`;
   } else {
     cartItemsList.innerHTML = "";
-    // 遍歷購物車
+    // 遍歷購物車 (key 可能包含規格後綴)
     for (const key in shoppingCart) {
       const item = shoppingCart[key];
       const itemTotal = item.price * item.quantity;
