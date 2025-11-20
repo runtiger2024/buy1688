@@ -7,7 +7,7 @@ import {
   renderUsers,
   renderWarehouses,
   renderCategories,
-  renderCustomersTable, // 假設 render.js 沒有導出這個，我們在 admin.js 內部實作或確保 render.js 有
+  renderCustomersTable,
 } from "./render.js";
 
 // --- 1. 常數與全域變數 ---
@@ -20,9 +20,13 @@ const ORDER_STATUS_MAP = {
   Cancelled: "已取消",
 };
 const PAYMENT_STATUS_MAP = {
-  PENDING_REVIEW: "審核中",
+  PENDING_REVIEW: "審核中", // [新增] 代購審核狀態
   UNPAID: "待付款",
   PAID: "已付款",
+};
+const ORDER_TYPE_MAP = {
+  Standard: "一般商城",
+  Assist: "代客採購",
 };
 
 let availableOperators = [];
@@ -89,15 +93,15 @@ ${itemsText}
   copyToClipboard(text, "📋 訂單摘要已複製！");
 };
 
-// 標記訂單為已付款
+// 標記訂單為已付款 (原地更新，不關閉視窗)
 window.markOrderPaid = async function (id) {
   if (!confirm("確定標記為已付款？系統將發信通知客戶。")) return;
   try {
     await api.updateOrder(id, { payment_status: "PAID" });
-    loadOrders();
-    // 如果 Modal 開著，刷新它
-    if (currentOrder && currentOrder.id == id) openOrderModal(id);
-    loadStats();
+    // 不跳 alert，直接刷新體驗更好
+    await loadOrders(); // 重新拉取資料
+    if (currentOrder && currentOrder.id == id) openOrderModal(id); // 重新渲染 Modal 內容
+    loadStats(); // 更新背景統計
   } catch (e) {
     alert(e.message);
   }
@@ -110,7 +114,7 @@ window.approveOrder = async function (id) {
     // 將狀態從 PENDING_REVIEW 改為 UNPAID，觸發後端寄信
     await api.updateOrder(id, { payment_status: "UNPAID" });
     alert("✅ 訂單已審核通過，等待客戶付款。");
-    loadOrders();
+    await loadOrders();
     if (currentOrder && currentOrder.id == id) openOrderModal(id);
     loadStats();
   } catch (e) {
@@ -123,7 +127,7 @@ window.impersonate = async function (customerId) {
   if (!confirm("確定要模擬此客戶登入嗎？這將會開啟新視窗進入前台。")) return;
   try {
     const res = await api.impersonateCustomer(customerId);
-    // 設置 localStorage
+    // 設置 localStorage (注意：這裡假設前台與後台同源)
     localStorage.setItem("customerToken", res.token);
     localStorage.setItem("customerUser", JSON.stringify(res.customer));
 
@@ -140,21 +144,47 @@ window.addAssistItemRow = function () {
   const tr = document.createElement("tr");
   tr.className = "assist-item-row";
   tr.innerHTML = `
-        <td><input type="text" class="item-name" placeholder="商品名稱" style="width:100%">
-            <input type="text" class="item-spec" placeholder="規格" style="width:100%; margin-top:2px;">
-            <input type="text" class="item-remark" placeholder="備註" style="width:100%; margin-top:2px; color:blue;"></td>
-        <td><input type="text" class="item-url" placeholder="連結" style="width:100%">
-            <input type="text" class="item-img" placeholder="圖片連結" style="width:100%; margin-top:2px;"></td>
-        <td><input type="number" class="item-price" placeholder="台幣單價" style="width:60px"></td>
-        <td><input type="number" class="item-cost" placeholder="人民幣成本" style="width:60px"></td>
+        <td>
+            <input type="text" class="item-name" placeholder="商品名稱" style="width:100%; margin-bottom:2px;">
+            <input type="text" class="item-spec" placeholder="規格" style="width:100%; margin-bottom:2px;">
+            <input type="text" class="item-remark" placeholder="備註" style="width:100%; color:blue;">
+        </td>
+        <td>
+            <input type="text" class="item-url" placeholder="連結" style="width:100%; margin-bottom:2px;">
+            <input type="text" class="item-img" placeholder="圖片連結" style="width:100%;">
+        </td>
+        <td><input type="number" class="item-price" placeholder="台幣單價" style="width:70px"></td>
+        <td><input type="number" class="item-cost" placeholder="人民幣成本" style="width:70px"></td>
         <td><input type="number" class="item-qty" value="1" style="width:50px"></td>
-        <td><button class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">X</button></td>
+        <td><button class="btn btn-small btn-danger" onclick="this.closest('tr').remove()">刪除</button></td>
     `;
   tbody.appendChild(tr);
 };
 
-// 篩選待核銷憑證
+// [新功能] 開啟客戶編輯視窗 (掛載到 window 供 render.js 呼叫)
+window.openCustomerModal = function (id) {
+  const customer = allCustomers.find((c) => c.id == id);
+  if (!customer) return;
+
+  document.getElementById("customer-form").reset();
+  document.getElementById("customer-id").value = customer.id;
+  document.getElementById("customer-paopao-id").value = customer.paopao_id;
+  document.getElementById("customer-email").value = customer.email;
+  document.getElementById("customer-phone").value = customer.phone || "";
+
+  // 回填 VIP 選單
+  const vipSelect = document.getElementById("customer-is-vip");
+  if (vipSelect) {
+    vipSelect.value = customer.is_vip ? "true" : "false";
+  }
+
+  document.getElementById("customer-password").value = "";
+  document.getElementById("customer-modal").style.display = "block";
+};
+
+// 篩選待核銷憑證 (從儀表板跳轉)
 window.filterPendingVouchers = function () {
+  // 切換 UI 到訂單頁
   document
     .querySelectorAll(".sidebar-nav .nav-link")
     .forEach((l) => l.classList.remove("active"));
@@ -168,6 +198,7 @@ window.filterPendingVouchers = function () {
   if (orderLink) orderLink.classList.add("active");
   document.getElementById("orders-section").classList.add("active");
 
+  // 設定篩選條件
   currentHasVoucherFilter = true;
   document.getElementById("order-status-filter").value = "";
   document.getElementById("order-payment-status-filter").value = "UNPAID";
@@ -319,18 +350,8 @@ async function loadOrders() {
       parseFloat(document.getElementById("exchange-rate-input").value) || 4.5;
     const userRole = getUser().role;
 
-    // 呼叫 render.js 中的渲染函式
-    if (typeof renderOrders === "function") {
-      renderOrders(
-        allOrders,
-        tbody,
-        availableOperators,
-        exchangeRate,
-        userRole
-      );
-    } else {
-      console.error("renderOrders function is missing!");
-    }
+    // 使用 render.js 匯出的函式
+    renderOrders(allOrders, tbody, availableOperators, exchangeRate, userRole);
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan="12" class="text-center text-danger">${e.message}</td></tr>`;
   }
@@ -372,7 +393,7 @@ function setupOrderEvents() {
     .addEventListener("click", saveOrderChanges);
 }
 
-// [核心修改] 訂單彈窗邏輯：支援代購編輯介面
+// 訂單彈窗邏輯：支援代購編輯介面
 window.openOrderModal = function (orderId) {
   const order = allOrders.find((o) => o.id == orderId);
   if (!order) return;
@@ -382,7 +403,6 @@ window.openOrderModal = function (orderId) {
   const content = document.getElementById("order-modal-content");
   const userRole = getUser().role;
 
-  // 操作員選單
   const operatorOptions = availableOperators
     .map(
       (op) =>
@@ -392,7 +412,6 @@ window.openOrderModal = function (orderId) {
     )
     .join("");
 
-  // [代購編輯] 判斷是否為代購訂單
   const isAssist = order.type === "Assist";
 
   let itemsHtml = "";
@@ -500,7 +519,7 @@ window.openOrderModal = function (orderId) {
   } else {
     const warehouseName = order.warehouse_name || "未指定";
     shippingHtml = `
-        <p><strong>集運倉:</strong> ${warehouseName} 
+        <p><strong>集運倉:</strong> ${warehouseName} 
            ${
              order.warehouse_id
                ? `<button class="btn btn-small btn-light" onclick="copyShippingInfo('${order.paopao_id}', ${order.warehouse_id})">複製地址</button>`
@@ -509,7 +528,6 @@ window.openOrderModal = function (orderId) {
         </p>`;
   }
 
-  // 憑證顯示
   let voucherHtml = '<span class="text-muted">尚未上傳</span>';
   if (order.payment_voucher_url) {
     voucherHtml = `<a href="${order.payment_voucher_url}" target="_blank">查看憑證連結</a>`;
@@ -598,7 +616,7 @@ window.openOrderModal = function (orderId) {
   modal.style.display = "block";
 };
 
-// [核心修改] 儲存邏輯：收集商品變更
+// 儲存訂單變更 (包含代購商品編輯)
 async function saveOrderChanges() {
   if (!currentOrder) return;
 
@@ -647,8 +665,8 @@ async function saveOrderChanges() {
     await api.updateOrder(currentOrder.id, data);
     alert("訂單已更新");
     await loadOrders();
-    // 關閉或重開 Modal
-    document.getElementById("order-modal").style.display = "none";
+    // 刷新 modal 內容
+    openOrderModal(currentOrder.id);
     loadStats();
   } catch (e) {
     alert("更新失敗: " + e.message);
@@ -664,7 +682,6 @@ async function loadProducts() {
     const products = await api.getProducts();
     renderProducts(products, tbody);
 
-    // 綁定按鈕事件 (renderProducts 只產生 HTML)
     document.querySelectorAll(".btn-edit-product").forEach((btn) => {
       btn.addEventListener("click", () => openProductModal(btn.dataset.id));
     });
@@ -881,12 +898,12 @@ async function loadWarehouses() {
 }
 
 function setupWarehouseEvents() {
-  document
-    .getElementById("btn-add-warehouse")
-    .addEventListener("click", () => openWarehouseModal(null));
-  document
-    .getElementById("warehouse-form")
-    .addEventListener("submit", async (e) => {
+  const btn = document.getElementById("btn-add-warehouse");
+  if (btn) btn.addEventListener("click", () => openWarehouseModal(null));
+
+  const form = document.getElementById("warehouse-form");
+  if (form)
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const id = document.getElementById("warehouse-id").value;
       const data = {
@@ -942,16 +959,14 @@ async function loadUsers() {
   }
 }
 
-// 本地實現 renderUsersTable (包含篩選)
 function renderUsersTable(users) {
   const tbody = document.getElementById("users-tbody");
   const filtered = users.filter((u) =>
     u.username.toLowerCase().includes(userSearchTerm.toLowerCase())
   );
 
-  renderUsers(filtered, tbody, getUser()); // 使用 render.js 的渲染邏輯
+  renderUsers(filtered, tbody, getUser());
 
-  // 綁定事件
   document.querySelectorAll(".btn-toggle-status").forEach((btn) =>
     btn.addEventListener("click", async () => {
       const newStatus = btn.dataset.newStatus;
@@ -969,19 +984,20 @@ function renderUsersTable(users) {
 }
 
 function setupUserEvents() {
-  document
-    .getElementById("btn-add-user")
-    .addEventListener("click", () => openUserModal(null));
-  document
-    .getElementById("user-search-input")
-    .addEventListener("keyup", (e) => {
+  const btn = document.getElementById("btn-add-user");
+  if (btn) btn.addEventListener("click", () => openUserModal(null));
+
+  const searchInput = document.getElementById("user-search-input");
+  if (searchInput) {
+    searchInput.addEventListener("keyup", (e) => {
       userSearchTerm = e.target.value.trim();
       renderUsersTable(allUsers);
     });
+  }
 
-  document
-    .getElementById("create-user-form")
-    .addEventListener("submit", async (e) => {
+  const form = document.getElementById("create-user-form");
+  if (form)
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const id = document.getElementById("user-id").value;
       const username = document.getElementById("user-username").value;
@@ -998,8 +1014,12 @@ function setupUserEvents() {
             receive_notifications: receiveNotifications,
           });
           const originalUser = allUsers.find((u) => u.id == id);
-          if (originalUser.role !== role) await api.updateUserRole(id, role);
-          if (password) await api.updateUserPassword(id, password);
+          if (originalUser.role !== role) {
+            await api.updateUserRole(id, role);
+          }
+          if (password) {
+            await api.updateUserPassword(id, password);
+          }
           alert("用戶資料已更新");
         } else {
           if (!password) {
@@ -1064,59 +1084,30 @@ async function loadCustomers() {
   try {
     const customers = await api.getCustomers();
     allCustomers = customers;
-    renderCustomersTableList(allCustomers);
+    handleRenderCustomers();
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan='6' class='text-center text-danger'>${e.message}</td></tr>`;
   }
 }
 
-// 本地實現 renderCustomersTableList (包含篩選)
-function renderCustomersTableList(customers) {
+function handleRenderCustomers() {
   const tbody = document.getElementById("customers-tbody");
-  const filtered = customers.filter(
+  const filtered = allCustomers.filter(
     (c) =>
       c.paopao_id.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
       c.email.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
       (c.phone && c.phone.includes(customerSearchTerm))
   );
 
-  if (filtered.length === 0) {
-    tbody.innerHTML =
-      '<tr><td colspan="6" class="text-center">找不到符合條件的會員</td></tr>';
-    return;
-  }
+  renderCustomersTable(filtered, tbody);
 
-  tbody.innerHTML = "";
-  filtered.forEach((c) => {
-    const vipBadge = c.is_vip
-      ? '<span class="badge" style="background:gold; color:#333;">👑 VIP</span>'
-      : '<span class="badge badge-secondary">一般</span>';
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-            <td>${c.id}</td>
-            <td>${c.paopao_id} <br> ${vipBadge}</td>
-            <td>${c.email}</td>
-            <td>${c.phone || "-"}</td>
-            <td>${new Date(c.created_at).toLocaleDateString()}</td>
-            <td>
-                <button class="btn btn-small btn-primary btn-edit-customer" data-id="${
-                  c.id
-                }">編輯</button>
-                <button class="btn btn-small btn-warning btn-impersonate" data-id="${
-                  c.id
-                }">🔑 模擬登入</button>
-            </td>
-        `;
-    tbody.appendChild(tr);
-  });
-
-  document
+  // 綁定事件
+  tbody
     .querySelectorAll(".btn-edit-customer")
     .forEach((btn) =>
       btn.addEventListener("click", () => openCustomerModal(btn.dataset.id))
     );
-  document
+  tbody
     .querySelectorAll(".btn-impersonate")
     .forEach((btn) =>
       btn.addEventListener("click", () => impersonate(btn.dataset.id))
@@ -1128,7 +1119,7 @@ function setupCustomerEvents() {
     .getElementById("customer-search-input")
     .addEventListener("keyup", (e) => {
       customerSearchTerm = e.target.value.trim();
-      renderCustomersTableList(allCustomers);
+      handleRenderCustomers();
     });
 
   document
@@ -1144,7 +1135,9 @@ function setupCustomerEvents() {
 
       try {
         await api.updateCustomer(id, { email, phone, is_vip });
-        if (password) await api.updateCustomerPassword(id, password);
+        if (password) {
+          await api.updateCustomerPassword(id, password);
+        }
         alert("會員資料已更新");
         document.getElementById("customer-modal").style.display = "none";
         loadCustomers();
@@ -1157,14 +1150,18 @@ function setupCustomerEvents() {
 function openCustomerModal(id) {
   const customer = allCustomers.find((c) => c.id == id);
   if (!customer) return;
+
   document.getElementById("customer-form").reset();
   document.getElementById("customer-id").value = customer.id;
   document.getElementById("customer-paopao-id").value = customer.paopao_id;
   document.getElementById("customer-email").value = customer.email;
   document.getElementById("customer-phone").value = customer.phone || "";
-  document.getElementById("customer-is-vip").value = customer.is_vip
-    ? "true"
-    : "false";
+
+  const vipSelect = document.getElementById("customer-is-vip");
+  if (vipSelect) {
+    vipSelect.value = customer.is_vip ? "true" : "false";
+  }
+
   document.getElementById("customer-password").value = "";
   document.getElementById("customer-modal").style.display = "block";
 }
@@ -1209,9 +1206,9 @@ async function loadSettings() {
 }
 
 function setupSettingsEvents() {
-  document
-    .getElementById("save-settings-btn")
-    .addEventListener("click", async () => {
+  const btn = document.getElementById("save-settings-btn");
+  if (btn)
+    btn.addEventListener("click", async () => {
       try {
         await api.updateSettings({
           exchange_rate: document.getElementById("exchange-rate-input").value,

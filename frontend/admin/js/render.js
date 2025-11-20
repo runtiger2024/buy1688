@@ -31,7 +31,7 @@ export function renderOrders(
       ? ` (指派給: ${order.operator_name})`
       : " (未指派)";
 
-    // [新增] 顯示直購收件資訊
+    // 直購收件資訊
     let locationHtml = "";
     let trackingLabel = "大陸物流單號";
 
@@ -56,7 +56,7 @@ export function renderOrders(
       locationHtml = `<strong>${warehouseName}</strong><br>${copyBtn}`;
     }
 
-    // [新增] 審核狀態按鈕
+    // 審核與憑證按鈕
     let voucherContent = "無";
     if (order.payment_status === "PENDING_REVIEW") {
       voucherContent = `<button class="btn btn-success btn-approve-order" data-id="${order.id}" style="font-size:0.8rem;">✅ 通過審核</button>`;
@@ -88,7 +88,7 @@ export function renderOrders(
             </div>`;
     }
 
-    // [新增] 商品詳細資訊預覽
+    // 商品詳細資訊預覽
     let productPreview = "";
     if (order.items && order.items.length > 0) {
       productPreview = `<div style="font-size:0.8rem; color:#666; max-width:200px;">`;
@@ -163,6 +163,7 @@ export function renderOrders(
     tbody.appendChild(tr);
   });
 
+  // 綁定按鈕事件
   document.querySelectorAll(".btn-approve-order").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (window.approveOrder) window.approveOrder(btn.dataset.id);
@@ -170,7 +171,6 @@ export function renderOrders(
   });
 }
 
-// ... (Other render functions) ...
 export function renderProducts(products, tbody) {
   tbody.innerHTML = "";
   if (products.length === 0) {
@@ -283,5 +283,51 @@ export function renderCategories(categories, tbody) {
       cat.id
     }">刪除</button></td>`;
     tbody.appendChild(tr);
+  });
+}
+
+// [新增] 匯出 renderCustomersTable 供 admin.js 使用
+export function renderCustomersTable(customers, tbody) {
+  tbody.innerHTML = "";
+  if (customers.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6">找不到符合條件的會員</td></tr>';
+    return;
+  }
+
+  customers.forEach((c) => {
+    const vipBadge = c.is_vip
+      ? '<span class="badge" style="background:gold; color:#333;">👑 VIP</span>'
+      : '<span class="badge badge-secondary">一般</span>';
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+            <td>${c.id}</td>
+            <td>${c.paopao_id} <br> ${vipBadge}</td>
+            <td>${c.email}</td>
+            <td>${c.phone || "-"}</td>
+            <td>${new Date(c.created_at).toLocaleDateString()}</td>
+            <td>
+                <button class="btn btn-small btn-primary btn-edit-customer" data-id="${
+                  c.id
+                }">編輯</button>
+                <button class="btn btn-small btn-warning btn-impersonate" data-id="${
+                  c.id
+                }">🔑 模擬</button>
+            </td>
+        `;
+    tbody.appendChild(tr);
+  });
+
+  // 綁定按鈕 (使用 window 上的全域函式，因為模組隔離)
+  tbody.querySelectorAll(".btn-edit-customer").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (window.openCustomerModal) window.openCustomerModal(btn.dataset.id);
+    });
+  });
+
+  tbody.querySelectorAll(".btn-impersonate").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (window.impersonate) window.impersonate(btn.dataset.id);
+    });
   });
 }
