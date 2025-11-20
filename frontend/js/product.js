@@ -17,10 +17,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupHamburgerMenu();
   setupCustomerAuth();
 
-  const navCartLink = document.getElementById("nav-cart-link");
+  // [修正] 使用正確的 ID 'nav-cart-link-desktop'
+  const navCartLink = document.getElementById("nav-cart-link-desktop");
   if (navCartLink) {
     navCartLink.addEventListener("click", (e) => {
       e.preventDefault();
+      // 商品頁沒有購物車 Modal，所以導向回首頁並開啟購物車
       window.location.href = "./index.html#cart-modal";
     });
   }
