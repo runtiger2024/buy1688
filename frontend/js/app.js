@@ -286,6 +286,18 @@ function setupCartModal() {
     });
   }
 
+  // [關鍵修正] 檢查網址是否有 #cart-modal，若有則自動開啟
+  if (window.location.hash === "#cart-modal") {
+    // 使用 setTimeout 確保 DOM 元素與事件都準備好
+    setTimeout(() => {
+      if (openBtn) {
+        openBtn.click();
+        // 開啟後清除 hash，讓網址變回乾淨的狀態 (可選)
+        history.replaceState(null, null, window.location.pathname);
+      }
+    }, 300);
+  }
+
   if (closeBtn) {
     closeBtn.addEventListener("click", () => {
       modal.style.display = "none";
