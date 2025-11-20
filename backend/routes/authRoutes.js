@@ -4,7 +4,7 @@ import Joi from "joi";
 import prisma from "../db.js";
 import { comparePassword, generateToken, hashPassword } from "../auth.js";
 import { sendRegistrationSuccessEmail } from "../emailService.js";
-import { authenticateToken } from "../middleware.js";
+import { authenticateToken, isAdmin } from "../middleware.js";
 
 const router = express.Router();
 
@@ -41,6 +41,41 @@ router.post("/login", async (req, res, next) => {
 router.get("/me", authenticateToken, (req, res) => {
   res.json(req.user);
 });
+
+// --- [新增] 管理員模擬客戶登入 (Impersonate) ---
+router.post(
+  "/admin/impersonate",
+  authenticateToken,
+  isAdmin,
+  async (req, res, next) => {
+    try {
+      const { customerId } = req.body;
+      if (!customerId) return res.status(400).json({ message: "缺少客戶 ID" });
+
+      const customer = await prisma.customers.findUnique({
+        where: { id: parseInt(customerId) },
+      });
+
+      if (!customer) return res.status(404).json({ message: "找不到該會員" });
+
+      // 生成該客戶的 Token (Role 強制設為 customer)
+      const token = generateToken({ ...customer, role: "customer" });
+
+      res.json({
+        token,
+        customer: {
+          id: customer.id,
+          paopao_id: customer.paopao_id,
+          email: customer.email,
+          phone: customer.phone,
+          is_vip: customer.is_vip,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 // --- 客戶註冊 ---
 router.post("/customer-register", async (req, res, next) => {

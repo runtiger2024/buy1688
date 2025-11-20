@@ -107,6 +107,13 @@ export const api = {
       body: JSON.stringify({ password }),
     }),
 
+  // [新增] 模擬客戶登入 (Admin Impersonation)
+  impersonateCustomer: (customerId) =>
+    fetchData("/auth/admin/impersonate", {
+      method: "POST",
+      body: JSON.stringify({ customerId }),
+    }),
+
   // 分類
   getCategories: () => fetchData("/admin/categories"),
   createCategory: (data) =>

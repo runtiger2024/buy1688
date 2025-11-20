@@ -14,7 +14,7 @@ import {
   sendPaymentReceivedEmail,
   sendOrderStatusUpdateEmail,
   sendNewOrderNotificationToStaff,
-  sendAssistOrderReceivedEmail, // [新增]
+  sendAssistOrderReceivedEmail,
 } from "../emailService.js";
 
 const router = express.Router();
@@ -243,7 +243,7 @@ router.post(
   }
 );
 
-// --- 建立代購訂單 (修改：支援新欄位與審核狀態) ---
+// --- 建立代購訂單 ---
 router.post(
   "/assist",
   authenticateToken,
@@ -556,10 +556,14 @@ router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
       payment_status,
       operator_id,
       domestic_tracking_number,
+      items, // [新增] 接收 items 陣列以支援修改
     } = req.body;
 
     // 先撈出舊資料以比對狀態
-    const oldOrder = await prisma.orders.findUnique({ where: { id } });
+    const oldOrder = await prisma.orders.findUnique({
+      where: { id },
+      include: { items: true },
+    });
     if (!oldOrder) return res.status(404).json({ message: "訂單不存在" });
 
     const data = {};
@@ -572,10 +576,55 @@ router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
       data.operator_id = operator_id ? parseInt(operator_id) : null;
     }
 
-    const updated = await prisma.orders.update({
-      where: { id },
-      data,
-      include: { items: true }, // 需要 items 來寄信
+    // [核心新增] 使用 Transaction 處理商品更新與金額重算
+    const result = await prisma.$transaction(async (tx) => {
+      // 如果有傳入 items，代表要覆蓋商品內容
+      if (items && Array.isArray(items) && items.length > 0) {
+        // 1. 刪除舊商品
+        await tx.orderItems.deleteMany({ where: { order_id: id } });
+
+        // 2. 準備新商品資料 & 計算新總價
+        const { rate, fee } = await getSettingsAndBankInfo(); // 重新獲取當前匯率設定
+        let newTotalTwd = 0;
+        let newTotalCny = 0;
+
+        const newItemsData = items.map((item) => {
+          const qty = parseInt(item.quantity);
+          const cost = parseFloat(item.snapshot_cost_cny); // 前端傳來的應為修改後的成本
+
+          // 重新計算單項台幣價格
+          const priceTwd = Math.ceil(cost * rate * (1 + fee));
+
+          newTotalCny += cost * qty;
+          newTotalTwd += priceTwd * qty;
+
+          return {
+            order_id: id,
+            snapshot_name: item.snapshot_name,
+            item_url: item.item_url,
+            item_spec: item.item_spec,
+            quantity: qty,
+            snapshot_cost_cny: cost,
+            snapshot_price_twd: priceTwd,
+            item_image_url: item.item_image_url,
+            client_remarks: item.client_remarks,
+          };
+        });
+
+        // 3. 寫入新商品
+        await tx.orderItems.createMany({ data: newItemsData });
+
+        // 4. 更新訂單總金額到 data 物件
+        data.total_amount_twd = newTotalTwd;
+        data.total_cost_cny = newTotalCny;
+      }
+
+      // 5. 執行訂單主體更新
+      return await tx.orders.update({
+        where: { id },
+        data,
+        include: { items: true },
+      });
     });
 
     // [新增] 審核通過邏輯：如果從 PENDING_REVIEW 變成 UNPAID，寄送付款通知
@@ -586,20 +635,21 @@ router.put("/:id", authenticateToken, isOperator, async (req, res, next) => {
       const { bankInfo } = await getSettingsAndBankInfo();
       const paymentDetails = {
         ...bankInfo,
-        note: `銀行：${bankInfo.bank_name}\n帳號：${bankInfo.bank_account}\n戶名：${bankInfo.bank_account_name}\n\n代購訂單 #${updated.id} 已審核通過！金額 TWD ${updated.total_amount_twd}。\n請匯款後上傳憑證。`,
+        // 提示金額可能已修正
+        note: `銀行：${bankInfo.bank_name}\n帳號：${bankInfo.bank_account}\n戶名：${bankInfo.bank_account_name}\n\n代購訂單 #${result.id} 已審核通過 (內容可能經管理員修正)！\n修正後金額 TWD ${result.total_amount_twd}。\n請匯款後上傳憑證。`,
       };
-      sendOrderConfirmationEmail(updated, paymentDetails).catch(console.error);
+      sendOrderConfirmationEmail(result, paymentDetails).catch(console.error);
     }
     // 原有的付款確認邏輯
     else if (payment_status === "PAID" && oldOrder.payment_status !== "PAID") {
-      sendPaymentReceivedEmail(updated).catch(console.error);
+      sendPaymentReceivedEmail(result).catch(console.error);
     }
     // 原有的狀態更新邏輯
-    else if (status && status !== updated.status) {
-      sendOrderStatusUpdateEmail(updated).catch(console.error);
+    else if (status && status !== result.status) {
+      sendOrderStatusUpdateEmail(result).catch(console.error);
     }
 
-    res.json(updated);
+    res.json(result);
   } catch (err) {
     next(err);
   }

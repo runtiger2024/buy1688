@@ -174,7 +174,6 @@ export function renderOrders(
   });
 }
 
-// ... (renderProducts, renderUsers, etc. 保持不變) ...
 export function renderProducts(products, tbody) {
   tbody.innerHTML = "";
   if (products.length === 0) {
@@ -300,5 +299,51 @@ export function renderCategories(categories, tbody) {
             </td>
         `;
     tbody.appendChild(tr);
+  });
+}
+
+export function renderCustomers(customers, tbody) {
+  tbody.innerHTML = "";
+  if (customers.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="6" class="text-center">無會員資料</td></tr>';
+    return;
+  }
+  customers.forEach((c) => {
+    const vipBadge = c.is_vip
+      ? '<span class="badge" style="background:gold; color:#333;">👑 VIP</span>'
+      : '<span class="badge badge-secondary">一般</span>';
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+              <td>${c.id}</td>
+              <td>${c.paopao_id} <br> ${vipBadge}</td>
+              <td>${c.email}</td>
+              <td>${c.phone || "-"}</td>
+              <td>${new Date(c.created_at).toLocaleDateString()}</td>
+              <td>
+                  <button class="btn btn-small btn-primary btn-edit-customer" data-id="${
+                    c.id
+                  }">
+                      <i class="fas fa-edit"></i> 編輯
+                  </button>
+                  <button class="btn btn-small btn-warning btn-impersonate" data-id="${
+                    c.id
+                  }" title="以客戶身分登入前台" style="margin-left:5px;">
+                      <i class="fas fa-user-secret"></i> 登入前台
+                  </button>
+              </td>
+          `;
+    tbody.appendChild(tr);
+  });
+
+  // [新增] 綁定模擬登入事件 (呼叫 admin.js 的全域函式)
+  document.querySelectorAll(".btn-impersonate").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (confirm("確定要登入此客戶的帳號嗎？\n這將會開啟一個新的前台視窗。")) {
+        // 呼叫 admin.js 中定義的全域函式
+        if (window.impersonateUser) window.impersonateUser(btn.dataset.id);
+      }
+    });
   });
 }
