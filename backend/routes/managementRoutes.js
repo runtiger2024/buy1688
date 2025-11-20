@@ -1,12 +1,19 @@
 // backend/routes/managementRoutes.js
 import express from "express";
 import prisma from "../db.js";
-import { authenticateToken, isAdmin } from "../middleware.js";
+import {
+  authenticateToken,
+  isAdmin,
+  isOperator,
+  canManageFinance,
+} from "../middleware.js";
 import { hashPassword } from "../auth.js";
+import Joi from "joi"; // 確保 Joi 有引入
 
 const router = express.Router();
 
 // --- 系統設定 (匯率/服務費/銀行/API整合/通知開關) ---
+
 router.get("/settings", async (req, res, next) => {
   try {
     const settings = await prisma.systemSettings.findMany();
@@ -23,99 +30,110 @@ router.get("/settings", async (req, res, next) => {
   }
 });
 
-router.put("/settings", authenticateToken, isAdmin, async (req, res, next) => {
-  try {
-    const {
-      exchange_rate,
-      service_fee,
-      bank_name,
-      bank_account,
-      bank_account_name,
-      // Email
-      email_api_key,
-      email_from_email,
-      // 發票
-      invoice_merchant_id,
-      invoice_api_key,
-      // 金流
-      payment_merchant_id,
-      payment_api_key,
-      // [新增] 通知開關
-      enable_email_register,
-      enable_email_order,
-      enable_email_payment,
-      enable_email_status,
-    } = req.body;
+router.put(
+  "/settings",
+  authenticateToken,
+  canManageFinance,
+  async (req, res, next) => {
+    try {
+      const {
+        exchange_rate,
+        service_fee,
+        bank_name,
+        bank_account,
+        bank_account_name,
+        // Email
+        email_api_key,
+        email_from_email,
+        // 發票
+        invoice_merchant_id,
+        invoice_api_key,
+        // 金流
+        payment_merchant_id,
+        payment_api_key,
+        // [新增] 通知開關
+        enable_email_register,
+        enable_email_order,
+        enable_email_payment,
+        enable_email_status,
+      } = req.body;
 
-    const updates = [];
+      const updates = [];
 
-    // 基礎設定
-    if (exchange_rate !== undefined)
-      updates.push({ key: "exchange_rate", value: String(exchange_rate) });
-    if (service_fee !== undefined)
-      updates.push({ key: "service_fee", value: String(service_fee) });
-    if (bank_name !== undefined)
-      updates.push({ key: "bank_name", value: bank_name });
-    if (bank_account !== undefined)
-      updates.push({ key: "bank_account", value: bank_account });
-    if (bank_account_name !== undefined)
-      updates.push({ key: "bank_account_name", value: bank_account_name });
+      // 基礎設定
+      if (exchange_rate !== undefined)
+        updates.push({ key: "exchange_rate", value: String(exchange_rate) });
+      if (service_fee !== undefined)
+        updates.push({ key: "service_fee", value: String(service_fee) });
+      if (bank_name !== undefined)
+        updates.push({ key: "bank_name", value: bank_name });
+      if (bank_account !== undefined)
+        updates.push({ key: "bank_account", value: bank_account });
+      if (bank_account_name !== undefined)
+        updates.push({ key: "bank_account_name", value: bank_account_name });
 
-    // Email 設定
-    if (email_api_key !== undefined)
-      updates.push({ key: "email_api_key", value: email_api_key });
-    if (email_from_email !== undefined)
-      updates.push({ key: "email_from_email", value: email_from_email });
+      // Email 設定
+      if (email_api_key !== undefined)
+        updates.push({ key: "email_api_key", value: email_api_key });
+      if (email_from_email !== undefined)
+        updates.push({ key: "email_from_email", value: email_from_email });
 
-    // 發票設定
-    if (invoice_merchant_id !== undefined)
-      updates.push({ key: "invoice_merchant_id", value: invoice_merchant_id });
-    if (invoice_api_key !== undefined)
-      updates.push({ key: "invoice_api_key", value: invoice_api_key });
+      // 發票設定
+      if (invoice_merchant_id !== undefined)
+        updates.push({
+          key: "invoice_merchant_id",
+          value: invoice_merchant_id,
+        });
+      if (invoice_api_key !== undefined)
+        updates.push({ key: "invoice_api_key", value: invoice_api_key });
 
-    // 金流設定
-    if (payment_merchant_id !== undefined)
-      updates.push({ key: "payment_merchant_id", value: payment_merchant_id });
-    if (payment_api_key !== undefined)
-      updates.push({ key: "payment_api_key", value: payment_api_key });
+      // 金流設定
+      if (payment_merchant_id !== undefined)
+        updates.push({
+          key: "payment_merchant_id",
+          value: payment_merchant_id,
+        });
+      if (payment_api_key !== undefined)
+        updates.push({ key: "payment_api_key", value: payment_api_key });
 
-    // [新增] 通知開關設定 (轉為字串儲存)
-    if (enable_email_register !== undefined)
-      updates.push({
-        key: "enable_email_register",
-        value: String(enable_email_register),
-      });
-    if (enable_email_order !== undefined)
-      updates.push({
-        key: "enable_email_order",
-        value: String(enable_email_order),
-      });
-    if (enable_email_payment !== undefined)
-      updates.push({
-        key: "enable_email_payment",
-        value: String(enable_email_payment),
-      });
-    if (enable_email_status !== undefined)
-      updates.push({
-        key: "enable_email_status",
-        value: String(enable_email_status),
-      });
+      // [新增] 通知開關設定 (轉為字串儲存)
+      if (enable_email_register !== undefined)
+        updates.push({
+          key: "enable_email_register",
+          value: String(enable_email_register),
+        });
+      if (enable_email_order !== undefined)
+        updates.push({
+          key: "enable_email_order",
+          value: String(enable_email_order),
+        });
+      if (enable_email_payment !== undefined)
+        updates.push({
+          key: "enable_email_payment",
+          value: String(enable_email_payment),
+        });
+      if (enable_email_status !== undefined)
+        updates.push({
+          key: "enable_email_status",
+          value: String(enable_email_status),
+        });
 
-    await Promise.all(
-      updates.map((setting) =>
-        prisma.systemSettings.upsert({
-          where: { key: setting.key },
-          update: { value: setting.value },
-          create: { key: setting.key, value: setting.value },
-        })
-      )
-    );
+      await Promise.all(
+        updates.map((setting) =>
+          prisma.systemSettings.upsert({
+            where: { key: setting.key },
+            update: { value: setting.value },
+            create: { key: setting.key, value: setting.value },
+          })
+        )
+      );
 
-    res.json({ message: "系統設定已更新" });
-  } catch (err) {
-    next(err);
+      res.json({ message: "系統設定已更新" });
+    } catch (err) {
+      next(err);
+    }
   }
-});
+);
 
 // --- 倉庫管理 ---
 router.get("/warehouses", async (req, res, next) => {
@@ -243,8 +261,11 @@ router.get("/users", authenticateToken, isAdmin, async (req, res, next) => {
         username: true,
         role: true,
         status: true,
-        email: true, // [新增]
-        receive_notifications: true, // [新增]
+        email: true,
+        receive_notifications: true,
+        // [新增] 彈性權限
+        can_manage_products: true,
+        can_manage_finance: true,
         created_at: true,
       },
       orderBy: { id: "asc" },
@@ -257,8 +278,16 @@ router.get("/users", authenticateToken, isAdmin, async (req, res, next) => {
 
 router.post("/users", authenticateToken, isAdmin, async (req, res, next) => {
   try {
-    // [修改] 接收 email 和 receive_notifications
-    const { username, password, role, email, receive_notifications } = req.body;
+    const {
+      username,
+      password,
+      role,
+      email,
+      receive_notifications,
+      can_manage_products, // 新增
+      can_manage_finance, // 新增
+    } = req.body;
+
     const hashedPassword = await hashPassword(password);
     const user = await prisma.users.create({
       data: {
@@ -268,6 +297,9 @@ router.post("/users", authenticateToken, isAdmin, async (req, res, next) => {
         status: "active",
         email: email || null,
         receive_notifications: receive_notifications || false,
+        // [新增] 彈性權限
+        can_manage_products: can_manage_products || false,
+        can_manage_finance: can_manage_finance || false,
       },
     });
     res.status(201).json(user);
@@ -278,7 +310,37 @@ router.post("/users", authenticateToken, isAdmin, async (req, res, next) => {
   }
 });
 
-// [新增] 更新用戶基本資料 (Email / Notification)
+// [新增] 更新用戶彈性權限
+router.put(
+  "/users/:id/permissions",
+  authenticateToken,
+  isAdmin,
+  async (req, res, next) => {
+    try {
+      const id = parseInt(req.params.id);
+      // 確保傳入的值是明確的布林值
+      const can_manage_products =
+        req.body.can_manage_products === true ||
+        req.body.can_manage_products === "true";
+      const can_manage_finance =
+        req.body.can_manage_finance === true ||
+        req.body.can_manage_finance === "true";
+
+      const updated = await prisma.users.update({
+        where: { id },
+        data: {
+          can_manage_products: can_manage_products,
+          can_manage_finance: can_manage_finance,
+        },
+      });
+      res.json(updated);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// [修改] 更新用戶基本資料 (Email / Notification)
 router.put(
   "/users/:id/info",
   authenticateToken,

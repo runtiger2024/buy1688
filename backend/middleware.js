@@ -1,3 +1,4 @@
+// backend/middleware.js
 import { verifyToken } from "./auth.js";
 
 /**
@@ -51,7 +52,6 @@ export function isOperator(req, res, next) {
   }
 }
 
-// --- 【第三批優化：新增客戶權限守衛】 ---
 /**
  * Customer 權限守衛
  * 僅限客戶本人 (role === 'customer')
@@ -63,4 +63,45 @@ export function isCustomer(req, res, next) {
     return res.status(403).json({ message: "錯誤: 權限不足 (需要客戶身分)" });
   }
 }
-// --- 【優化結束】 ---
+
+// --- 【優化：新增彈性權限守衛】 ---
+
+/**
+ * 檢查是否擁有商品管理權限
+ * (Admin 預設有，Operator 需勾選 can_manage_products)
+ */
+export function canManageProducts(req, res, next) {
+  if (req.user && req.user.role === "admin") return next();
+
+  if (
+    req.user &&
+    req.user.role === "operator" &&
+    req.user.can_manage_products === true
+  ) {
+    next();
+  } else {
+    return res
+      .status(403)
+      .json({ message: "錯誤: 權限不足 (需要商品管理權限)" });
+  }
+}
+
+/**
+ * 檢查是否擁有財務設定權限
+ * (Admin 預設有，Operator 需勾選 can_manage_finance)
+ */
+export function canManageFinance(req, res, next) {
+  if (req.user && req.user.role === "admin") return next();
+
+  if (
+    req.user &&
+    req.user.role === "operator" &&
+    req.user.can_manage_finance === true
+  ) {
+    next();
+  } else {
+    return res
+      .status(403)
+      .json({ message: "錯誤: 權限不足 (需要財務設定權限)" });
+  }
+}

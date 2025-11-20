@@ -133,6 +133,9 @@
                   <th>會員</th>
                   <th>總金額</th>
                   <th>預估利潤</th>
+                  <th>倉庫/地址</th>
+                  <th>憑證</th>
+                  <th>單號</th>
                   <th>狀態</th>
                   <th>付款</th>
                   <th>操作</th>
@@ -278,7 +281,7 @@
                 <tr>
                   <th>ID</th>
                   <th>帳號/Email</th>
-                  <th>角色</th>
+                  <th>角色/權限</th>
                   <th>通知</th>
                   <th>狀態</th>
                   <th>操作</th>
@@ -608,19 +611,9 @@
             />
           </div>
 
-          <div
-            class="form-group"
-            style="display: flex; align-items: center; gap: 10px"
-          >
-            <input type="checkbox" id="user-notify" style="width: auto" />
-            <label for="user-notify" style="margin: 0; cursor: pointer"
-              >接收新訂單 Email 通知</label
-            >
-          </div>
-
           <div class="form-group">
             <label id="user-password-label">密碼</label>
-            <input type="text" id="user-password" /><small
+            <input type="password" id="user-password" /><small
               id="user-password-hint"
             ></small>
           </div>
@@ -631,6 +624,70 @@
               <option value="admin">管理員</option>
             </select>
           </div>
+
+          <hr style="margin: 20px 0" />
+          <h4 style="margin: 0 0 15px 0; color: var(--info-color)">
+            <i class="fas fa-sliders-h"></i> 彈性權限 (Admin 預設擁有)
+          </h4>
+
+          <div
+            class="form-group"
+            style="
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              margin-bottom: 10px;
+            "
+          >
+            <input
+              type="checkbox"
+              id="user-can-manage-products"
+              style="width: auto"
+            />
+            <label
+              for="user-can-manage-products"
+              style="margin: 0; cursor: pointer"
+            >
+              <i class="fas fa-box"></i> 商品管理權限 (新增/編輯/下架)
+            </label>
+          </div>
+
+          <div
+            class="form-group"
+            style="
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              margin-bottom: 10px;
+            "
+          >
+            <input
+              type="checkbox"
+              id="user-can-manage-finance"
+              style="width: auto"
+            />
+            <label
+              for="user-can-manage-finance"
+              style="margin: 0; cursor: pointer"
+            >
+              <i class="fas fa-coins"></i> 財務設定權限 (匯率/費率/銀行)
+            </label>
+          </div>
+          <div
+            class="form-group"
+            style="
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              margin-top: 15px;
+            "
+          >
+            <input type="checkbox" id="user-notify" style="width: auto" />
+            <label for="user-notify" style="margin: 0; cursor: pointer"
+              >接收新訂單 Email 通知</label
+            >
+          </div>
+
           <div class="modal-footer">
             <button type="submit" class="btn btn-primary">儲存</button>
           </div>
@@ -672,7 +729,7 @@
           <div class="form-group bg-light p-10">
             <label>重置密碼</label
             ><input
-              type="text"
+              type="password"
               id="customer-password"
               placeholder="若不修改請留空"
             />

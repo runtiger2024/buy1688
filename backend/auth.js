@@ -1,7 +1,7 @@
+// backend/auth.js
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-// (【第六批優化】：這裡不需要 emailService，email 已移至 server.js)
 
 dotenv.config();
 
@@ -50,6 +50,9 @@ export function generateToken(user) {
       id: user.id,
       username: user.username,
       role: user.role,
+      // [新增] 彈性權限
+      can_manage_products: user.can_manage_products || false,
+      can_manage_finance: user.can_manage_finance || false,
     };
   } else {
     // 假設是 'customer'

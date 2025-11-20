@@ -120,27 +120,15 @@ export function renderOrders(
     tbody.appendChild(tr);
   });
 
-  // 綁定「查看/管理」按鈕事件
-  // 注意：這裡呼叫的是 admin.js 中定義的 openOrderModal
+  // 綁定「查看/管理」按鈕事件 (由 admin.js 處理)
   document.querySelectorAll(".btn-view-order").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (window.openOrderModal) {
-        // 確保 admin.js 已經掛載此函式 (雖然我們沒掛載到 window，但 admin.js 有事件委派邏輯)
-        // 其實 admin.js 的 loadOrders 裡有寫事件委派，但為了保險，這裡不需做什麼，
-        // 因為 admin.js 裡的 loadOrders 呼叫 renderOrders 後，
-        // 會再次搜尋 tr 並綁定事件 (請看 admin.js 第 220 行左右的邏輯)
-        // 但為了讓這裡獨立也能運作，建議依賴 admin.js 的事件綁定
-      }
-      // 觸發自定義事件通知 admin.js (如果 admin.js 沒有主動綁定的話)
-      // 但根據目前的 admin.js，它會主動綁定 .btn-view-order 嗎？
-      // 讓我們看 admin.js：它用的是 querySelectorAll('tr') 然後自己加按鈕。
-      // **關鍵修正**：原本的 admin.js 會「手動插入」一個按鈕。
-      // 既然我們現在在 render.js 裡已經寫好了按鈕，我們只要讓 admin.js 知道去綁定它即可。
+      // 這裡不需動作，讓 admin.js 的事件委派或後續處理邏輯去處理
     });
   });
 }
 
-// ... (renderProducts, renderUsers, etc. 保持不變，請直接複製下方的完整代碼) ...
+// ... (renderProducts) ...
 
 export function renderProducts(products, tbody) {
   tbody.innerHTML = "";
@@ -186,11 +174,12 @@ export function renderProducts(products, tbody) {
   });
 }
 
+// [核心修改] renderUsers 函數：新增彈性權限顯示邏輯
 export function renderUsers(users, tbody, currentUser) {
   tbody.innerHTML = "";
   if (users.length === 0) {
     tbody.innerHTML =
-      '<tr><td colspan="5" class="text-center">目前沒有其他用戶。</td></tr>';
+      '<tr><td colspan="6" class="text-center">目前沒有其他用戶。</td></tr>';
     return;
   }
   users.forEach((user) => {
@@ -198,15 +187,38 @@ export function renderUsers(users, tbody, currentUser) {
     const isSelf = currentUser && currentUser.id === user.id;
     const isUserActive = user.status === "active";
 
+    // --- 權限標籤邏輯 ---
+    let permissionTags = [];
+    if (user.role === "admin") {
+      permissionTags.push(
+        '<span class="badge badge-info" style="font-size:0.75rem; background:#17a2b8;">管理員</span>'
+      );
+    }
+    // Operator 才會顯示彈性權限 (Admin 預設擁有，不需要重複顯示)
+    if (user.role === "operator") {
+      if (user.can_manage_products)
+        permissionTags.push(
+          '<span class="badge badge-secondary" style="font-size:0.75rem; background:#6c757d; color:white;">商品管理</span>'
+        );
+      if (user.can_manage_finance)
+        permissionTags.push(
+          '<span class="badge badge-secondary" style="font-size:0.75rem; background:#ffc107; color:#333;">財務設定</span>'
+        );
+    }
+    const permissionHtml = permissionTags.join(" ");
+
+    // --- 角色下拉選單邏輯 ---
     let roleHtml = "";
     if (isSelf) {
+      // 自己的角色不可修改
       roleHtml = `<span class="badge badge-info">${
         user.role === "admin" ? "管理員" : "操作員"
       } (自己)</span>`;
     } else {
+      // 其他用戶的角色可修改
       roleHtml = `<select class="user-role-select form-control-sm" data-id="${
         user.id
-      }" style="padding:2px;">
+      }" style="padding:2px; font-size:0.9rem;">
             <option value="operator" ${
               user.role === "operator" ? "selected" : ""
             }>操作員</option>
@@ -216,45 +228,56 @@ export function renderUsers(users, tbody, currentUser) {
          </select>`;
     }
 
+    // --- 狀態按鈕邏輯 ---
+    const toggleButtonHtml = isSelf
+      ? '<span class="text-muted">-</span>'
+      : `
+        <button class="btn btn-small btn-primary btn-edit-user" data-id="${
+          user.id
+        }">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button class="btn btn-small ${
+          isUserActive ? "btn-danger" : "btn-success"
+        } btn-toggle-status" 
+                data-id="${user.id}" data-new-status="${
+          isUserActive ? "inactive" : "active"
+        }">
+            ${
+              isUserActive
+                ? '<i class="fas fa-ban"></i>'
+                : '<i class="fas fa-check"></i>'
+            }
+        </button>
+    `;
+
     tr.innerHTML = `
             <td>${user.id}</td>
-            <td>${user.username}</td>
+            <td>
+                <strong>${user.username}</strong>
+                <div style="font-size:0.8rem; color:#6c757d;">${
+                  user.email || "-"
+                }</div>
+                <div style="margin-top:5px;">${permissionHtml}</div>
+            </td>
             <td>${roleHtml}</td>
             <td>
-                ${
-                  isUserActive
-                    ? '<span class="badge badge-success">正常</span>'
-                    : '<span class="badge badge-danger">停權</span>'
-                }
+                <small>${user.receive_notifications ? "開啟" : "關閉"}</small>
             </td>
             <td>
-                ${
-                  !isSelf
-                    ? `
-                    <button class="btn btn-small btn-primary btn-edit-user" data-id="${
-                      user.id
-                    }"><i class="fas fa-edit"></i></button>
-                    <button class="btn btn-small ${
-                      isUserActive ? "btn-danger" : "btn-success"
-                    } btn-toggle-status" 
-                            data-id="${user.id}" data-new-status="${
-                        isUserActive ? "inactive" : "active"
-                      }">
-                        ${
-                          isUserActive
-                            ? '<i class="fas fa-ban"></i>'
-                            : '<i class="fas fa-check"></i>'
-                        }
-                    </button>
-                `
-                    : '<span class="text-muted">-</span>'
-                }
+                <span class="badge ${
+                  isUserActive ? "badge-success" : "badge-danger"
+                }">${isUserActive ? "正常" : "停權"}</span>
+            </td>
+            <td>
+                ${toggleButtonHtml}
             </td>
         `;
     tbody.appendChild(tr);
   });
 }
 
+// ... (renderWarehouses) ...
 export function renderWarehouses(warehousesArray, tbody) {
   tbody.innerHTML = "";
   if (warehousesArray.length === 0) {
@@ -284,6 +307,7 @@ export function renderWarehouses(warehousesArray, tbody) {
   });
 }
 
+// ... (renderCategories) ...
 export function renderCategories(categories, tbody) {
   tbody.innerHTML = "";
   if (categories.length === 0) {
@@ -310,6 +334,7 @@ export function renderCategories(categories, tbody) {
   });
 }
 
+// ... (renderCustomers) ...
 export function renderCustomers(customers, tbody) {
   tbody.innerHTML = "";
   if (customers.length === 0) {

@@ -57,6 +57,10 @@ model Users {
   // 用於接收通知的 Email 與開關
   email                 String?
   receive_notifications Boolean  @default(false)
+  
+  // [新增] 彈性權限
+  can_manage_products   Boolean  @default(false)
+  can_manage_finance    Boolean  @default(false)
 
   created_at            DateTime @default(now())
 
@@ -111,10 +115,12 @@ model Orders {
   status                   OrderStatus @default(Pending)
   type                     OrderType   @default(Standard)
   operator_id              Int?
-  warehouse_id             Int?        // 直購訂單時可能為 null
+  warehouse_id             Int?
+  // 直購訂單時可能為 null
   notes                    String?
   payment_voucher_url      String?     // 匯款憑證 URL
-  domestic_tracking_number String?     // 大陸境內或台灣物流單號
+  domestic_tracking_number String?
+  // 大陸境內或台灣物流單號
   created_at               DateTime    @default(now())
 
   payment_method String?
@@ -127,7 +133,7 @@ model Orders {
 
   share_token String @unique @default(uuid())
 
-  operator  Users?      @relation(fields: [operator_id], references: [id])
+  operator  Users? @relation(fields: [operator_id], references: [id])
   warehouse Warehouses? @relation(fields: [warehouse_id], references: [id])
   items     OrderItems[]
 

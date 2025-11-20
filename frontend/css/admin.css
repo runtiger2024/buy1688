@@ -311,16 +311,26 @@ body.login-body {
   opacity: 0.8;
 }
 
+/* [優化] 側邊欄活躍/懸浮樣式 */
 .nav-link:hover,
 .nav-link.active {
   background-color: var(--sidebar-active);
   border-left-color: var(--primary-color);
   color: #fff;
+  /* 增加 inset shadow */
+  box-shadow: inset 5px 0 0 rgba(255, 80, 0, 0.3);
 }
 .nav-link:hover i,
 .nav-link.active i {
   opacity: 1;
 }
+
+.nav-link.active {
+  /* 讓 active 連結的字體更突出 */
+  font-weight: 600;
+  background-color: #3f516a; /* 稍微更亮的背景 */
+}
+/* [優化結束] */
 
 .sidebar-footer {
   padding: 20px;
@@ -389,13 +399,18 @@ body.login-body {
   }
 }
 
+/* [優化] Section 標頭 */
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 25px;
-  border-bottom: 2px solid var(--primary-color);
-  padding-bottom: 10px;
+
+  /* 實現全寬吸頂效果 */
+  border-bottom: none;
+  background-color: white;
+  padding: 15px 30px;
+  margin: -20px -30px 25px -30px; /* 抵銷 main-content padding */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 .section-header h2 {
   margin: 0;
@@ -404,10 +419,15 @@ body.login-body {
   display: flex;
   align-items: center;
   gap: 10px;
+
+  /* 突出標題 */
+  padding-left: 10px;
+  border-left: 4px solid var(--primary-color);
 }
 .section-header h2 i {
   color: var(--primary-color);
 }
+/* [優化結束] */
 
 /* =========================================
    3. 儀表板元件 (Components)
@@ -420,18 +440,24 @@ body.login-body {
   gap: 20px;
 }
 
+/* [優化] Stats Card 樣式 */
 .stat-card {
   background: white;
   padding: 25px;
   border-radius: 10px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  border-left: 5px solid var(--primary-color);
+  /* 邊框加粗 */
+  border-left: 6px solid var(--primary-color);
   transition: transform 0.2s, box-shadow 0.2s;
 }
 .stat-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+  /* 更明顯的懸浮 */
+  transform: translateY(-5px);
+  /* 更深的陰影 */
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.15);
 }
+/* [優化結束] */
+
 .stat-card h4 {
   margin: 0 0 15px 0;
   color: var(--text-muted);
@@ -614,7 +640,7 @@ body.login-body {
   font-size: 1.1rem;
 }
 
-/* 設定卡片 (Settings Card) */
+/* [優化] 設定卡片 (Settings Card) */
 .settings-card {
   background: white;
   padding: 30px;
@@ -622,18 +648,27 @@ body.login-body {
   margin-bottom: 25px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   border: 1px solid #f1f3f5;
+  /* 新增左側邊條 */
+  border-left: 4px solid var(--info-color);
 }
 .settings-card h3 {
   margin-top: 0;
-  border-bottom: 1px solid #eee;
+  /* 改為深色，虛線分隔 */
+  color: var(--text-dark);
+  border-bottom: 1px dashed #eee;
   padding-bottom: 15px;
   margin-bottom: 20px;
-  color: var(--primary-color);
   font-size: 1.2rem;
   display: flex;
   align-items: center;
   gap: 10px;
 }
+.settings-card h3 i {
+  /* 圖標使用主色 */
+  color: var(--primary-color);
+}
+/* [優化結束] */
+
 .settings-actions {
   text-align: right;
   margin-top: 20px;
@@ -803,5 +838,10 @@ body.login-body {
   }
   .form-row-2 {
     grid-template-columns: 1fr;
+  }
+  /* 手機版標題欄也調整 */
+  .section-header {
+    margin: -15px -15px 20px -15px;
+    padding: 10px 15px;
   }
 }

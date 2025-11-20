@@ -76,6 +76,13 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // [新增] 更新用戶彈性權限
+  updateUserPermissions: (id, data) =>
+    fetchData(`/admin/users/${id}/permissions`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
   updateUserStatus: (id, status) =>
     fetchData(`/admin/users/${id}/status`, {
       method: "PUT",
@@ -105,14 +112,13 @@ export const api = {
       body: JSON.stringify({ password }),
     }),
 
-  // [新增] 模擬客戶登入 (By DB ID)
+  // 模擬客戶登入
   impersonateCustomer: (customerId) =>
     fetchData("/auth/admin/impersonate", {
       method: "POST",
       body: JSON.stringify({ customerId }),
     }),
 
-  // [新增] 模擬客戶登入 (By Paopao ID)
   impersonateCustomerByPaopaoId: (paopaoId) =>
     fetchData("/auth/admin/impersonate", {
       method: "POST",

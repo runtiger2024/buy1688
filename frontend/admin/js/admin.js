@@ -226,10 +226,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         <small>${user.role === "admin" ? "管理員" : "操作員"}</small>
     `;
 
+    // 根據彈性權限隱藏 Admin Only 區塊 (如果不是 Admin)
     if (user.role !== "admin") {
-      document
-        .querySelectorAll('[data-role="admin"]')
-        .forEach((el) => (el.style.display = "none"));
+      document.querySelectorAll('[data-role="admin"]').forEach((el) => {
+        // 只有在沒有對應權限時才隱藏
+        const target = el.dataset.target;
+        if (target === "products-section" && !user.can_manage_products) {
+          el.style.display = "none";
+        } else if (target === "settings-section" && !user.can_manage_finance) {
+          el.style.display = "none";
+        } else if (
+          [
+            "customers-section",
+            "categories-section",
+            "warehouses-section",
+            "users-section",
+          ].includes(target)
+        ) {
+          el.style.display = "none"; // 這些區塊仍只對 Admin 開放
+        }
+      });
     }
   }
 
@@ -265,6 +281,7 @@ function setupNavigation() {
       const targetSection = document.getElementById(targetId);
       if (targetSection) targetSection.classList.add("active");
 
+      // 載入對應區塊的資料
       if (targetId === "orders-section") {
         currentHasVoucherFilter = false;
         loadOrders();
@@ -289,7 +306,7 @@ async function loadStats() {
     const stats = await api.getStats();
 
     const rateInput = document.getElementById("exchange-rate-input");
-    const exchangeRate = parseFloat(rateInput.value) || 4.5;
+    const exchangeRate = parseFloat(rateInput?.value) || 4.5;
     const totalCostTWD = stats.totalCostCNY * exchangeRate;
     const totalProfitTWD = stats.totalRevenueTWD - totalCostTWD;
 
@@ -351,7 +368,7 @@ async function loadOrders() {
     allOrders = await api.getOrders(params);
 
     const rateInput = document.getElementById("exchange-rate-input");
-    const exchangeRate = parseFloat(rateInput.value) || 4.5;
+    const exchangeRate = parseFloat(rateInput?.value) || 4.5;
     const userRole = getUser().role;
 
     // 使用 render.js 的函式渲染列表
@@ -963,15 +980,21 @@ async function loadUsers() {
     allUsers = users;
     const currentUser = getUser();
     renderUsers(users, tbody, currentUser);
+
+    // [修改] 篩選指派操作員：必須是 active 且是 admin 或擁有商品管理權限
     availableOperators = users.filter(
-      (u) => u.role === "operator" && u.status === "active"
+      (u) =>
+        u.status === "active" && (u.role === "admin" || u.can_manage_products)
     );
 
-    tbody.querySelectorAll(".btn-toggle-user").forEach((btn) => {
+    tbody.querySelectorAll(".btn-toggle-status").forEach((btn) => {
       btn.addEventListener("click", async () => {
-        const newStatus =
-          btn.dataset.status === "active" ? "inactive" : "active";
-        if (confirm(`確定要變更狀態為 ${newStatus} 嗎?`)) {
+        const newStatus = btn.dataset.newStatus;
+        if (
+          confirm(
+            `確定要變更狀態為 ${newStatus === "active" ? "正常" : "停權"} 嗎?`
+          )
+        ) {
           await api.updateUserStatus(btn.dataset.id, newStatus);
           loadUsers();
         }
@@ -1023,15 +1046,36 @@ function setupUserEvents() {
       const receiveNotifications =
         document.getElementById("user-notify").checked;
 
+      // [新增] 取得彈性權限狀態
+      const canManageProducts = document.getElementById(
+        "user-can-manage-products"
+      ).checked;
+      const canManageFinance = document.getElementById(
+        "user-can-manage-finance"
+      ).checked;
+
       try {
         if (id) {
+          // 1. 更新基本資訊 (Email/Notification)
           await api.updateUserInfo(id, {
             email,
             receive_notifications: receiveNotifications,
           });
+
+          // 2. 更新彈性權限
+          if (role !== "admin") {
+            // Admin 的權限由後端自動處理，這裡只更新 Operator
+            await api.updateUserPermissions(id, {
+              can_manage_products: canManageProducts,
+              can_manage_finance: canManageFinance,
+            });
+          }
+
+          // 3. 更新角色 (如果變更了)
           const originalUser = allUsers.find((u) => u.id == id);
           if (originalUser.role !== role) await api.updateUserRole(id, role);
           if (password) await api.updateUserPassword(id, password);
+
           alert("更新成功");
         } else {
           if (!password) {
@@ -1044,6 +1088,9 @@ function setupUserEvents() {
             role,
             email,
             receive_notifications: receiveNotifications,
+            // [新增] 傳遞彈性權限
+            can_manage_products: canManageProducts,
+            can_manage_finance: canManageFinance,
           });
           alert("建立成功");
         }
@@ -1062,32 +1109,70 @@ function openUserModal(id) {
   const title = document.getElementById("user-modal-title");
   const passHint = document.getElementById("user-password-hint");
   const usernameInput = document.getElementById("user-username");
+  const passwordInput = document.getElementById("user-password");
 
+  // [新增] 彈性權限勾選框
+  const productCheck = document.getElementById("user-can-manage-products");
+  const financeCheck = document.getElementById("user-can-manage-finance");
+  const roleSelect = document.getElementById("user-role");
+
+  // 重設所有欄位/狀態
   document.getElementById("user-email").value = "";
   document.getElementById("user-notify").checked = false;
+  productCheck.checked = false;
+  financeCheck.checked = false;
+
+  const permissionChecks = [productCheck, financeCheck];
 
   if (id) {
     const user = allUsers.find((u) => u.id == id);
     if (!user) return;
+
     title.textContent = "編輯用戶";
     document.getElementById("user-id").value = user.id;
     usernameInput.value = user.username;
     usernameInput.disabled = true;
-    document.getElementById("user-role").value = user.role;
+    roleSelect.value = user.role;
     document.getElementById("user-email").value = user.email || "";
     document.getElementById("user-notify").checked = user.receive_notifications;
-    document.getElementById("user-password").required = false;
-    document.getElementById("user-password").placeholder = "不修改請留空";
+
+    // [新增] 載入彈性權限狀態
+    productCheck.checked = user.can_manage_products;
+    financeCheck.checked = user.can_manage_finance;
+
+    passwordInput.required = false;
+    passwordInput.type = "password";
+    passwordInput.placeholder = "不修改請留空";
     passHint.textContent = "重置密碼";
+
+    // [新增] 權限鎖定邏輯：Admin 無需設置彈性權限
+    const isDisabled = user.role === "admin";
+    permissionChecks.forEach((input) => (input.disabled = isDisabled));
   } else {
     title.textContent = "建立新用戶";
     usernameInput.disabled = false;
-    document.getElementById("user-password").required = true;
-    document.getElementById("user-password").placeholder = "密碼";
+    passwordInput.required = true;
+    passwordInput.type = "text"; // 建立新用戶時先用 text 方便輸入
+    passwordInput.placeholder = "密碼";
     passHint.textContent = "";
+    roleSelect.value = "operator";
+    permissionChecks.forEach((input) => (input.disabled = false));
   }
 
   document.getElementById("user-modal").style.display = "block";
+
+  // [新增] 監聽角色選擇器，如果選了 Admin，鎖定所有權限勾選 (防止 Operator 誤選)
+  if (roleSelect) {
+    roleSelect.onchange = function () {
+      const isDisabled = this.value === "admin";
+      permissionChecks.forEach((input) => {
+        input.disabled = isDisabled;
+        // 如果切換到 Admin，也將勾選狀態設為 true (Admin 預設擁有所有權限)
+        if (isDisabled) input.checked = true;
+        else input.checked = false; // 切回 Operator 清空，讓用戶重新勾選
+      });
+    };
+  }
 }
 
 // --- 11. 會員管理 (Customers) ---
